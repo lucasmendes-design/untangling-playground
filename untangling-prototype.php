@@ -20,6 +20,13 @@ function untangling_is_standalone() {
 	return defined( 'UNTANGLING_STANDALONE' ) && UNTANGLING_STANDALONE;
 }
 
+// Locked demos pin one scenario: Prototype controls are hidden and the
+// untangling_* URL switches are ignored. Optional UNTANGLING_FORCE_*
+// constants (per toggle, in the site config) override the persisted options.
+function untangling_is_locked_demo() {
+	return defined( 'UNTANGLING_LOCKED_DEMO' ) && UNTANGLING_LOCKED_DEMO;
+}
+
 function untangling_standalone_link_guard() {
 	if ( ! untangling_is_standalone() ) {
 		return;
@@ -177,7 +184,10 @@ add_action( 'init', function () {
  * Switch with ?untangling_variant=submenu|plain (persisted), or from the Hosting page.
  */
 function untangling_get_variant() {
-	if ( isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'submenu', 'plain' ), true ) ) {
+	if ( defined( 'UNTANGLING_FORCE_VARIANT' ) ) {
+		return UNTANGLING_FORCE_VARIANT;
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'submenu', 'plain' ), true ) ) {
 		update_option( 'untangling_variant', $_GET['untangling_variant'] );
 	}
 	return get_option( 'untangling_variant', 'submenu' );
@@ -190,7 +200,10 @@ function untangling_get_variant() {
  * Switch with ?untangling_site_type=atomic|simple (persisted).
  */
 function untangling_get_site_type() {
-	if ( isset( $_GET['untangling_site_type'] ) && in_array( $_GET['untangling_site_type'], array( 'atomic', 'simple' ), true ) ) {
+	if ( defined( 'UNTANGLING_FORCE_SITE_TYPE' ) ) {
+		return UNTANGLING_FORCE_SITE_TYPE;
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_site_type'] ) && in_array( $_GET['untangling_site_type'], array( 'atomic', 'simple' ), true ) ) {
 		update_option( 'untangling_site_type', $_GET['untangling_site_type'] );
 	}
 	return get_option( 'untangling_site_type', untangling_default_site_type() );
@@ -213,7 +226,10 @@ function untangling_is_simple() {
  * from the Prototype controls.
  */
 function untangling_get_marketplace_mode() {
-	if ( isset( $_GET['untangling_marketplace'] ) && in_array( $_GET['untangling_marketplace'], array( 'fullscreen', 'split', 'tabs' ), true ) ) {
+	if ( defined( 'UNTANGLING_FORCE_MARKETPLACE' ) ) {
+		return UNTANGLING_FORCE_MARKETPLACE;
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_marketplace'] ) && in_array( $_GET['untangling_marketplace'], array( 'fullscreen', 'split', 'tabs' ), true ) ) {
 		update_option( 'untangling_marketplace', $_GET['untangling_marketplace'] );
 	}
 	return get_option( 'untangling_marketplace', 'fullscreen' );
@@ -231,7 +247,10 @@ function untangling_marketplace_url( $tab = 'themes', $args = array() ) {
  * Switch with ?untangling_plan_filter=included|dropdown (persisted).
  */
 function untangling_get_plan_filter() {
-	if ( isset( $_GET['untangling_plan_filter'] ) && in_array( $_GET['untangling_plan_filter'], array( 'included', 'dropdown' ), true ) ) {
+	if ( defined( 'UNTANGLING_FORCE_PLAN_FILTER' ) ) {
+		return UNTANGLING_FORCE_PLAN_FILTER;
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_plan_filter'] ) && in_array( $_GET['untangling_plan_filter'], array( 'included', 'dropdown' ), true ) ) {
 		update_option( 'untangling_plan_filter', $_GET['untangling_plan_filter'] );
 	}
 	return get_option( 'untangling_plan_filter', 'included' );
@@ -415,6 +434,7 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 				'marketplace'  => untangling_get_marketplace_mode(),
 				'planFilter'   => untangling_get_plan_filter(),
 				'planOverride' => (bool) get_option( 'untangling_plan_override' ),
+				'locked'       => untangling_is_locked_demo(),
 				'plan'         => untangling_get_plan(),
 				'planMeta'     => untangling_get_plan_meta(),
 				'siteSlug'     => untangling_get_site_slug(),
@@ -1689,7 +1709,7 @@ function untangling_app_js() {
 					'learn-more' === tab.name && el( HelpView )
 				);
 			} ),
-			el( ProtoPanel, { plancard: plancard, onPlancard: choosePlancard, mysite: mysite, onMysite: chooseMysite } )
+			! window.untanglingData.locked && el( ProtoPanel, { plancard: plancard, onPlancard: choosePlancard, mysite: mysite, onMysite: chooseMysite } )
 		);
 	}
 
@@ -4807,6 +4827,9 @@ function untangling_marketplace_js() {
  * ---------------------------------------------------------------------- */
 
 add_action( 'admin_footer', function () {
+	if ( untangling_is_locked_demo() ) {
+		return;
+	}
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 	if ( $screen && 'toplevel_page_untangling-hosting' === $screen->id ) {
 		return;
