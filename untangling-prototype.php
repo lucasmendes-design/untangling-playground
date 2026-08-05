@@ -39,7 +39,8 @@ function untangling_standalone_link_guard() {
 			if ( ! toast ) {
 				toast = document.createElement( 'div' );
 				toast.setAttribute( 'role', 'status' );
-				toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:1000000;background:#1e1e1e;color:#fff;padding:12px 20px;border-radius:4px;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);transition:opacity .3s;max-width:90vw;text-align:center;';
+				// Top-center: Playground's own toolbar overlays the bottom of the viewport.
+				toast.style.cssText = 'position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:1000000;background:#1e1e1e;color:#fff;padding:12px 20px;border-radius:4px;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25);transition:opacity .3s;max-width:90vw;text-align:center;';
 				document.body.appendChild( toast );
 			}
 			toast.textContent = <?php echo wp_json_encode( __( 'This links to the Hosting Dashboard side of the prototype, which is not part of this demo.' ) ); ?>;
@@ -2548,9 +2549,7 @@ function untangling_themes_banner() {
 	}
 	.wpcom-themes-banner {
 		background-color: #dbe0f9;
-		/* Vertical metrics mirror .untangling-upsell-hero (the dark plugins
-		   hero) so the two Marketplace banners come out the same height. */
-		padding: 48px 32px;
+		padding: 64px 32px;
 		border-radius: 10px;
 		margin-bottom: 25px;
 		background-image: url(<?php echo esc_url( $assets . '/banner-background.webp' ); ?>);
@@ -2560,7 +2559,13 @@ function untangling_themes_banner() {
 	}
 	.wpcom-themes-banner.hidden { display: none; }
 	.wpcom-themes-banner__content { width: 490px; }
-	.wpcom-themes-banner__content img { height: 21px; width: auto; display: block; }
+	/* Tabs-mode plans upsell: vertical metrics mirror .untangling-upsell-hero
+	   (the dark plugins hero) so the two Marketplace banners come out the same
+	   height. The non-tabs discovery banner keeps production geometry. */
+	.wpcom-themes-banner.is-upsell { padding-top: 48px; padding-bottom: 48px; }
+	.wpcom-themes-banner.is-upsell .wpcom-themes-banner__content img { height: 21px; width: auto; display: block; }
+	.wpcom-themes-banner.is-upsell a,
+	.wpcom-themes-banner.is-upsell a:visited { padding-top: 10px; padding-bottom: 10px; margin-top: 24px; }
 	/* themes.php: the installed-themes search moves below the banner (see
 	   the script), so the banner tops both this page and the Plugins page
 	   at the same spot under the page title. */
@@ -2572,12 +2577,15 @@ function untangling_themes_banner() {
 	.wpcom-themes-banner h3 { font-family: Recoleta, serif; font-size: 32px; line-height: 40px; color: #101517; }
 	.wpcom-themes-banner p { font-size: 16px; line-height: 24px; color: #2c3338; }
 	.wpcom-themes-banner a,
-	.wpcom-themes-banner a:visited { background-color: #101517; color: #fff; border-radius: 4px; padding: 10px 24px; font-size: 14px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 24px; }
+	.wpcom-themes-banner a:visited { background-color: #101517; color: #fff; border-radius: 4px; padding: 14px 24px; font-size: 14px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 17px; }
 	.wpcom-themes-banner a:hover,
 	.wpcom-themes-banner a:focus { background-color: #1d2327; color: #fff; }
 	@media ( max-width: 1260px ) {
 		.wpcom-themes-banner { padding: 32px; background-size: 400px; }
 		.wpcom-themes-banner a { padding: 10px 20px; margin-top: 12px; }
+		.wpcom-themes-banner.is-upsell { padding-top: 32px; padding-bottom: 32px; }
+		.wpcom-themes-banner.is-upsell a,
+		.wpcom-themes-banner.is-upsell a:visited { padding: 10px 20px; margin-top: 12px; }
 	}
 	@media ( max-width: 1120px ) {
 		.wpcom-themes-banner { background-position: center right -150px; }
@@ -2588,6 +2596,7 @@ function untangling_themes_banner() {
 	}
 	@media ( max-width: 782px ) {
 		.wpcom-themes-banner { padding: 24px; }
+		.wpcom-themes-banner.is-upsell { padding-top: 24px; padding-bottom: 24px; }
 		.wpcom-themes-banner h3,
 		.wpcom-themes-banner p { margin: 8px 0; }
 		.wpcom-themes-banner h3 { font-size: 24px; line-height: 32px; }
@@ -2603,7 +2612,7 @@ function untangling_themes_banner() {
 
 		themeBrowser.insertAdjacentHTML(
 			'beforebegin',
-			'<div class="wpcom-themes-banner">' +
+			'<div class="wpcom-themes-banner<?php echo $is_tabs ? ' is-upsell' : ''; ?>">' +
 				'<div class="wpcom-themes-banner__content">' +
 					'<img src="<?php echo esc_url( $assets . '/wpcom-logo.svg' ); ?>" alt="WordPress.com">' +
 					'<h3><?php echo esc_js( $heading ); ?></h3>' +
