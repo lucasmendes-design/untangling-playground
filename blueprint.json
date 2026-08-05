@@ -9,7 +9,7 @@
 		"wp": "latest"
 	},
 	"login": true,
-	"landingPage": "/wp-admin/admin.php?page=untangling-hosting",
+	"landingPage": "/wp-admin/index.php",
 	"steps": [
 		{
 			"step": "mkdir",
