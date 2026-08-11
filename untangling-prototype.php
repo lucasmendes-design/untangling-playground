@@ -90,12 +90,32 @@ function untangling_get_site_slug() {
 	return defined( 'UNTANGLING_SITE_SLUG' ) ? UNTANGLING_SITE_SLUG : 'aperture-diaries.com';
 }
 
+// Real site status, in MSD's site-visibility terms + Badge intents
+// (settings-site-visibility/summary.tsx): Public → success, Private →
+// neutral. Coming soon (warning) has no core equivalent on Studio sites.
+function untangling_get_visibility() {
+	if ( (int) get_option( 'blog_public', 1 ) < 0 ) {
+		return array( 'label' => 'Private', 'tone' => 'neutral' );
+	}
+	return array( 'label' => 'Public', 'tone' => 'success' );
+}
+
 function untangling_get_primary_domain() {
 	return defined( 'UNTANGLING_PRIMARY_DOMAIN' ) ? UNTANGLING_PRIMARY_DOMAIN : 'aperture-diaries.com';
 }
 
 function untangling_get_domain_upsell() {
 	return defined( 'UNTANGLING_DOMAIN_UPSELL' ) ? UNTANGLING_DOMAIN_UPSELL : 'aperture.blog';
+}
+
+// The MSD upsell diamond (client/dashboard/components/icons → `upsell`) for
+// PHP-rendered upgrade CTAs; the React side renders the same path from
+// OV_ICONS.upsell. The 24×24 icon has heavy built-in padding (the glyph is
+// only ~14×12), so the viewBox is cropped to the glyph here — core .button
+// labels sit right next to the icon box and the padding read as misalignment.
+// Sized by the .untangling-upsell-diamond global rule.
+function untangling_upsell_diamond() {
+	return '<svg class="untangling-upsell-diamond" xmlns="http://www.w3.org/2000/svg" viewBox="4.4 5.4 15.2 13.2" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
 }
 
 // Plan-dependent card data for the WordPress.com page.
@@ -317,10 +337,22 @@ add_action( 'admin_init', function () {
 		$installed[] = sanitize_key( $_GET['untangling_install_plugin'] );
 		update_option( 'untangling_mkt_installed', array_values( array_unique( $installed ) ) );
 	}
+	// Launchpad progress: the accordion persists done/skipped tasks with a
+	// background GET so the sidebar submenu and page tabs can drop the
+	// Launchpad entry once everything is complete.
+	if ( isset( $_GET['untangling_lp_done'] ) ) {
+		$done = array_values( array_filter( array_map( 'sanitize_key', explode( ',', (string) wp_unslash( $_GET['untangling_lp_done'] ) ) ) ) );
+		update_option( 'untangling_lp_done', $done );
+	}
+	if ( isset( $_GET['untangling_lp_complete'] ) ) {
+		update_option( 'untangling_lp_complete', $_GET['untangling_lp_complete'] ? 1 : 0 );
+	}
 	if ( isset( $_GET['untangling_reset_demo'] ) ) {
 		delete_option( 'untangling_plan_override' );
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
+		delete_option( 'untangling_lp_done' );
+		delete_option( 'untangling_lp_complete' );
 	}
 } );
 
@@ -363,7 +395,7 @@ add_action( 'admin_menu', function () {
 		// The submenu mirrors the page tabs; `admin.php?…` slugs render as
 		// direct links, so each item deep-links its tab.
 		add_submenu_page( 'untangling-hosting', __( 'My site' ), __( 'My site' ), 'manage_options', 'untangling-hosting', 'untangling_render_hosting_page' );
-		add_submenu_page( 'untangling-hosting', __( 'Learn' ), __( 'Learn' ), 'manage_options', 'admin.php?page=untangling-hosting&untangling_tab=learn-more' );
+		add_submenu_page( 'untangling-hosting', __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-hosting&untangling_tab=learn-more' );
 	}
 } );
 
@@ -439,8 +471,14 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 				'planMeta'     => untangling_get_plan_meta(),
 				'siteSlug'     => untangling_get_site_slug(),
 				'domain'       => untangling_get_primary_domain(),
+				'siteUrl'      => home_url( '/' ),
 				'domainUpsell' => untangling_get_domain_upsell(),
 				'siteName'     => get_bloginfo( 'name' ),
+				'siteIcon'     => get_site_icon_url( 64 ),
+				'visibility'   => untangling_get_visibility(),
+				'lpDone'       => array_values( (array) get_option( 'untangling_lp_done', array( 'theme' ) ) ),
+				'lpComplete'   => (bool) get_option( 'untangling_lp_complete' ),
+				'mysiteForce'  => defined( 'UNTANGLING_FORCE_MYSITE' ) ? UNTANGLING_FORCE_MYSITE : null,
 			)
 		) . ';',
 		'before'
@@ -487,7 +525,7 @@ function untangling_app_js() {
 	// pattern available in wp.components.)
 	var TABS = [
 		{ name: 'my-site', title: 'My site' },
-		{ name: 'learn-more', title: 'Learn' },
+		{ name: 'learn-more', title: 'Help & Learn' },
 	];
 
 	function initialTab() {
@@ -519,16 +557,76 @@ function untangling_app_js() {
 
 	// Jetpack AI Hub header pattern: product icon + title, subtitle underneath.
 	// The tab row below is a DS TabPanel; its tablist visually completes the header.
-	function Header() {
+	// Two designs, switched live from the Prototype controls:
+	// v1 "Hosting" breadcrumb (the original) vs v2 site-identity (MSD site
+	// header pattern: icon + name + URL + visibility, WP.com lockup right).
+	var HEADER_VARIANTS = [
+		{ value: 'hosting', label: 'V1 · Hosting breadcrumb' },
+		{ value: 'site', label: 'V2 · Site identity' },
+	];
+
+	function initialHeader() {
+		var fromUrl = new URLSearchParams( window.location.search ).get( 'untangling_header' );
+		if ( HEADER_VARIANTS.some( function ( v ) { return v.value === fromUrl; } ) ) {
+			try { window.localStorage.setItem( 'untangling-header', fromUrl ); } catch ( e ) {}
+			return fromUrl;
+		}
+		try { return window.localStorage.getItem( 'untangling-header' ) || 'hosting'; } catch ( e ) { return 'hosting'; }
+	}
+
+	function domainLink() {
+		return el( 'a', {
+			className: 'untangling-header-domain',
+			href: data.siteUrl || '#',
+			target: '_blank',
+			rel: 'noopener noreferrer',
+			title: 'View site (opens in a new tab)',
+		},
+			data.domain || '',
+			el( 'span', { className: 'untangling-header-domain-arrow', 'aria-hidden': true }, ' ↗' )
+		);
+	}
+
+	function Header( props ) {
+		if ( 'site' === props.variant ) {
+			var visibility = data.visibility || {};
+			return el( 'div', { className: 'untangling-header' },
+				el( HStack, { justify: 'space-between', alignment: 'flex-start', wrap: true, spacing: 4 },
+					el( FlexItem, null,
+						el( 'div', { className: 'untangling-siteid' },
+							data.siteIcon
+								? el( 'img', { className: 'untangling-siteid-icon', src: data.siteIcon, alt: '' } )
+								: el( 'span', { className: 'untangling-siteid-icon is-fallback', 'aria-hidden': true }, ( data.siteName || 'S' ).charAt( 0 ) ),
+							el( 'div', { className: 'untangling-siteid-main' },
+								el( 'h1', { className: 'untangling-title' }, data.siteName || 'Your site' ),
+								el( 'div', { className: 'untangling-siteid-meta' },
+									domainLink(),
+									el( 'span', { className: 'untangling-hubrow-badge is-' + ( visibility.tone || 'success' ) }, visibility.label || 'Public' )
+								)
+							)
+						)
+					),
+					el( FlexItem, null,
+						el( HStack, { justify: 'flex-end', alignment: 'center', wrap: true, spacing: 4, expanded: false },
+							// The brand lockup doubles as the bridge to the WP.com dashboard.
+							el( 'a', { className: 'untangling-wpcom-lockup', href: msd },
+								el( 'span', { className: 'untangling-wpcom-lockup-mark', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: WPCOM_MARK } } ),
+								'Hosted on WordPress.com'
+							),
+							el( Button, { variant: 'secondary', href: msd + '/sites/' + ( data.siteSlug || '' ) }, 'Go to Hosting Overview ↗' )
+						)
+					)
+				)
+			);
+		}
 		return el( 'div', { className: 'untangling-header' },
 			el( HStack, { justify: 'space-between', alignment: 'flex-start', wrap: true, spacing: 4 },
 				el( FlexItem, null,
 					el( 'div', { className: 'untangling-header-brand' },
-						el( 'span', { className: 'untangling-header-icon', dangerouslySetInnerHTML: { __html: WPCOM_MARK } } ),
-						el( 'h1', { className: 'untangling-title' }, 'WordPress.com' )
-					),
-					el( 'p', { className: 'untangling-sub' },
-						'See your plan, manage your domain, and learn as you go.' )
+						el( 'h1', { className: 'untangling-title' }, 'Hosting' ),
+						el( 'span', { className: 'untangling-header-domain-sep', 'aria-hidden': true }, '/' ),
+						domainLink()
+					)
 				),
 				el( FlexItem, null,
 					el( Button, { variant: 'secondary', href: msd + '/sites/' + ( data.siteSlug || '' ) }, 'Go to Hosting Overview ↗' )
@@ -574,6 +672,10 @@ function untangling_app_js() {
 
 	function planCardHeader() {
 		return el( CardHeader, null, titleWithBadge( 'Plan', data.plan ) );
+	}
+
+	function upsellIcon() {
+		return el( 'span', { className: 'untangling-upsell-cta-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS.upsell } } );
 	}
 
 	function featureList( features ) {
@@ -721,33 +823,38 @@ function untangling_app_js() {
 			{ label: 'Free domain for one year', tip: 'Get a custom domain – like ' + data.domainUpsell + ' – free for the first year.' },
 			{ label: 'Fast support from our expert team', tip: 'Fast email support from our expert team of Happiness Engineers.' },
 		];
-		function compareCol( name, chipText, chipClass, features, listClass ) {
-			return el( 'div', { className: 'untangling-plan-compare-col' },
+		function compareCol( name, chipText, chipClass, price, desc, features, listClass, cta, recommended ) {
+			return el( 'div', { className: 'untangling-plan-compare-col' + ( recommended ? ' is-recommended' : '' ) },
 				el( 'div', { className: 'untangling-plan-compare-name' },
 					el( 'span', null, name ),
 					el( 'span', { className: 'untangling-plan-chip ' + chipClass }, chipText )
 				),
+				el( 'div', { className: 'untangling-plan-compare-price' }, price ),
+				desc && el( 'p', { className: 'untangling-plan-compare-desc' }, desc ),
 				el( 'ul', { className: 'untangling-plan-compare-list' + ( listClass ? ' ' + listClass : '' ) },
 					features.map( function ( feature, index ) {
 						return el( 'li', { key: index },
 							el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
 						);
 					} )
-				)
+				),
+				cta && el( 'div', { className: 'untangling-plan-compare-cta' }, cta )
 			);
 		}
 		return el( Card, { className: 'untangling-plan-card' },
 			el( CardHeader, null, title( 'Plan upgrade' ) ),
 			el( CardBody, null,
 				el( 'div', { className: 'untangling-plan-compare' },
-					compareCol( 'Free', 'Current plan', 'is-neutral', freeCol, 'is-muted' ),
-					compareCol( 'Premium', 'Recommended', 'is-success', premiumCol, '' )
+					compareCol( 'Free', 'Current plan', 'is-neutral', 'US$0/month', null, freeCol, 'is-muted',
+						el( Button, { variant: 'secondary', size: 'compact', href: plansUrl }, 'Manage plan' ), false ),
+					compareCol( 'Premium', 'Recommended', 'is-dark', 'US$8/month, billed annually', null, premiumCol, '',
+						el( Button, { variant: 'primary', size: 'compact', icon: upsellIcon(), className: 'untangling-upgrade', href: checkoutUrl }, 'Upgrade to Premium' ), true )
 				)
 			),
 			el( CardFooter, null,
-				el( HStack, { justify: 'flex-start', spacing: 2, expanded: false },
-					el( Button, { variant: 'secondary', className: 'untangling-upgrade', href: checkoutUrl }, 'Upgrade to Premium' ),
-					el( Button, { variant: 'tertiary', href: plansUrl }, 'See all plans' )
+				el( 'a', { className: 'untangling-linkfooter', href: plansUrl },
+					el( 'span', null, 'See all plans' ),
+					el( 'span', { className: 'untangling-ovcard-chevron', 'aria-hidden': true } )
 				)
 			)
 		);
@@ -788,16 +895,75 @@ function untangling_app_js() {
 		);
 	}
 
+	// Domain upsell, mirroring MSD's overview-domain-upsell-card: the Callout
+	// layout (copy + CTA left, full-bleed image right) and the exact
+	// DomainUpsellIllustraction SVG (dot pattern, gradient browser frame,
+	// lock + live domain in the address bar). Copy is plan-aware like MSD:
+	// Free upsells the plan, paid plans surface their domain credit.
+	function domainArt( domain ) {
+		return '<svg width="318" height="192" viewBox="0 0 318 192" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMinYMin slice" aria-hidden="true">'
+			+ '<g clip-path="url(#udomclip)">'
+			+ '<rect width="318" height="192" fill="white"/>'
+			+ '<rect width="318" height="192" fill="url(#udompattern)" fill-opacity="0.12"/>'
+			+ '<path d="M37 49C37 42.3726 42.3726 37 49 37H325V196H37V49Z" fill="white"/>'
+			+ '<rect x="51" y="89" width="162" height="20" rx="4" fill="#F7F7F7"/>'
+			+ '<rect x="51" y="119" width="288" height="90" rx="4" fill="#F7F7F7"/>'
+			+ '<path d="M37 49C37 42.3726 42.3726 37 49 37H325V75H37V49Z" fill="#F7F7F7"/>'
+			+ '<circle cx="55" cy="56" r="3.25" fill="#F7F8FE" stroke="#C3C4C7" stroke-width="1.5"/>'
+			+ '<circle cx="67" cy="56" r="3.25" fill="#F7F8FE" stroke="#C3C4C7" stroke-width="1.5"/>'
+			+ '<circle cx="79" cy="56" r="3.25" fill="#F7F8FE" stroke="#C3C4C7" stroke-width="1.5"/>'
+			+ '<rect x="95" y="45" width="240" height="22" rx="4" fill="white"/>'
+			+ '<text x="119" y="60" text-anchor="start" direction="ltr" fill="#1E1E1E" font-size="12px">' + domain + '</text>'
+			+ '<path fill-rule="evenodd" clip-rule="evenodd" d="M109.25 55.25H109.1V53.75C109.1 52.625 108.2 51.65 107 51.65C105.8 51.65 104.9 52.625 104.9 53.75V55.25H104.75C104.3 55.25 104 55.55 104 56V59C104 59.45 104.3 59.75 104.75 59.75H109.25C109.7 59.75 110 59.45 110 59V56C110 55.55 109.7 55.25 109.25 55.25ZM107.9 55.25H106.025V53.75C106.025 53.225 106.475 52.85 106.925 52.85C107.375 52.85 107.825 53.3 107.825 53.75V55.25H107.9Z" fill="#3858E9"/>'
+			+ '<path d="M325 196H37V49C37 42.3726 42.3726 37 49 37H325V196ZM38 75V195H324V75H38ZM49 38C42.9249 38 38 42.9249 38 49V74H324V38H49Z" fill="url(#udomgradient)"/>'
+			+ '</g>'
+			+ '<defs>'
+			+ '<pattern id="udompattern" patternContentUnits="objectBoundingBox" width="0.0188679" height="0.03125"><use xlink:href="#udomdots" transform="scale(0.00157233 0.00260417)"/></pattern>'
+			+ '<linearGradient id="udomgradient" x1="302.32" y1="59.8261" x2="76.018" y2="144.39" gradientUnits="userSpaceOnUse"><stop stop-color="#069E08"/><stop offset="1" stop-color="#3858E9"/></linearGradient>'
+			+ '<clipPath id="udomclip"><rect width="318" height="192" fill="white"/></clipPath>'
+			+ '<image id="udomdots" width="12" height="12" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAGklEQVR4nGNgGAUo4D82QSYCirFqIsmG4QAAKKwD//0jFGoAAAAASUVORK5CYII="/>'
+			+ '</defs>'
+			+ '</svg>';
+	}
+
 	function DomainCard() {
 		var upsell = data.domainUpsell;
-		return el( Card, null,
-			el( CardHeader, null, title( 'Domains' ) ),
-			el( CardBody, null,
-				el( 'div', { className: 'untangling-email-upsell' },
-					el( 'div', { className: 'untangling-stat-line' }, 'Get your custom domain' ),
-					meta( upsell + ' is available. Put your site on its own address.' ),
-					el( Button, { variant: 'secondary', href: msd + '/domains' }, 'Get ' + upsell )
-				)
+		var isFree = 'Free' === data.plan;
+		var copy = isFree
+			? {
+				title: 'The perfect domain awaits',
+				before: 'Upgrade to an annual paid plan to get ' + upsell + ' free for one year. You can also ',
+				link: 'choose your own domain name',
+				cta: 'Choose a plan',
+				href: plansUrl,
+			}
+			: {
+				title: 'Claim your free domain',
+				before: upsell + ' is included free for one year with your paid plan. Claim this domain or ',
+				link: 'choose your own',
+				cta: 'Claim this domain',
+				href: msd + '/domains',
+			};
+		return el( Card, { className: 'untangling-domain-card' },
+			el( CardBody, { className: 'untangling-domain-body' },
+				el( 'div', { className: 'untangling-domain-copy' },
+					title( copy.title ),
+					el( 'p', { className: 'untangling-domain-desc' },
+						copy.before,
+						el( 'a', { href: msd + '/domains' }, copy.link ),
+						'.'
+					),
+					el( 'div', null,
+						el( Button, {
+							variant: 'primary',
+							size: 'compact',
+							icon: upsellIcon(),
+							className: 'untangling-upgrade untangling-domain-cta',
+							href: copy.href,
+						}, copy.cta )
+					)
+				),
+				el( 'div', { className: 'untangling-domain-art', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: domainArt( upsell ) } } )
 			)
 		);
 	}
@@ -844,6 +1010,118 @@ function untangling_app_js() {
 		);
 	}
 
+	/* ---------------------------------------------------------------------
+	 * "My site" overview (left column): site health, glance tiles (views,
+	 * performance, visibility, storage), and the AI assistant banner.
+	 * Free-plan framing: useful signal first, honest upsell where a limit
+	 * is actually near (storage) or a capability is gated (AI requests).
+	 * ------------------------------------------------------------------- */
+
+	function dot( tone ) {
+		return el( 'span', { className: 'untangling-dot is-' + tone, 'aria-hidden': true } );
+	}
+
+	// Section head: title + optional status badge, sitting above a tile grid.
+	function sectionHead( text, badge ) {
+		return el( 'div', { className: 'untangling-section-head' },
+			el( 'h2', { className: 'untangling-section-title' }, text ),
+			badge && el( Badge, { className: 'untangling-badge-success' }, badge )
+		);
+	}
+
+	// Health and glance cards follow the MSD OverviewCard pattern
+	// (client/dashboard/components/overview-card): uppercase muted title,
+	// large heading, small muted description, whole card is the link.
+	// Intents mirror MSD — upsell paints the title brand, warning paints
+	// the description.
+	function GlanceCard( props ) {
+		return el( 'a', {
+			className: 'untangling-ovcard untangling-glance' + ( props.intent ? ' is-' + props.intent : '' ),
+			href: props.href || '#',
+		},
+			el( 'span', { className: 'untangling-ovcard-top' },
+				el( 'span', { className: 'untangling-ovcard-title' },
+					props.dot && dot( props.dot ),
+					props.title
+				),
+				el( 'span', { className: 'untangling-ovcard-chevron', 'aria-hidden': true } )
+			),
+			el( 'span', { className: 'untangling-ovcard-heading' }, props.heading ),
+			props.desc && el( 'span', { className: 'untangling-ovcard-desc' }, props.desc ),
+			props.children
+		);
+	}
+
+	var HEALTH_CHECKS = [
+		{ dot: 'success', title: 'WordPress', heading: 'Up to date', desc: 'We handle core updates for you.', href: 'site-health.php' },
+		{ dot: 'caution', title: 'Plugins', heading: '2 updates ready', desc: 'A quick install keeps things secure.', href: 'plugins.php' },
+		{ dot: 'success', title: 'SSL', heading: 'Certificate active', desc: 'Visitors connect securely.', href: 'site-health.php' },
+		{ dot: 'success', title: 'Security', heading: 'No threats found', desc: 'Last scan: today.', href: 'site-health.php' },
+	];
+
+	function HealthCheckCard( props ) {
+		return el( GlanceCard, props.check );
+	}
+
+	// Site views: last 7 days, single series — brand fill (validated against
+	// the light surface), day + count on hover, no legend needed.
+	var WEEK_VIEWS = [
+		[ 'Friday', 150 ], [ 'Saturday', 132 ], [ 'Sunday', 96 ], [ 'Monday', 187 ],
+		[ 'Tuesday', 163 ], [ 'Wednesday', 204 ], [ 'Thursday', 226 ],
+	];
+
+	function ViewsTile() {
+		var max = Math.max.apply( null, WEEK_VIEWS.map( function ( day ) { return day[ 1 ]; } ) );
+		return el( GlanceCard, { title: 'Views', heading: '1.2K', desc: 'this week', href: msd + '/stats' },
+			el( 'span', { className: 'untangling-spark', role: 'img', 'aria-label': 'Views per day over the last seven days' },
+				WEEK_VIEWS.map( function ( day, index ) {
+					return el( 'span', {
+						key: index,
+						className: 'untangling-spark-bar',
+						style: { height: Math.round( 100 * day[ 1 ] / max ) + '%' },
+						title: day[ 0 ] + ' · ' + day[ 1 ] + ' views',
+					} );
+				} )
+			)
+		);
+	}
+
+	// Performance testing is a paid feature — MSD upsell-intent card.
+	function PerformanceTile() {
+		return el( GlanceCard, {
+			title: 'Performance',
+			intent: 'upsell',
+			heading: 'See your speed scores',
+			desc: 'Find out how fast your site loads for readers, and what to improve first. Included with Premium.',
+			href: plansUrl,
+		} );
+	}
+
+	function VisibilityTile() {
+		return el( GlanceCard, {
+			dot: 'success',
+			title: 'Visibility',
+			heading: 'Public',
+			desc: 'Anyone can visit your site, and search engines can find it.',
+			href: 'options-reading.php',
+		} );
+	}
+
+	function StorageTile() {
+		return el( GlanceCard, {
+			dot: 'warning',
+			title: 'Storage',
+			intent: 'warning',
+			heading: '0.9 GB of 1 GB',
+			desc: 'Almost full — Premium adds 13 GB.',
+			href: plansUrl,
+		},
+			el( 'span', { className: 'untangling-meter is-warning', role: 'img', 'aria-label': 'Storage 90 percent full' },
+				el( 'span', { style: { width: '90%' } } )
+			)
+		);
+	}
+
 	// "My site" main-column layout variants, switched from the prototype panel.
 	// Three directions explore what a Blogger & Creator persona should see
 	// first (see competitor audit); Grow · journey is the default.
@@ -853,9 +1131,15 @@ function untangling_app_js() {
 		{ value: 'earn', label: 'Earn & Reach · business' },
 		{ value: 'onecol', label: 'One column · stacked' },
 		{ value: 'cards', label: 'Overview cards · clickable rail' },
+		{ value: 'hub', label: 'Hub · sectioned' },
 	];
 
 	function initialMysite() {
+		// A locked demo can pin the layout (UNTANGLING_FORCE_MYSITE) so
+		// visitors land in one experience with no way to wander off it.
+		if ( data.mysiteForce && MYSITE_VARIANTS.some( function ( v ) { return v.value === data.mysiteForce; } ) ) {
+			return data.mysiteForce;
+		}
 		var fromUrl = new URLSearchParams( window.location.search ).get( 'untangling_mysite' );
 		if ( MYSITE_VARIANTS.some( function ( v ) { return v.value === fromUrl; } ) ) {
 			try { window.localStorage.setItem( 'untangling-mysite', fromUrl ); } catch ( e ) {}
@@ -976,24 +1260,59 @@ function untangling_app_js() {
 	// Grow: the setup journey in the AI Launchpad accordion style — the real
 	// wp-admin Site Setup page (jetpack-mu-wpcom ai-launchpad, task registry
 	// mirrored here with blogger copy). One task open at a time; Skip marks
-	// done and advances.
-	function GrowthView() {
-		var tasks = [
-			{ id: 'theme', label: 'Choose a theme' },
-			{ id: 'post', label: 'Write your first post', desc: 'Share your inaugural creative piece with readers.', cta: 'Write post', href: 'post-new.php' },
-			{ id: 'about', label: 'Add your About page', desc: 'Introduce yourself and your writing journey.', cta: 'Add page', href: 'post-new.php?post_type=page' },
-			{ id: 'social', label: 'Connect your social media accounts', desc: 'Share new posts to your social profiles automatically.', cta: 'Connect accounts', href: msd },
-			{ id: 'welcome', label: 'Write a welcome message', desc: 'Greet new readers when they land on your blog.', cta: 'Write message', href: msd },
-			{ id: 'launch', label: 'Launch your site', desc: 'Make your blog public when you’re ready.', cta: 'Launch site', href: msd },
-		];
-		var doneState = useState( { theme: true } );
+	// done and advances. Progress persists server-side (background GET, same
+	// pattern as the other untangling_* toggles) so the Launchpad tab and
+	// sidebar submenu can retire once everything is done or skipped; hosts
+	// pass onComplete to run the celebration moment at that point.
+	var LP_TASKS = [
+		{ id: 'theme', label: 'Choose a theme' },
+		{ id: 'post', label: 'Write your first post', desc: 'Share your inaugural creative piece with readers.', cta: 'Write post', href: 'post-new.php' },
+		{ id: 'about', label: 'Add your About page', desc: 'Introduce yourself and your writing journey.', cta: 'Add page', href: 'post-new.php?post_type=page' },
+		{ id: 'social', label: 'Connect your social media accounts', desc: 'Share new posts to your social profiles automatically.', cta: 'Connect accounts', href: msd },
+		{ id: 'welcome', label: 'Write a welcome message', desc: 'Greet new readers when they land on your blog.', cta: 'Write message', href: msd },
+		{ id: 'launch', label: 'Launch your site', desc: 'Make your blog public when you’re ready.', cta: 'Launch site', href: msd },
+	];
+
+	function lpInitialDone() {
+		var map = {};
+		( data.lpDone && data.lpDone.length ? data.lpDone : [ 'theme' ] ).forEach( function ( id ) {
+			map[ id ] = true;
+		} );
+		return map;
+	}
+
+	function GrowthView( props ) {
+		var tasks = LP_TASKS;
+		var doneState = useState( lpInitialDone );
 		var done = doneState[ 0 ], setDone = doneState[ 1 ];
-		var openState = useState( 'post' );
+		var openState = useState( function () {
+			var initial = lpInitialDone();
+			var first = tasks.find( function ( t ) { return ! initial[ t.id ]; } );
+			return first ? first.id : null;
+		} );
 		var open = openState[ 0 ], setOpen = openState[ 1 ];
+		function persist( next ) {
+			var ids = tasks.filter( function ( t ) { return next[ t.id ]; } ).map( function ( t ) { return t.id; } );
+			var complete = ids.length === tasks.length;
+			try {
+				window.fetch(
+					'admin.php?page=untangling-hosting&untangling_lp_done=' + ids.join( ',' ) + ( complete ? '&untangling_lp_complete=1' : '' ),
+					{ credentials: 'same-origin' }
+				);
+			} catch ( e ) {}
+			return complete;
+		}
 		function skip( id ) {
 			var next = Object.assign( {}, done );
 			next[ id ] = true;
 			setDone( next );
+			if ( persist( next ) ) {
+				setOpen( null );
+				if ( props && props.onComplete ) {
+					props.onComplete();
+				}
+				return;
+			}
 			var idx = tasks.findIndex( function ( t ) { return t.id === id; } );
 			var following = tasks.slice( idx + 1 ).concat( tasks.slice( 0, idx ) )
 				.find( function ( t ) { return ! next[ t.id ]; } );
@@ -1032,6 +1351,69 @@ function untangling_app_js() {
 					} )
 				)
 			)
+		);
+	}
+
+	// The completion moment: check pops in, a one-shot confetti burst fans
+	// out, then the host swaps in the Grow section. Shown only at the moment
+	// the last task is done or skipped — a completed site never sees it again.
+	function LpCelebration() {
+		var pieces = [];
+		for ( var i = 0; i < 12; i++ ) {
+			pieces.push( el( 'span', { key: i, className: 'untangling-confetti', 'aria-hidden': true } ) );
+		}
+		return el( Card, null,
+			el( CardBody, null,
+				el( 'div', { className: 'untangling-celebrate', role: 'status' },
+					el( 'div', { className: 'untangling-celebrate-stage' },
+						el( 'span', { className: 'untangling-celebrate-check', 'aria-hidden': true }, '✓' ),
+						pieces
+					),
+					el( 'h2', { className: 'untangling-card-title' }, 'Your site is ready!' ),
+					meta( 'Quick start complete — nice work. Time to grow your audience.' )
+				)
+			)
+		);
+	}
+
+	// Grow your site: takes over the Quick start slot once setup is done.
+	// A 2×2 grid: Blaze (insight-driven), domain, newsletter (plan-aware),
+	// and a free audience action — growth, honestly labeled, never a wall of
+	// upsells.
+	function GrowSection() {
+		var isFree = 'Free' === data.plan;
+		return el( 'div', { className: 'untangling-grow-enter' },
+			el( 'div', { className: 'untangling-quick-grid' },
+				el( HubRow, { icon: 'globe', title: 'Claim your domain', desc: 'Get ' + data.domainUpsell + ' and make your site easier to find.', href: msd + '/domains' } ),
+				el( HubRow, { icon: 'email', title: 'Start a newsletter', badge: isFree ? 'Premium' : 'Included', badgeTone: isFree ? undefined : 'success', upsell: isFree, desc: 'Email every new post straight to your readers’ inboxes.', href: isFree ? plansUrl : msd } ),
+				el( HubRow, { icon: 'seen', title: 'Reach your first 100 subscribers', desc: 'You have 12 so far. Add a subscribe block to grow faster.', href: msd + '/stats' } ),
+				el( HubRow, { icon: 'performance', title: 'Promote with Blaze', desc: 'Your top post got 214 views. Blaze can bring it new readers.', href: msd + '/advertising' } )
+			)
+		);
+	}
+
+	// Launchpad → Grow: the launchpad accordion owns the top of My site
+	// until every task is done or skipped; the celebration hands the slot to
+	// the Grow section.
+	function QuickStartOrGrow() {
+		var phaseState = useState( data.lpComplete ? 'grow' : 'launchpad' );
+		var phase = phaseState[ 0 ], setPhase = phaseState[ 1 ];
+		if ( 'launchpad' === phase ) {
+			return el( Fragment, null,
+				el( GrowthView, { onComplete: function () {
+					setPhase( 'celebrate' );
+					window.setTimeout( function () {
+						setPhase( 'grow' );
+					}, 2600 );
+				} } )
+			);
+		}
+		if ( 'celebrate' === phase ) {
+			return el( LpCelebration );
+		}
+		return el( Fragment, null,
+			sectionTitle( 'Grow your site' ),
+			el( GrowSection )
 		);
 	}
 
@@ -1099,48 +1481,133 @@ function untangling_app_js() {
 
 	function QuickStartGrid() {
 		var items = [
-			[ 'Write a post', 'Draft your next story in the editor.', 'post-new.php' ],
-			[ 'Claim your domain', 'Get ' + data.domainUpsell + ' for your site.', msd + '/domains' ],
-			[ 'Send a newsletter', 'Email your 214 subscribers.', 'post-new.php' ],
-			[ 'View your stats', 'See what readers love most.', msd + '/stats' ],
+			{ icon: 'seen', title: 'Site visibility', badge: ( data.visibility && data.visibility.label ) || 'Public', badgeTone: ( data.visibility && data.visibility.tone ) || 'success', desc: 'Control who can view your site.', href: msd + '/sites/' + ( data.siteSlug || '' ) + '/settings/site-visibility' },
+			{ icon: 'globe', title: 'Claim your domain', desc: 'Get ' + data.domainUpsell + ' for your site.', href: msd + '/domains' },
+			{ icon: 'email', title: 'Start a newsletter', badge: 'Premium', upsell: 'Free' === data.plan, desc: 'Email new posts to your readers.', href: plansUrl },
+			{ icon: 'stats', title: 'View your stats', desc: 'See which posts readers love most.', href: msd + '/stats' },
 		];
 		return el( 'div', { className: 'untangling-quick-grid' },
 			items.map( function ( item, index ) {
-				return el( 'a', { key: index, className: 'untangling-quick-card', href: item[ 2 ] },
-					el( 'span', null,
-						el( 'span', { className: 'untangling-stat-line' }, item[ 0 ] ),
-						meta( item[ 1 ] )
-					),
-					el( 'span', { className: 'untangling-quick-chevron', 'aria-hidden': true }, '›' )
-				);
+				return el( HubRow, Object.assign( { key: index }, item ) );
 			} )
 		);
 	}
 
 	function OneColView( props ) {
 		return el( Fragment, null,
-			sectionTitle( 'Quick start' ),
-			el( QuickStartGrid ),
-			el( PulseCard ),
-			sectionTitle( 'Your site' ),
+			el( QuickStartOrGrow ),
+			sectionTitle( 'Plan & products' ),
 			el( PlanCard, { variant: props.plancard } ),
 			el( StorageCard ),
 			el( DomainCard ),
-			el( EmailCard ),
-			el( HelpCard )
+			el( EmailCard )
 		);
 	}
 
 	// MSD overview-card pattern (dashboard-overview-card): whole card is a
 	// link — icon + uppercase label + chevron up top, big heading, muted
 	// description. Hover tints the card and flips all text to the accent.
+	// Icon markup is copied verbatim from @wordpress/icons (the Gutenberg
+	// icon library) — core doesn't expose wp.icons, so the paths are inlined.
 	var OV_ICONS = {
 		plan: WPCOM_MARK,
-		stats: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M11.25 5h1.5v15h-1.5V5zM6 10h1.5v10H6V10zm10.5-2H18v12h-1.5V8z"/></svg>',
-		globe: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM5.5 12c0-.7.1-1.4.3-2h2.3a17 17 0 0 0 0 4H5.8a6.9 6.9 0 0 1-.3-2zm4.1 0c0-.7 0-1.4.1-2h4.6a15.6 15.6 0 0 1 0 4H9.7a15.6 15.6 0 0 1-.1-2zm6.3-3.5a12 12 0 0 0-1-2.8 7 7 0 0 1 2.9 2.8h-1.9zM12 5.6c.5.7 1 1.7 1.3 2.9h-2.6c.3-1.2.8-2.2 1.3-2.9zM7.2 8.5H5.3a7 7 0 0 1 2.9-2.8 12 12 0 0 0-1 2.8zm-1.9 7h1.9a12 12 0 0 0 1 2.8 7 7 0 0 1-2.9-2.8zm6.7 2.9c-.5-.7-1-1.7-1.3-2.9h2.6c-.3 1.2-.8 2.2-1.3 2.9zm2.9-.1a12 12 0 0 0 1-2.8h1.9a7 7 0 0 1-2.9 2.8zm.6-4.3a17 17 0 0 0 0-4h2.3a6.9 6.9 0 0 1 0 4h-2.3z"/></svg>',
+		stats: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.25 5h1.5v15h-1.5V5zM6 10h1.5v10H6V10zm12 4h-1.5v6H18v-6z"/></svg>',
+		globe: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 4c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8Zm6.5 8c0 .6 0 1.2-.2 1.8h-2.7c0-.6.2-1.1.2-1.8s0-1.2-.2-1.8h2.7c.2.6.2 1.1.2 1.8Zm-.9-3.2h-2.4c-.3-.9-.7-1.8-1.1-2.4-.1-.2-.2-.4-.3-.5 1.6.5 3 1.6 3.8 3ZM12.8 17c-.3.5-.6 1-.8 1.3-.2-.3-.5-.8-.8-1.3-.3-.5-.6-1.1-.8-1.7h3.3c-.2.6-.5 1.2-.8 1.7Zm-2.9-3.2c-.1-.6-.2-1.1-.2-1.8s0-1.2.2-1.8H14c.1.6.2 1.1.2 1.8s0 1.2-.2 1.8H9.9ZM11.2 7c.3-.5.6-1 .8-1.3.2.3.5.8.8 1.3.3.5.6 1.1.8 1.7h-3.3c.2-.6.5-1.2.8-1.7Zm-1-1.2c-.1.2-.2.3-.3.5-.4.7-.8 1.5-1.1 2.4H6.4c.8-1.4 2.2-2.5 3.8-3Zm-1.8 8H5.7c-.2-.6-.2-1.1-.2-1.8s0-1.2.2-1.8h2.7c0 .6-.2 1.1-.2 1.8s0 1.2.2 1.8Zm-2 1.4h2.4c.3.9.7 1.8 1.1 2.4.1.2.2.4.3.5-1.6-.5-3-1.6-3.8-3Zm7.4 3c.1-.2.2-.3.3-.5.4-.7.8-1.5 1.1-2.4h2.4c-.8 1.4-2.2 2.5-3.8 3Z"/></svg>',
+		pencil: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m19 7-3-3-8.5 8.5-1 4 4-1L19 7Zm-7 11.5H5V20h7v-1.5Z"/></svg>',
+		// The MSD upsell diamond (client/dashboard/components/icons → `upsell`).
+		upsell: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><path fill="currentColor" d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>',
 		storage: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M19 6.5H5c-.8 0-1.5.7-1.5 1.5v8c0 .8.7 1.5 1.5 1.5h14c.8 0 1.5-.7 1.5-1.5V8c0-.8-.7-1.5-1.5-1.5zM19 16H5V8h14v8zM7 13h10v1.5H7V13z"/></svg>',
-		email: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M19 5H5c-.8 0-1.5.7-1.5 1.5v11c0 .8.7 1.5 1.5 1.5h14c.8 0 1.5-.7 1.5-1.5v-11c0-.8-.7-1.5-1.5-1.5zm0 1.5v.7L12 12 5 7.2v-.7h14zM5 17.5V9l7 4.8L19 9v8.5H5z"/></svg>',
+		email: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M3 7c0-1.1.9-2 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm2-.5h14c.3 0 .5.2.5.5v1L12 13.5 4.5 7.9V7c0-.3.2-.5.5-.5Zm-.5 3.3V17c0 .3.2.5.5.5h14c.3 0 .5-.2.5-.5V9.8L12 15.4 4.5 9.8Z"/></svg>',
 	};
+	// The upsell diamond cropped to its glyph (the 24×24 box is ~40% padding)
+	// for tiny inline uses like badges, where the padded box reads as a
+	// too-small icon with lopsided spacing.
+	OV_ICONS.upsellGlyph = OV_ICONS.upsell.replace( 'viewBox="0 0 24 24" width="24" height="24"', 'viewBox="4.4 5.4 15.2 13.2"' );
+	OV_ICONS.seen = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3.99961 13C4.67043 13.3354 4.6703 13.3357 4.67017 13.3359L4.67298 13.3305C4.67621 13.3242 4.68184 13.3135 4.68988 13.2985C4.70595 13.2686 4.7316 13.2218 4.76695 13.1608C4.8377 13.0385 4.94692 12.8592 5.09541 12.6419C5.39312 12.2062 5.84436 11.624 6.45435 11.0431C7.67308 9.88241 9.49719 8.75 11.9996 8.75C14.502 8.75 16.3261 9.88241 17.5449 11.0431C18.1549 11.624 18.6061 12.2062 18.9038 12.6419C19.0523 12.8592 19.1615 13.0385 19.2323 13.1608C19.2676 13.2218 19.2933 13.2686 19.3093 13.2985C19.3174 13.3135 19.323 13.3242 19.3262 13.3305L19.3291 13.3359C19.3289 13.3357 19.3288 13.3354 19.9996 13C20.6704 12.6646 20.6703 12.6643 20.6701 12.664L20.6697 12.6632L20.6688 12.6614L20.6662 12.6563L20.6583 12.6408C20.6517 12.6282 20.6427 12.6108 20.631 12.5892C20.6078 12.5459 20.5744 12.4852 20.5306 12.4096C20.4432 12.2584 20.3141 12.0471 20.1423 11.7956C19.7994 11.2938 19.2819 10.626 18.5794 9.9569C17.1731 8.61759 14.9972 7.25 11.9996 7.25C9.00203 7.25 6.82614 8.61759 5.41987 9.9569C4.71736 10.626 4.19984 11.2938 3.85694 11.7956C3.68511 12.0471 3.55605 12.2584 3.4686 12.4096C3.42484 12.4852 3.39142 12.5459 3.36818 12.5892C3.35656 12.6108 3.34748 12.6282 3.34092 12.6408L3.33297 12.6563L3.33041 12.6614L3.32948 12.6632L3.32911 12.664C3.32894 12.6643 3.32879 12.6646 3.99961 13ZM11.9996 16C13.9326 16 15.4996 14.433 15.4996 12.5C15.4996 10.567 13.9326 9 11.9996 9C10.0666 9 8.49961 10.567 8.49961 12.5C8.49961 14.433 10.0666 16 11.9996 16Z"/></svg>';
+	OV_ICONS.plugins = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M10.5 4v4h3V4H15v4h1.5a1 1 0 011 1v4l-3 4v2a1 1 0 01-1 1h-3a1 1 0 01-1-1v-2l-3-4V9a1 1 0 011-1H9V4h1.5zm.5 12.5v2h2v-2l3-4v-3H8v3l3 4z"/></svg>';
+	OV_ICONS.performance = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3.445 16.505a.75.75 0 001.06.05l5.005-4.55 4.024 3.521 4.716-4.715V14h1.5V8.25H14v1.5h3.19l-3.724 3.723L9.49 9.995l-5.995 5.45a.75.75 0 00-.05 1.06z"/></svg>';
+
+	/* Hub variant: AI-Hub-style overview — an untitled stat strip on top,
+	   then titled sections of icon row cards. */
+
+	function HubRow( props ) {
+		return el( 'a', { className: 'untangling-hubrow', href: props.href || '#' },
+			el( 'span', { className: 'untangling-hubrow-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS[ props.icon ] } } ),
+			el( 'span', { className: 'untangling-hubrow-main' },
+				el( 'span', { className: 'untangling-hubrow-title' },
+					props.title,
+					props.badge && el( 'span', { className: 'untangling-hubrow-badge' + ( props.badgeTone ? ' is-' + props.badgeTone : '' ) },
+					props.upsell && el( 'span', { className: 'untangling-hubrow-badge-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS.upsellGlyph } } ),
+					props.badge
+				)
+				),
+				el( 'span', { className: 'untangling-hubrow-desc' }, props.desc )
+			),
+			el( 'span', { className: 'untangling-ovcard-chevron', 'aria-hidden': true } )
+		);
+	}
+
+	function HubStrip() {
+		var storage = ( data.planMeta && data.planMeta.storage ) || [ 0.9, 1 ];
+		var used = storage[ 0 ], total = storage[ 1 ];
+		var percent = Math.round( 100 * used / total );
+		var max = Math.max.apply( null, WEEK_VIEWS.map( function ( day ) { return day[ 1 ]; } ) );
+		return el( 'div', { className: 'untangling-hubstrip' },
+			el( 'div', { className: 'untangling-hubcell' },
+				el( 'span', { className: 'untangling-hubcell-label' }, 'Plan' ),
+				el( HStack, { justify: 'space-between', alignment: 'center' },
+					el( 'span', { className: 'untangling-hubcell-value' }, data.plan || 'Free' ),
+					el( Button, { variant: 'primary', className: 'untangling-upgrade', href: plansUrl }, 'Upgrade' )
+				)
+			),
+			el( 'div', { className: 'untangling-hubcell' },
+				el( 'span', { className: 'untangling-hubcell-label' }, 'Storage' ),
+				el( HStack, { justify: 'space-between', alignment: 'baseline' },
+					el( 'span', { className: 'untangling-hubcell-value' }, used + ' GB' ),
+					el( 'span', { className: 'untangling-hubcell-max' }, total + ' GB' )
+				),
+				el( 'span', { className: 'untangling-meter is-warning', role: 'img', 'aria-label': 'Storage ' + percent + ' percent full' },
+					el( 'span', { style: { width: percent + '%' } } )
+				)
+			),
+			el( 'div', { className: 'untangling-hubcell' },
+				el( 'span', { className: 'untangling-hubcell-label' }, 'Views this week' ),
+				el( HStack, { justify: 'space-between', alignment: 'flex-end' },
+					el( 'span', { className: 'untangling-hubcell-value' }, '1.2K' ),
+					el( 'span', { className: 'untangling-spark is-compact', 'aria-hidden': true },
+						WEEK_VIEWS.map( function ( day, index ) {
+							return el( 'span', {
+								key: index,
+								className: 'untangling-spark-bar',
+								style: { height: Math.round( 100 * day[ 1 ] / max ) + '%' },
+								title: day[ 0 ] + ' · ' + day[ 1 ] + ' views',
+							} );
+						} )
+					)
+				)
+			)
+		);
+	}
+
+	function HubView() {
+		return el( Fragment, null,
+			el( HubStrip ),
+			el( 'section', { className: 'untangling-section' },
+				sectionHead( 'Keep it running' ),
+				el( 'div', { className: 'untangling-tiles' },
+					el( HubRow, { icon: 'plugins', title: '2 plugin updates ready', desc: 'A quick install keeps things secure.', href: 'plugins.php' } ),
+					el( HubRow, { icon: 'performance', title: 'Test your performance', badge: 'Premium', desc: 'See how fast your site loads for readers.', href: plansUrl } )
+				)
+			),
+			el( 'section', { className: 'untangling-section' },
+				sectionHead( 'Grow your site' ),
+				el( 'div', { className: 'untangling-tiles' },
+					el( HubRow, { icon: 'globe', title: 'Get ' + data.domainUpsell, desc: 'Put your site on its own address.', href: msd + '/domains' } ),
+					el( HubRow, { icon: 'stats', title: 'See your stats', desc: 'Views, visitors, and where readers come from.', href: msd + '/stats' } )
+				)
+			)
+		);
+	}
 
 	function MsdCard( props ) {
 		return el( 'a', { className: 'untangling-ovcard', href: props.href },
@@ -1198,29 +1665,28 @@ function untangling_app_js() {
 	}
 
 	function HelpCard() {
-		var askState = useState( false );
-		var asking = askState[ 0 ], setAsking = askState[ 1 ];
+		// Opens the Support Assistant panel rendered in the admin footer —
+		// the same Help Center mimic the Marketplace uses.
+		function openAssistant() {
+			var panel = document.querySelector( '.untangling-mkt-help' );
+			if ( panel ) {
+				panel.hidden = false;
+				var input = panel.querySelector( 'input' );
+				if ( input ) {
+					input.focus();
+				}
+			}
+		}
 		return el( Card, { className: 'untangling-help-card' },
 			el( CardBody, null,
 				el( HStack, { justify: 'space-between', alignment: 'center', wrap: true, spacing: 4 },
 					el( FlexBlock, null,
 						title( 'Need a hand?' ),
-						meta( 'Ask the AI assistant anything about your blog, or browse guides in the Help Center.' )
+						meta( 'Ask the AI assistant anything about your blog.' )
 					),
 					el( FlexItem, null,
-						el( HStack, { spacing: 2 },
-							el( Button, { variant: 'secondary', onClick: function () { setAsking( ! asking ); } }, 'Ask AI' ),
-							el( Button, { variant: 'tertiary', href: 'https://wordpress.com/support', target: '_blank' }, 'Help Center ↗' )
-						)
+						el( Button, { variant: 'secondary', onClick: openAssistant }, 'Ask AI' )
 					)
-				),
-				asking && el( 'div', { className: 'untangling-ask-box' },
-					el( TextControl, {
-						__nextHasNoMarginBottom: true,
-						placeholder: 'Ask anything about your blog…',
-						onChange: function () {},
-						help: 'Prototype placeholder. The assistant lives in the Help Center panel.',
-					} )
 				)
 			)
 		);
@@ -1537,6 +2003,7 @@ function untangling_app_js() {
 		function copyLink() {
 			var url = new URL( window.location.href );
 			url.searchParams.set( 'untangling_plancard', props.plancard );
+			url.searchParams.set( 'untangling_header', props.header );
 			navigator.clipboard.writeText( url.toString() ).then( function () {
 				setCopied( true );
 				window.setTimeout( function () { setCopied( false ); }, 2000 );
@@ -1594,6 +2061,12 @@ function untangling_app_js() {
 							selected: props.mysite,
 							options: MYSITE_VARIANTS,
 							onChange: props.onMysite,
+						} ),
+						el( RadioControl, {
+							label: 'Header',
+							selected: props.header,
+							options: HEADER_VARIANTS,
+							onChange: props.onHeader,
 						} ),
 						ToggleGroup && el( ToggleGroup, {
 							label: 'Menu variant',
@@ -1678,8 +2151,18 @@ function untangling_app_js() {
 			window.history.replaceState( null, '', url.toString() );
 		}
 
+		var headerState = useState( initialHeader() );
+		var header = headerState[ 0 ], setHeader = headerState[ 1 ];
+		function chooseHeader( value ) {
+			setHeader( value );
+			try { window.localStorage.setItem( 'untangling-header', value ); } catch ( e ) {}
+			var url = new URL( window.location.href );
+			url.searchParams.set( 'untangling_header', value );
+			window.history.replaceState( null, '', url.toString() );
+		}
+
 		return el( 'div', null,
-			el( Header ),
+			el( Header, { variant: header } ),
 			el( TabPanel, {
 				className: 'untangling-tabpanel',
 				tabs: TABS,
@@ -1690,12 +2173,30 @@ function untangling_app_js() {
 					'my-site' === tab.name && 'onecol' === mysite && el( 'div', { className: 'untangling-narrow' },
 						el( OneColView, { plancard: plancard } )
 					),
-					'my-site' === tab.name && 'onecol' !== mysite && el( 'div', { className: 'untangling-grid' },
+					'my-site' === tab.name && 'hub' === mysite && el( 'div', { className: 'untangling-narrow' },
+						el( HubView )
+					),
+					'my-site' === tab.name && 'onecol' !== mysite && 'hub' !== mysite && el( 'div', { className: 'untangling-grid' },
 						el( 'div', { className: 'untangling-col' },
 							'momentum' === mysite && el( MomentumView ),
-							( 'growth' === mysite || 'cards' === mysite ) && el( GrowthView ),
 							'earn' === mysite && el( EarnView ),
-							'growth' !== mysite && 'cards' !== mysite && el( HelpCard )
+							el( 'section', { className: 'untangling-section' },
+								sectionHead( 'Site health', 'Good' ),
+								el( 'div', { className: 'untangling-tiles' },
+									HEALTH_CHECKS.map( function ( check, index ) {
+										return el( HealthCheckCard, { key: index, check: check } );
+									} )
+								)
+							),
+							el( 'section', { className: 'untangling-section' },
+								sectionHead( 'At a glance' ),
+								el( 'div', { className: 'untangling-tiles' },
+									el( ViewsTile ),
+									el( PerformanceTile ),
+									el( VisibilityTile ),
+									el( StorageTile )
+								)
+							)
 						),
 						'cards' === mysite
 							? el( 'div', { className: 'untangling-col' }, el( OverviewRail ) )
@@ -1709,7 +2210,7 @@ function untangling_app_js() {
 					'learn-more' === tab.name && el( HelpView )
 				);
 			} ),
-			! window.untanglingData.locked && el( ProtoPanel, { plancard: plancard, onPlancard: choosePlancard, mysite: mysite, onMysite: chooseMysite } )
+			! window.untanglingData.locked && el( ProtoPanel, { plancard: plancard, onPlancard: choosePlancard, mysite: mysite, onMysite: chooseMysite, header: header, onHeader: chooseHeader } )
 		);
 	}
 
@@ -1909,6 +2410,13 @@ body.toplevel_page_untangling-hosting,
 .untangling-app {
 	color: var(--wpds-color-foreground-content-neutral);
 }
+/* Text never renders pure black: pin headings (which otherwise inherit
+   wp-admin's own heading colors) to the gray-900 content token. */
+.untangling-app h1,
+.untangling-app h2,
+.untangling-app h3 {
+	color: var(--wpds-color-foreground-content-neutral);
+}
 /* Canvas below the header rule matches the MSD (#fcfcfc, surface-neutral) */
 body.toplevel_page_untangling-hosting,
 body.toplevel_page_untangling-hosting #wpcontent,
@@ -1919,18 +2427,34 @@ body.toplevel_page_untangling-hosting #wpbody-content {
 body.toplevel_page_untangling-hosting #wpcontent {
 	padding-left: 0;
 }
-/* Full-width header, Jetpack AI Hub pattern: icon + title, subtitle. The DS
-   TabPanel tablist below shares the white band and carries the bottom rule —
-   tab typography/hover/focus stay stock DS. */
+/* Full-width header, host-dashboard pattern: "Hosting / domain" breadcrumb-style
+   title, subtitle. The DS TabPanel tablist below shares the white band and
+   carries the bottom rule — tab typography/hover/focus stay stock DS. */
 .untangling-app .untangling-header { background: var(--wpds-color-background-surface-neutral-strong, #fff); padding: var(--wpds-dimension-gap-2xl) var(--wpds-dimension-gap-2xl) 0; }
-.untangling-app .untangling-header-brand { display: flex; align-items: center; gap: var(--wpds-dimension-gap-xs); }
-/* The W mark's artwork is inset 2/24 units inside its viewBox; the negative
-   margin puts the visible circle — not the transparent box — on the content
-   edge, and the same inset on the right is why the flex gap stays at xs. */
-.untangling-app .untangling-header-icon svg { display: block; fill: var(--wpds-color-stroke-surface-brand-strong); margin-left: calc(-2 * 28px / 24); }
+.untangling-app .untangling-header-brand { display: flex; align-items: baseline; gap: var(--wpds-dimension-gap-sm); }
+/* Site-identity header (V2): icon + name + URL + visibility; lockup right. */
+.untangling-app .untangling-siteid { display: flex; align-items: center; gap: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-siteid-icon { flex: none; width: 44px; height: 44px; border-radius: var(--wpds-border-radius-md); object-fit: cover; }
+.untangling-app .untangling-siteid-icon.is-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--wpds-color-background-surface-neutral-weak); color: var(--wpds-color-foreground-content-neutral); font-size: var(--wpds-typography-font-size-xl); font-weight: 500; }
+.untangling-app .untangling-siteid-main { display: grid; gap: 2px; }
+.untangling-app .untangling-siteid-meta { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); }
+.untangling-app .untangling-wpcom-lockup { display: inline-flex; align-items: center; gap: var(--wpds-dimension-gap-sm); color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); text-decoration: none; transition: color 0.1s linear; }
+.untangling-app .untangling-wpcom-lockup:hover,
+.untangling-app .untangling-wpcom-lockup:focus-visible { color: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); }
+.untangling-app .untangling-wpcom-lockup-mark { display: inline-flex; }
+.untangling-app .untangling-wpcom-lockup-mark svg { width: 20px; height: 20px; fill: currentColor; }
+.untangling-app .untangling-header-domain-sep { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); line-height: var(--wpds-typography-line-height-md); }
+/* The domain links to the live site. Rest state reads as plain header text;
+   hover reveals the ↗ and takes the admin accent color. The arrow toggles
+   opacity (not display) so the header never reflows. */
+.untangling-app .untangling-header-domain { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); line-height: var(--wpds-typography-line-height-md); text-decoration: none; transition: color 0.1s linear; }
+.untangling-app .untangling-header-domain-arrow { opacity: 0; transition: opacity 0.1s linear; }
+.untangling-app .untangling-header-domain:hover,
+.untangling-app .untangling-header-domain:focus-visible { color: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); }
+.untangling-app .untangling-header-domain:hover .untangling-header-domain-arrow,
+.untangling-app .untangling-header-domain:focus-visible .untangling-header-domain-arrow { opacity: 1; }
 /* Page h1 sits one type step above the card titles (lg) so the hierarchy reads. */
 .untangling-app .untangling-title { font-size: var(--wpds-typography-font-size-xl); line-height: var(--wpds-typography-line-height-xl); font-weight: var(--wpds-typography-font-weight-emphasis); margin: 0; padding: 0; }
-.untangling-app .untangling-sub { color: var(--wpds-color-foreground-content-neutral-weak); margin: var(--wpds-dimension-gap-sm) 0 0; }
 /* The rule is an inset shadow (not border-bottom) so the DS active-tab
    indicator, drawn at bottom: 0 inside the item, sits on top of it — one
    line, never two. */
@@ -1977,10 +2501,24 @@ body.toplevel_page_untangling-hosting #wpcontent {
    their spacing. */
 .untangling-app .components-card__body > .components-button.is-tertiary { margin-left: -12px; }
 .untangling-app .untangling-meta-text { display: block; color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-sm); margin: 0 0 var(--wpds-dimension-gap-xs); }
-.untangling-app .untangling-stat-value { font-size: var(--wpds-typography-font-size-xl); font-weight: var(--wpds-typography-font-weight-emphasis); }
+.untangling-app .untangling-stat-value { font-size: var(--wpds-typography-font-size-xl); font-weight: 500; }
 .untangling-app .untangling-stat-line { font-size: var(--wpds-typography-font-size-md); font-weight: var(--wpds-typography-font-weight-emphasis); margin-bottom: 2px; }
-.untangling-app .untangling-email-upsell { display: grid; justify-items: center; text-align: center; gap: var(--wpds-dimension-gap-xs); padding: var(--wpds-dimension-gap-md) 0; }
-.untangling-app .untangling-email-upsell .untangling-meta-text { max-width: 280px; margin-bottom: var(--wpds-dimension-gap-sm); }
+.untangling-app .untangling-email-upsell { display: grid; justify-items: start; text-align: start; gap: var(--wpds-dimension-gap-xs); }
+.untangling-app .untangling-email-upsell .untangling-meta-text { max-width: 420px; margin-bottom: var(--wpds-dimension-gap-sm); }
+/* Domain upsell, MSD Callout geometry (is-image-full-bleed): container flush,
+   padded copy column + full-bleed illustration column, 50/50. */
+.untangling-app .untangling-domain-card { overflow: hidden; }
+.untangling-app .components-card__body.untangling-domain-body { padding: 0; }
+.untangling-app .untangling-domain-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.untangling-app .untangling-domain-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 16px; padding: 24px; }
+.untangling-app .untangling-domain-desc { margin: 0; color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); }
+.untangling-app .untangling-domain-desc a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.untangling-app .untangling-upsell-cta-icon { display: inline-flex; }
+.untangling-app .untangling-domain-cta-icon svg { display: block; width: 20px; height: 20px; }
+.untangling-app .untangling-domain-cta-icon svg path { fill: currentColor; }
+.untangling-app .untangling-domain-art { position: relative; min-height: 248px; }
+.untangling-app .untangling-domain-art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+@media ( max-width: 782px ) { .untangling-app .untangling-domain-body { grid-template-columns: 1fr; } .untangling-app .untangling-domain-art { display: none; } }
 .untangling-app .untangling-caution { color: var(--wpds-color-foreground-content-caution-weak); font-size: var(--wpds-typography-font-size-sm); margin: var(--wpds-dimension-gap-xs) 0 0; }
 /* Local stand-in for the @wordpress/ui Badge (core doesn't bundle
    @wordpress/ui yet) — styled to the DS Badge 'none' intent: sentence case,
@@ -1988,6 +2526,77 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-fallback-badge { display: inline-block; background: var(--wpds-color-background-surface-neutral-weak); border-radius: var(--wpds-border-radius-sm); padding: 0 var(--wpds-dimension-padding-sm); font-size: var(--wpds-typography-font-size-sm); line-height: var(--wpds-typography-line-height-sm); font-weight: var(--wpds-typography-font-weight-default); color: var(--wpds-color-foreground-content-neutral); }
 .untangling-app .untangling-feature-list { margin: var(--wpds-dimension-gap-sm) 0 0; padding: 0; list-style: none; display: grid; gap: var(--wpds-dimension-gap-xs); font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-storage-track { margin-bottom: var(--wpds-dimension-gap-sm); }
+/* --- My site overview: sections of MSD-style glance cards ---------------- */
+.untangling-app .untangling-section { display: grid; gap: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-section ~ .untangling-section { margin-top: var(--wpds-dimension-gap-2xl); }
+/* One-column flow: extra air above each section title (the grid gap alone
+   reads cramped); the first title stays flush. */
+.untangling-app .untangling-narrow .untangling-section-title { margin-top: var(--wpds-dimension-gap-3xl); }
+.untangling-app .untangling-narrow .untangling-section-title:first-child { margin-top: 0; }
+.untangling-app .untangling-section-head { display: flex; align-items: center; gap: var(--wpds-dimension-gap-md); }
+.untangling-app .untangling-section-title { font-size: var(--wpds-typography-font-size-lg); line-height: var(--wpds-typography-line-height-md); font-weight: 400; margin: 0; }
+.untangling-app .untangling-section-head .untangling-fallback-badge,
+.untangling-app .untangling-section-head .components-badge { align-self: center; line-height: 1.4; }
+.untangling-app .untangling-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.untangling-app .untangling-dot.is-success { background: var(--wpds-color-stroke-surface-success-strong); }
+.untangling-app .untangling-dot.is-caution { background: var(--wpds-color-stroke-surface-caution-strong); }
+.untangling-app .untangling-dot.is-warning { background: var(--wpds-color-stroke-surface-warning-strong); }
+.untangling-app .untangling-badge-success { background: var(--wpds-color-background-surface-success); color: var(--wpds-color-foreground-content-success); }
+.untangling-app .untangling-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--wpds-dimension-gap-lg); align-items: stretch; }
+@media ( max-width: 782px ) { .untangling-app .untangling-tiles { grid-template-columns: 1fr; } }
+/* Glance card = ovcard plus room for one inline visual (sparkline / meter),
+   pinned to the bottom so rows stay aligned. Upsell intent paints the title
+   brand; warning intent paints the description (MSD OverviewCard behavior). */
+.untangling-app .untangling-glance { display: flex; flex-direction: column; align-items: stretch; }
+.untangling-app .untangling-glance .untangling-ovcard-title { display: inline-flex; align-items: center; gap: var(--wpds-dimension-gap-sm); }
+.untangling-app .untangling-glance.is-upsell .untangling-ovcard-title { color: var(--ov-accent); }
+.untangling-app .untangling-glance.is-warning .untangling-ovcard-desc { color: var(--wpds-color-foreground-content-warning-weak); }
+.untangling-app .untangling-glance.is-warning:hover .untangling-ovcard-desc { color: var(--ov-accent); }
+/* Sparkline: 2px gaps between bars, rounded data-ends anchored to the baseline. */
+.untangling-app .untangling-spark { display: flex; align-items: flex-end; gap: 2px; width: 100%; height: 40px; margin-top: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-spark-bar { flex: 1; background: var(--wpds-color-background-thumb-brand); border-radius: 4px 4px 0 0; min-height: 4px; }
+.untangling-app .untangling-meter { display: block; width: 100%; height: 8px; background: var(--wpds-color-background-track-neutral-weak); border-radius: var(--wpds-border-radius-sm); overflow: hidden; margin-top: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-meter span { display: block; height: 100%; border-radius: inherit; }
+.untangling-app .untangling-meter.is-warning span { background: var(--wpds-color-stroke-surface-warning-strong); }
+.untangling-app .untangling-glance .untangling-spark,
+.untangling-app .untangling-glance .untangling-meter { margin-top: auto; }
+.untangling-app .untangling-glance .untangling-ovcard-desc { margin-bottom: var(--wpds-dimension-gap-lg); }
+/* --- Hub variant: stat strip + titled sections of icon rows -------------- */
+.untangling-app .untangling-hubstrip { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral); border-radius: var(--wpds-border-radius-lg); overflow: hidden; margin-bottom: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-hubcell { display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md); padding: var(--wpds-dimension-padding-2xl); min-width: 0; }
+.untangling-app .untangling-hubcell + .untangling-hubcell { border-inline-start: 1px solid var(--wpds-color-stroke-surface-neutral-weak); }
+@media ( max-width: 782px ) {
+	.untangling-app .untangling-hubstrip { grid-template-columns: 1fr; }
+	.untangling-app .untangling-hubcell + .untangling-hubcell { border-inline-start: 0; border-top: 1px solid var(--wpds-color-stroke-surface-neutral-weak); }
+}
+.untangling-app .untangling-hubcell-label { text-transform: uppercase; letter-spacing: 0.02em; font-size: var(--wpds-typography-font-size-sm); font-weight: 500; color: var(--wpds-color-foreground-content-neutral-weak); }
+.untangling-app .untangling-hubcell-value { font-size: var(--wpds-typography-font-size-xl); line-height: var(--wpds-typography-line-height-xl); font-weight: 500; }
+.untangling-app .untangling-hubcell-max { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-sm); }
+.untangling-app .untangling-hubcell .untangling-meter { margin-top: auto; }
+.untangling-app .untangling-spark.is-compact { height: 32px; width: 96px; flex: 0 0 auto; margin-top: 0; }
+/* Icon rows, AI Hub quick-start style: icon | title + description | chevron,
+   whole row is the link; hover matches the ovcard accent treatment. */
+.untangling-app .untangling-hubrow { --ov-accent: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--wpds-dimension-gap-md); align-items: start; background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral); border-radius: var(--wpds-border-radius-lg); padding: var(--wpds-dimension-padding-2xl); text-decoration: none; color: inherit; transition: background 0.1s linear, box-shadow 0.1s linear; }
+.untangling-app .untangling-hubrow:hover { background: color-mix( in srgb, var(--ov-accent) 2%, var(--wpds-color-background-surface-neutral-strong, #fff) ); box-shadow: 0 0 0 1px color-mix( in srgb, var(--ov-accent) 12%, transparent ); }
+.untangling-app .untangling-hubrow:hover .untangling-hubrow-title,
+.untangling-app .untangling-hubrow:hover .untangling-hubrow-desc { color: var(--ov-accent); }
+.untangling-app .untangling-hubrow:hover .untangling-hubrow-icon svg { fill: var(--ov-accent); }
+.untangling-app .untangling-hubrow:hover .untangling-ovcard-chevron { border-color: var(--ov-accent); }
+.untangling-app .untangling-hubrow-icon svg { display: block; fill: var(--wpds-color-foreground-content-neutral); }
+.untangling-app .untangling-hubrow-main { display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-xs); }
+.untangling-app .untangling-hubrow-title { display: inline-flex; align-items: center; gap: var(--wpds-dimension-gap-sm); font-size: var(--wpds-typography-font-size-md); font-weight: var(--wpds-typography-font-weight-emphasis); }
+.untangling-app .untangling-hubrow-desc { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); }
+.untangling-app .untangling-hubrow-badge { background: var(--wpds-color-background-surface-brand); color: var(--wpds-color-foreground-interactive-brand); }
+/* Beats the shared badge recipe's inline-block (higher specificity) so the
+   upsell diamond centers against the label instead of riding the baseline. */
+.untangling-app .untangling-hubrow .untangling-hubrow-badge { display: inline-flex; align-items: center; gap: 4px; }
+.untangling-app .untangling-hubrow-badge-icon { display: inline-flex; }
+.untangling-app .untangling-hubrow-badge-icon svg { width: 13px; height: 11px; fill: currentColor; }
+/* Status tones mirror MSD Badge intents (site-visibility summary). */
+.untangling-app .untangling-hubrow-badge.is-success { background: var(--wpds-color-background-surface-success-weak); color: var(--wpds-color-foreground-content-success-weak); }
+.untangling-app .untangling-hubrow-badge.is-warning { background: var(--wpds-color-background-surface-warning-weak); color: var(--wpds-color-foreground-content-warning-weak); }
+.untangling-app .untangling-hubrow-badge.is-neutral { background: var(--wpds-color-background-surface-neutral-weak); color: var(--wpds-color-foreground-content-neutral); }
+.untangling-app .untangling-hubrow .untangling-ovcard-chevron { align-self: center; }
 .untangling-app .untangling-progress { max-width: none; width: 100%; }
 .untangling-app .untangling-progress-fallback { background: var(--wpds-color-background-surface-neutral-weak); border-radius: var(--wpds-border-radius-sm); height: 8px; overflow: hidden; margin-bottom: var(--wpds-dimension-gap-sm); }
 .untangling-app .untangling-progress-fallback span { display: block; height: 100%; background: var(--wpds-color-foreground-content-caution-weak); }
@@ -1996,13 +2605,9 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-idea-lede { margin-top: var(--wpds-dimension-gap-md); }
 .untangling-app .untangling-chip-row { display: flex; flex-wrap: wrap; gap: var(--wpds-dimension-gap-xs); margin-top: var(--wpds-dimension-gap-xs); }
 /* One-column variant: AI Hub-style section titles + quick-start link cards */
-.untangling-app .untangling-section-title { font-size: var(--wpds-typography-font-size-lg); font-weight: var(--wpds-typography-font-weight-emphasis); margin: var(--wpds-dimension-gap-md) 0 calc(-1 * var(--wpds-dimension-gap-sm)); }
-.untangling-app .untangling-quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--wpds-dimension-gap-md); }
+.untangling-app .untangling-section-title { font-size: var(--wpds-typography-font-size-lg); font-weight: 400; margin: var(--wpds-dimension-gap-md) 0 0; }
+.untangling-app .untangling-quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: var(--wpds-dimension-gap-lg); }
 @media ( max-width: 600px ) { .untangling-app .untangling-quick-grid { grid-template-columns: 1fr; } }
-.untangling-app .untangling-quick-card { display: flex; align-items: center; justify-content: space-between; gap: var(--wpds-dimension-gap-sm); background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral); border-radius: var(--wpds-border-radius-md); padding: var(--wpds-dimension-padding-lg); text-decoration: none; color: inherit; }
-.untangling-app .untangling-quick-card:hover { border-color: var(--wpds-color-stroke-surface-brand-strong, #3858e9); }
-.untangling-app .untangling-quick-card .untangling-meta-text { margin: 2px 0 0; }
-.untangling-app .untangling-quick-chevron { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-xl); line-height: 1; }
 .untangling-app .untangling-narrow { max-width: var(--wpds-dimension-surface-width-xl); margin-inline: auto; margin-top: var(--wpds-dimension-gap-2xl); display: grid; gap: var(--wpds-dimension-gap-lg); }
 /* Learn tab: full-width learning hub. Media cards share one shell for
    videos, courses, and guide topics; radius hardcoded like the accordion
@@ -2066,7 +2671,7 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-ovcard-title { display: inline-flex; align-items: center; gap: var(--wpds-dimension-gap-sm); text-transform: uppercase; letter-spacing: 0.02em; font-size: var(--wpds-typography-font-size-sm); font-weight: 500; color: var(--wpds-color-foreground-content-neutral); }
 .untangling-app .untangling-ovcard-icon svg { display: block; fill: var(--ov-accent); }
 .untangling-app .untangling-ovcard-chevron { flex: none; width: 8px; height: 8px; border-right: 1.5px solid var(--wpds-color-foreground-content-neutral-weak); border-top: 1.5px solid var(--wpds-color-foreground-content-neutral-weak); transform: rotate( 45deg ); }
-.untangling-app .untangling-ovcard-heading { display: block; font-size: var(--wpds-typography-font-size-xl); font-weight: var(--wpds-typography-font-weight-emphasis); margin-bottom: var(--wpds-dimension-gap-xs); }
+.untangling-app .untangling-ovcard-heading { display: block; font-size: var(--wpds-typography-font-size-xl); font-weight: 500; margin-bottom: var(--wpds-dimension-gap-xs); }
 .untangling-app .untangling-ovcard-desc { display: block; color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-lp { display: grid; gap: var(--wpds-dimension-gap-lg); }
 .untangling-app .untangling-lp-task { background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral); border-radius: 8px; }
@@ -2080,10 +2685,56 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-lp-task.is-open .untangling-lp-chevron { transform: rotate( -135deg ) translateY( -2px ); }
 .untangling-app .untangling-lp-body { padding: 0 var(--wpds-dimension-padding-2xl) var(--wpds-dimension-padding-xl); }
 .untangling-app .untangling-lp-body .untangling-meta-text { font-size: var(--wpds-typography-font-size-md); margin-bottom: var(--wpds-dimension-gap-md); }
+/* Quick start completion moment: check pops in, a one-shot confetti burst
+   fans out from behind it, copy fades up. Pieces get their trajectory from
+   per-child --tx/--ty; colors cycle brand blue / green / amber / pink. */
+.untangling-app .untangling-celebrate { display: grid; justify-items: center; text-align: center; gap: var(--wpds-dimension-gap-xs); padding: var(--wpds-dimension-padding-2xl) 0; }
+.untangling-app .untangling-celebrate-stage { position: relative; width: 64px; height: 64px; margin-bottom: var(--wpds-dimension-gap-md); }
+.untangling-app .untangling-celebrate-check { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--wpds-color-background-interactive-brand-strong, #3858e9); color: #fff; border-radius: 50%; font-size: 28px; animation: untangling-check-pop 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) both; }
+.untangling-app .untangling-celebrate .untangling-card-title,
+.untangling-app .untangling-celebrate .untangling-meta-text { animation: untangling-fade-up 0.35s ease-out 0.2s both; }
+.untangling-app .untangling-confetti { position: absolute; top: 50%; left: 50%; width: 7px; height: 11px; border-radius: 2px; opacity: 0; animation: untangling-confetti 1.1s ease-out 0.25s both; }
+.untangling-app .untangling-confetti:nth-child(4n+2) { background: var(--wpds-color-background-interactive-brand-strong, #3858e9); }
+.untangling-app .untangling-confetti:nth-child(4n+3) { background: #00a32a; }
+.untangling-app .untangling-confetti:nth-child(4n+4) { background: #f0b849; }
+.untangling-app .untangling-confetti:nth-child(4n+5) { background: #e26f9c; }
+.untangling-app .untangling-confetti:nth-child(2)  { --tx: -74px;  --ty: -58px; }
+.untangling-app .untangling-confetti:nth-child(3)  { --tx: -30px;  --ty: -86px; animation-delay: 0.31s; }
+.untangling-app .untangling-confetti:nth-child(4)  { --tx: 26px;   --ty: -90px; }
+.untangling-app .untangling-confetti:nth-child(5)  { --tx: 72px;   --ty: -62px; animation-delay: 0.29s; }
+.untangling-app .untangling-confetti:nth-child(6)  { --tx: 96px;   --ty: -18px; }
+.untangling-app .untangling-confetti:nth-child(7)  { --tx: 88px;   --ty: 34px;  animation-delay: 0.33s; }
+.untangling-app .untangling-confetti:nth-child(8)  { --tx: 44px;   --ty: 72px; }
+.untangling-app .untangling-confetti:nth-child(9)  { --tx: -8px;   --ty: 88px;  animation-delay: 0.3s; }
+.untangling-app .untangling-confetti:nth-child(10) { --tx: -56px;  --ty: 66px; }
+.untangling-app .untangling-confetti:nth-child(11) { --tx: -92px;  --ty: 22px;  animation-delay: 0.34s; }
+.untangling-app .untangling-confetti:nth-child(12) { --tx: -98px;  --ty: -20px; }
+.untangling-app .untangling-confetti:nth-child(13) { --tx: 58px;   --ty: -84px; animation-delay: 0.36s; }
+@keyframes untangling-check-pop {
+	0% { transform: scale(0.3); opacity: 0; }
+	100% { transform: scale(1); opacity: 1; }
+}
+@keyframes untangling-confetti {
+	0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg); }
+	12% { opacity: 1; }
+	100% { opacity: 0; transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) rotate(320deg); }
+}
+@keyframes untangling-fade-up {
+	from { opacity: 0; transform: translateY(8px); }
+	to { opacity: 1; transform: none; }
+}
+/* Grow your site: the section fades up as it takes the Quick start slot. */
+.untangling-app .untangling-grow-enter { display: grid; gap: var(--wpds-dimension-gap-lg); animation: untangling-fade-up 0.35s ease-out both; }
+@media ( prefers-reduced-motion: reduce ) {
+	.untangling-app .untangling-celebrate-check,
+	.untangling-app .untangling-celebrate .untangling-card-title,
+	.untangling-app .untangling-celebrate .untangling-meta-text,
+	.untangling-app .untangling-grow-enter { animation: none; }
+	.untangling-app .untangling-confetti { display: none; }
+}
 .untangling-app .untangling-launchpad-mark { display: inline-flex; align-items: center; justify-content: center; width: var(--wpds-dimension-size-xs); height: var(--wpds-dimension-size-xs); margin-right: var(--wpds-dimension-gap-sm); border: 1px solid var(--wpds-color-stroke-surface-neutral-strong); border-radius: 50%; font-size: var(--wpds-typography-font-size-sm); vertical-align: middle; }
 .untangling-app li.is-done .untangling-launchpad-mark { background: var(--wpds-color-background-interactive-brand-strong); border-color: var(--wpds-color-background-interactive-brand-strong); color: var(--wpds-color-foreground-interactive-brand-strong); }
 .untangling-app li.is-done .untangling-launchpad-label { color: var(--wpds-color-foreground-content-neutral-weak); }
-.untangling-app .untangling-ask-box { margin-top: var(--wpds-dimension-gap-md); }
 /* Prototype chrome: quiet floating entry (W mark) + controls panel, fixed to
    the viewport's bottom right. z-index stays under the admin bar (99999). */
 /* Prototype controls: DS components handle their own styling; the CSS left
@@ -2124,21 +2775,36 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-plan-row:last-child { border-bottom: 0; }
 .untangling-app .untangling-plan-row-label span { font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-plan-row-label small { display: block; font-size: var(--wpds-typography-font-size-sm); color: var(--wpds-color-foreground-content-neutral-weak); }
-.untangling-app .untangling-plan-chip { flex: none; font-size: var(--wpds-typography-font-size-xs); line-height: var(--wpds-typography-line-height-xs); color: var(--wpds-color-foreground-interactive-brand); background: var(--wpds-color-background-surface-brand); border-radius: 999px; padding: 2px var(--wpds-dimension-padding-sm); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+/* One badge recipe everywhere (DS Badge geometry); only the tone differs. */
+.untangling-app .untangling-plan-chip,
+.untangling-app .untangling-hubrow-badge,
+.untangling-app .untangling-fallback-badge { display: inline-block; flex: none; font-size: var(--wpds-typography-font-size-xs); line-height: var(--wpds-typography-line-height-xs); font-weight: 500; border-radius: var(--wpds-border-radius-sm); padding: 2px var(--wpds-dimension-padding-sm); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.untangling-app .untangling-plan-chip { color: var(--wpds-color-foreground-interactive-brand); background: var(--wpds-color-background-surface-brand); }
 /* Storage row: the track is the plan's own allowance; amber = used. */
 .untangling-app .untangling-plan-row-storage { border-bottom: 0; padding-bottom: 0; }
 .untangling-app .untangling-storage-compare { padding: var(--wpds-dimension-gap-xs) 0 var(--wpds-dimension-gap-sm); border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral-weak); }
 .untangling-app .untangling-storage-compare-track { position: relative; height: 8px; border-radius: var(--wpds-border-radius-sm); background: var(--wpds-color-background-surface-neutral-weak); overflow: hidden; }
 .untangling-app .untangling-storage-compare-used { position: absolute; inset: 0 auto 0 0; background: var(--wpds-color-foreground-content-caution-weak); }
-/* Compare variant: Free vs Premium, mirrored rows */
-.untangling-app .untangling-plan-compare { display: grid; grid-template-columns: 1fr 1fr; }
-.untangling-app .untangling-plan-compare-col { min-width: 0; padding-right: var(--wpds-dimension-padding-md); }
-.untangling-app .untangling-plan-compare-col + .untangling-plan-compare-col { border-left: 1px solid var(--wpds-color-stroke-surface-neutral-weak); padding-left: var(--wpds-dimension-padding-md); padding-right: 0; }
-.untangling-app .untangling-plan-compare-name { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); font-size: var(--wpds-typography-font-size-md); font-weight: var(--wpds-typography-font-weight-emphasis); margin-bottom: var(--wpds-dimension-gap-md); }
-.untangling-app .untangling-plan-compare-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wpds-dimension-gap-sm); font-size: var(--wpds-typography-font-size-md); }
+/* Compare variant: Free vs Premium. Subgrid keeps name/price/desc/features on
+   shared rows across both columns; each column is its own bordered inner card
+   (Launchpad-task style), the recommended one brand-tinted. */
+.untangling-app .untangling-plan-compare { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr auto; gap: 0 var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-plan-compare-col { min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: 1 / -1; padding: var(--wpds-dimension-padding-xl); background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral); border-radius: 8px; }
+.untangling-app .untangling-plan-compare-col.is-recommended { background: color-mix( in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 4%, #fff ); border-color: color-mix( in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 16%, transparent ); }
+.untangling-app .untangling-plan-compare-name { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); font-size: var(--wpds-typography-font-size-xl); line-height: var(--wpds-typography-line-height-xl); font-weight: 500; }
+.untangling-app .untangling-plan-compare-price { margin-top: var(--wpds-dimension-gap-xs); margin-bottom: var(--wpds-dimension-gap-md); font-size: var(--wpds-typography-font-size-sm); font-weight: 500; }
+.untangling-app .untangling-plan-compare-desc { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); margin: var(--wpds-dimension-gap-xs) 0 var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-plan-compare-list { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: var(--wpds-dimension-gap-md); font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-plan-compare-list.is-muted { color: var(--wpds-color-foreground-content-neutral-weak); }
+.untangling-app .untangling-plan-compare-cta { margin-top: var(--wpds-dimension-gap-lg); display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); flex-wrap: wrap; }
+/* Card footer link row, MSD "See all activity" style: label left, chevron right. */
+.untangling-app .untangling-linkfooter { display: flex; align-items: center; justify-content: space-between; width: 100%; text-decoration: none; color: var(--wpds-color-foreground-content-neutral); font-size: var(--wpds-typography-font-size-md); }
+.untangling-app .untangling-linkfooter:hover { color: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); }
+.untangling-app .untangling-linkfooter:hover .untangling-ovcard-chevron { border-color: currentColor; }
+.untangling-app .untangling-linkfooter:focus-visible { outline: var(--wpds-border-width-focus) solid var(--wpds-color-stroke-focus); outline-offset: 2px; border-radius: var(--wpds-border-radius-sm); }
 .untangling-app .untangling-plan-chip.is-neutral { color: var(--wpds-color-foreground-content-neutral); background: var(--wpds-color-background-surface-neutral-weak); }
 .untangling-app .untangling-plan-chip.is-success { color: var(--wpds-color-foreground-content-success-weak); background: var(--wpds-color-background-surface-success-weak); }
+.untangling-app .untangling-plan-chip.is-dark { color: #fff; background: #2c3338; }
 /* Creator-offer variant */
 .untangling-app .untangling-plan-eyebrow { font-size: var(--wpds-typography-font-size-xs); font-weight: var(--wpds-typography-font-weight-emphasis); letter-spacing: 0.06em; text-transform: uppercase; color: var(--wpds-color-foreground-interactive-brand); margin-bottom: var(--wpds-dimension-gap-xs); }
 .untangling-app .untangling-plan-headline { font-size: var(--wpds-typography-font-size-xl); line-height: var(--wpds-typography-line-height-lg); font-weight: var(--wpds-typography-font-weight-default); margin: 0 0 var(--wpds-dimension-gap-xs); text-wrap: balance; }
@@ -2359,7 +3025,7 @@ add_filter( 'plugin_install_action_links', function ( $links ) {
 		return false !== strpos( $link, 'open-plugin-details-modal' );
 	} ) );
 	return array_merge(
-		array( '<a class="button button-primary untangling-upgrade" href="' . esc_url( UNTANGLING_MSD_URL . '/plans' ) . '">' . esc_html__( 'Upgrade to install' ) . '</a>' ),
+		array( '<a class="button button-primary untangling-upgrade" href="' . esc_url( UNTANGLING_MSD_URL . '/plans' ) . '">' . untangling_upsell_diamond() . esc_html__( 'Upgrade to install' ) . '</a>' ),
 		$details
 	);
 }, 20 );
@@ -2465,7 +3131,7 @@ function untangling_plugins_upsell_banner() {
 // opens the upgrade overlay).
 function untangling_plugins_upsell_hero() {
 	static $printed = false;
-	$assets = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@trunk/projects/packages/jetpack-mu-wpcom/src/features/wpcom-plugins/images';
+	$assets = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-plugins/images';
 	if ( ! $printed ) {
 		$printed = true;
 		?>
@@ -2541,7 +3207,7 @@ function untangling_plugins_upsell_hero() {
  * ---------------------------------------------------------------------- */
 
 function untangling_themes_banner() {
-	$assets  = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@trunk/projects/packages/jetpack-mu-wpcom/src/features/wpcom-themes/images';
+	$assets  = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-themes/images';
 	$is_tabs = 'tabs' === untangling_get_marketplace_mode();
 	// V3: the discovery banner becomes the plans upsell (same lavender panel,
 	// mirroring the dark plugins hero). Business/Commerce already include
@@ -2756,7 +3422,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 	#untangling-theme-overlay .previous-theme:hover,
 	#untangling-theme-overlay .previous-theme:focus,
 	#untangling-theme-overlay .next-theme:hover,
-	#untangling-theme-overlay .next-theme:focus { background: #dcdcde; border-color: #c3c4c7; color: #000; outline: none; box-shadow: none; }
+	#untangling-theme-overlay .next-theme:focus { background: #dcdcde; border-color: #c3c4c7; color: #1e1e1e; outline: none; box-shadow: none; }
 	#untangling-theme-overlay .close-full-overlay:before { font: normal 22px/1 dashicons; content: "\f335"; position: relative; top: 2px; }
 	#untangling-theme-overlay .previous-theme:before { font: normal 20px/1 dashicons; content: "\f341"; position: relative; top: 2px; }
 	#untangling-theme-overlay .next-theme:before { font: normal 20px/1 dashicons; content: "\f345"; position: relative; top: 2px; }
@@ -2841,7 +3507,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 							<div class="theme-actions">
 								<?php // WP 7.0 cards use the 32px compact size; default buttons are 40px and overflow the name plate. ?>
 								<?php if ( ! $is_active ) : ?>
-									<a class="button button-primary button-compact" href="<?php echo esc_url( $cta_url ); ?>"><?php echo esc_html( $included ? __( 'Install' ) : __( 'Upgrade' ) ); ?></a>
+									<a class="button button-primary button-compact" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Install' ) : __( 'Upgrade' ) ); ?></a>
 								<?php endif; ?>
 								<?php if ( $demo ) : ?>
 									<a class="button button-compact" href="<?php echo esc_url( $demo ); ?>" target="_blank" rel="noreferrer"><?php esc_html_e( 'Preview' ); ?></a>
@@ -3256,7 +3922,7 @@ function untangling_plugins_banner() {
 	if ( 'fullscreen' !== untangling_get_marketplace_mode() ) {
 		return;
 	}
-	$assets = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@trunk/projects/packages/jetpack-mu-wpcom/src/features/wpcom-plugins/images';
+	$assets = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-plugins/images';
 	?>
 	<style>
 	@font-face {
@@ -4338,6 +5004,58 @@ function untangling_marketplace_help_panel() {
 	<?php
 }
 
+// Support Assistant panel styles, shared by the Marketplace and Hosting
+// pages (geometry from packages/help-center: 410 × 80vh, max 800, radius 16,
+// right/bottom 50). Self-contained: grays and font are declared on the panel
+// itself so it works outside the .untangling-mkt scope.
+function untangling_help_panel_css() {
+	return <<<'CSS'
+	.untangling-mkt-help { --mkt-gray-0: #f6f7f7; --mkt-gray-10: #c3c4c7; --mkt-gray-50: #646970; --mkt-gray-60: #50575e; --mkt-gray-80: #2c3338; --mkt-gray-100: #101517; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; position: fixed; right: 50px; bottom: 50px; width: 410px; max-width: calc( 100vw - 32px ); height: 80vh; max-height: 800px; background: #fff; border-radius: 16px; box-shadow: 0 3px 8px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.14); z-index: 999990; display: flex; flex-direction: column; overflow: hidden; }
+	.untangling-mkt-help[hidden] { display: none; }
+	.untangling-mkt-help header { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--mkt-gray-0); flex-shrink: 0; }
+	.untangling-mkt-help header .title { font-size: 16px; font-weight: 500; color: var(--mkt-gray-100); margin-left: 4px; }
+	.untangling-mkt-help header .spacer { flex: 1; }
+	.untangling-mkt-help header button { background: none; border: 0; padding: 8px; cursor: pointer; color: var(--mkt-gray-100); display: inline-flex; }
+	.untangling-mkt-help-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px; }
+	.untangling-mkt-help-body h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; color: var(--mkt-gray-100); }
+	.untangling-mkt-help-body > p { font-size: 16px; margin: 0 0 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-ask { display: flex; align-items: center; border: 1px solid var(--mkt-gray-10); border-radius: 12px; padding: 8px 8px 8px 16px; gap: 8px; }
+	.untangling-mkt-ask input { border: 0; outline: 0; flex: 1; font-size: 14px; color: var(--mkt-gray-100); background: none; }
+	.untangling-mkt-ask button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--mkt-gray-0); color: var(--mkt-gray-60); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+	.untangling-mkt-help-fine { font-size: 12px; color: var(--mkt-gray-50); text-align: center; margin: 12px 0 0; }
+	.untangling-mkt-help-fine a { color: var(--mkt-gray-50); }
+CSS;
+}
+
+// The Hosting page gets the same Support Assistant panel — the "Ask AI"
+// card button opens it (closed by ✕ or Escape, same as the Marketplace).
+add_action( 'admin_footer', function () {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'toplevel_page_untangling-hosting' !== $screen->id ) {
+		return;
+	}
+	untangling_marketplace_help_panel();
+	echo '<style>' . untangling_help_panel_css() . '</style>';
+	?>
+	<script>
+	( function () {
+		var help = document.querySelector( '.untangling-mkt-help' );
+		if ( ! help ) {
+			return;
+		}
+		help.querySelector( '.untangling-mkt-help-close' ).addEventListener( 'click', function () {
+			help.hidden = true;
+		} );
+		document.addEventListener( 'keydown', function ( event ) {
+			if ( 'Escape' === event.key ) {
+				help.hidden = true;
+			}
+		} );
+	} )();
+	</script>
+	<?php
+} );
+
 // Values traced from production: step-container-v2 (top bar, Recoleta
 // heading scale), theme showcase + plugins marketplace (1220px content,
 // pills, card grids), plans-grid-next (280px plan columns), help-center
@@ -4633,21 +5351,7 @@ function untangling_marketplace_styles() {
 	.untangling-mkt-done p { font-size: 16px; color: var(--mkt-gray-80); margin: 0 0 32px; }
 	.untangling-mkt-done-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-	/* Help Center mimic — 410 × 80vh (max 800), radius 16, right/bottom 50. */
-	.untangling-mkt-help { position: fixed; right: 50px; bottom: 50px; width: 410px; max-width: calc( 100vw - 32px ); height: 80vh; max-height: 800px; background: #fff; border-radius: 16px; box-shadow: 0 3px 8px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.14); z-index: 999990; display: flex; flex-direction: column; overflow: hidden; }
-	.untangling-mkt-help[hidden] { display: none; }
-	.untangling-mkt-help header { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--mkt-gray-0); flex-shrink: 0; }
-	.untangling-mkt-help header .title { font-size: 16px; font-weight: 500; color: var(--mkt-gray-100); margin-left: 4px; }
-	.untangling-mkt-help header .spacer { flex: 1; }
-	.untangling-mkt-help header button { background: none; border: 0; padding: 8px; cursor: pointer; color: var(--mkt-gray-100); display: inline-flex; }
-	.untangling-mkt-help-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px; }
-	.untangling-mkt-help-body h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; color: var(--mkt-gray-100); }
-	.untangling-mkt-help-body > p { font-size: 16px; margin: 0 0 16px; color: var(--mkt-gray-80); }
-	.untangling-mkt-ask { display: flex; align-items: center; border: 1px solid var(--mkt-gray-10); border-radius: 12px; padding: 8px 8px 8px 16px; gap: 8px; }
-	.untangling-mkt-ask input { border: 0; outline: 0; flex: 1; font-size: 14px; color: var(--mkt-gray-100); background: none; }
-	.untangling-mkt-ask button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--mkt-gray-0); color: var(--mkt-gray-60); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-	.untangling-mkt-help-fine { font-size: 12px; color: var(--mkt-gray-50); text-align: center; margin: 12px 0 0; }
-	.untangling-mkt-help-fine a { color: var(--mkt-gray-50); }
+	<?php echo untangling_help_panel_css(); ?>
 
 	</style>
 	<?php
@@ -5107,6 +5811,7 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 add_action( 'admin_enqueue_scripts', function () {
 	wp_add_inline_style( 'common', '
 		.untangling-lede .button { margin-left: 12px; }
+		.untangling-upsell-diamond { width: 14px; height: 12px; fill: currentColor; vertical-align: -1px; margin-inline-end: 6px; }
 		.untangling-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; max-width: 1080px; }
 		.untangling-card { display: block; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 16px 20px; text-decoration: none; color: inherit; }
 		a.untangling-card:hover { border-color: #2271b1; }
