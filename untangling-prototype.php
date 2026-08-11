@@ -95,9 +95,9 @@ function untangling_get_site_slug() {
 // neutral. Coming soon (warning) has no core equivalent on Studio sites.
 function untangling_get_visibility() {
 	if ( (int) get_option( 'blog_public', 1 ) < 0 ) {
-		return array( 'label' => 'Private', 'tone' => 'neutral' );
+		return array( 'label' => 'Private', 'tone' => 'neutral', 'tip' => 'Only you and approved members can view your site.' );
 	}
-	return array( 'label' => 'Public', 'tone' => 'success' );
+	return array( 'label' => 'Public', 'tone' => 'success', 'tip' => 'Anyone can view your site.' );
 }
 
 function untangling_get_primary_domain() {
@@ -497,7 +497,7 @@ function untangling_app_js() {
 	var Fragment = wp.element.Fragment;
 	var C = wp.components;
 	var Button = C.Button;
-	var RadioControl = C.RadioControl;
+	var SelectControl = C.SelectControl;
 	var VStack = C.__experimentalVStack;
 	var Text = C.__experimentalText;
 	var Card = C.Card, CardHeader = C.CardHeader, CardBody = C.CardBody, CardFooter = C.CardFooter, CardDivider = C.CardDivider;
@@ -571,7 +571,17 @@ function untangling_app_js() {
 			try { window.localStorage.setItem( 'untangling-header', fromUrl ); } catch ( e ) {}
 			return fromUrl;
 		}
-		try { return window.localStorage.getItem( 'untangling-header' ) || 'hosting'; } catch ( e ) { return 'hosting'; }
+		try { return window.localStorage.getItem( 'untangling-header' ) || 'site'; } catch ( e ) { return 'site'; }
+	}
+
+	// Visibility badge with the CSS tooltip (data-tip + delegated positioning).
+	function visibilityBadge() {
+		var visibility = data.visibility || {};
+		return el( 'span', {
+			className: 'untangling-hubrow-badge is-' + ( visibility.tone || 'success' ) + ' untangling-feature-tip',
+			tabIndex: 0,
+			'data-tip': visibility.tip || 'Anyone can view your site.',
+		}, visibility.label || 'Public' );
 	}
 
 	function domainLink() {
@@ -589,7 +599,6 @@ function untangling_app_js() {
 
 	function Header( props ) {
 		if ( 'site' === props.variant ) {
-			var visibility = data.visibility || {};
 			return el( 'div', { className: 'untangling-header' },
 				el( HStack, { justify: 'space-between', alignment: 'flex-start', wrap: true, spacing: 4 },
 					el( FlexItem, null,
@@ -601,20 +610,13 @@ function untangling_app_js() {
 								el( 'h1', { className: 'untangling-title' }, data.siteName || 'Your site' ),
 								el( 'div', { className: 'untangling-siteid-meta' },
 									domainLink(),
-									el( 'span', { className: 'untangling-hubrow-badge is-' + ( visibility.tone || 'success' ) }, visibility.label || 'Public' )
+									visibilityBadge()
 								)
 							)
 						)
 					),
 					el( FlexItem, null,
-						el( HStack, { justify: 'flex-end', alignment: 'center', wrap: true, spacing: 4, expanded: false },
-							// The brand lockup doubles as the bridge to the WP.com dashboard.
-							el( 'a', { className: 'untangling-wpcom-lockup', href: msd },
-								el( 'span', { className: 'untangling-wpcom-lockup-mark', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: WPCOM_MARK } } ),
-								'Hosted on WordPress.com'
-							),
-							el( Button, { variant: 'secondary', href: msd + '/sites/' + ( data.siteSlug || '' ) }, 'Go to Hosting Overview ↗' )
-						)
+						el( Button, { variant: 'secondary', href: msd + '/sites/' + ( data.siteSlug || '' ) }, 'Go to Hosting Overview ↗' )
 					)
 				)
 			);
@@ -625,7 +627,8 @@ function untangling_app_js() {
 					el( 'div', { className: 'untangling-header-brand' },
 						el( 'h1', { className: 'untangling-title' }, 'Hosting' ),
 						el( 'span', { className: 'untangling-header-domain-sep', 'aria-hidden': true }, '/' ),
-						domainLink()
+						domainLink(),
+						visibilityBadge()
 					)
 				),
 				el( FlexItem, null,
@@ -1908,13 +1911,28 @@ function untangling_app_js() {
 	}
 
 	// Prototype chrome: a quiet W button that opens the controls panel — a DS
-	// Card built from wp.components (Card, RadioControl, ToggleGroupControl,
+	// Card built from wp.components (Card, SelectControl, ToggleGroupControl,
 	// Button). Drag the fab or the panel header to reposition it anywhere on
 	// the page; the position lives only for the current page view, so every
-	// load starts back at the default bottom-right corner. Plan-card designs
-	// switch client-side (localStorage + ?untangling_plancard= for shareable
-	// links); the environment switches reload through go() because they're
-	// persisted server-side.
+	// load starts back at the default bottom-right corner. The panel's IA is
+	// two groups: "This page" (client-side switches — localStorage +
+	// ?untangling_plancard= for shareable links, instant) and "Site-wide"
+	// (persisted server-side, reload through go()). Long option lists render
+	// as compact selects, 2–3-way switches as toggle groups (the DS guidance
+	// for each), so the panel fits a laptop viewport without scrolling.
+
+	// One line about the selected value only — the full three-way comparison
+	// used to live in a five-line help paragraph.
+	var MARKETPLACE_HELP = {
+		fullscreen: 'Themes + plugins in the chromeless Marketplace.',
+		split: 'Plugins keep the Add Plugins tab; themes go fullscreen.',
+		tabs: 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.',
+	};
+	var PLAN_FILTER_HELP = {
+		included: '“Included with my plan” links on both Marketplace tabs.',
+		dropdown: 'A tier dropdown on both Marketplace tabs.',
+	};
+
 	function ProtoPanel( props ) {
 		var openState = useState( false );
 		var open = openState[ 0 ], setOpen = openState[ 1 ];
@@ -2049,25 +2067,40 @@ function untangling_app_js() {
 					} )
 				),
 				el( CardBody, null,
-					el( VStack, { spacing: 4 },
-						'Free' === data.plan && el( RadioControl, {
+					el( VStack, { spacing: 2 },
+						el( Text, { upperCase: true, size: 11, weight: 500, variant: 'muted' }, 'This page' ),
+						'Free' === data.plan && el( SelectControl, {
 							label: 'Plan card',
-							selected: props.plancard,
+							value: props.plancard,
 							options: PLANCARD_VARIANTS,
+							size: 'compact',
+							__nextHasNoMarginBottom: true,
 							onChange: props.onPlancard,
 						} ),
-						el( RadioControl, {
+						el( SelectControl, {
 							label: 'My site layout',
-							selected: props.mysite,
+							value: props.mysite,
 							options: MYSITE_VARIANTS,
+							size: 'compact',
+							__nextHasNoMarginBottom: true,
 							onChange: props.onMysite,
 						} ),
-						el( RadioControl, {
+						ToggleGroup && el( ToggleGroup, {
 							label: 'Header',
-							selected: props.header,
-							options: HEADER_VARIANTS,
+							value: props.header,
+							isBlock: true,
+							__nextHasNoMarginBottom: true,
 							onChange: props.onHeader,
-						} ),
+						},
+							el( ToggleGroupOption, { value: 'hosting', label: 'Breadcrumb' } ),
+							el( ToggleGroupOption, { value: 'site', label: 'Site identity' } )
+						)
+					)
+				),
+				el( CardDivider ),
+				el( CardBody, null,
+					el( VStack, { spacing: 2 },
+						el( Text, { upperCase: true, size: 11, weight: 500, variant: 'muted' }, 'Site-wide · reloads' ),
 						ToggleGroup && el( ToggleGroup, {
 							label: 'Menu variant',
 							value: data.variant,
@@ -2093,7 +2126,7 @@ function untangling_app_js() {
 							value: data.marketplace,
 							isBlock: true,
 							__nextHasNoMarginBottom: true,
-							help: 'Fullscreen: themes + plugins in the chromeless Marketplace. Split: plugins keep the Add Plugins tab. Tabs: Marketplace tabs in Add Plugins and Add Themes, plans-upsell banners, no Theme Showcase entry.',
+							help: MARKETPLACE_HELP[ data.marketplace ],
 							onChange: function ( value ) { go( 'untangling_marketplace', value ); },
 						},
 							el( ToggleGroupOption, { value: 'fullscreen', label: 'Fullscreen' } ),
@@ -2105,19 +2138,21 @@ function untangling_app_js() {
 							value: data.planFilter,
 							isBlock: true,
 							__nextHasNoMarginBottom: true,
-							help: 'Marketplace tabs: "Included with my plan" links vs a tier dropdown.',
+							help: PLAN_FILTER_HELP[ data.planFilter ],
 							onChange: function ( value ) { go( 'untangling_plan_filter', value ); },
 						},
 							el( ToggleGroupOption, { value: 'included', label: 'Included' } ),
 							el( ToggleGroupOption, { value: 'dropdown', label: 'Dropdown' } )
-						),
-						data.planOverride && el( Button, {
-							variant: 'link',
-							isDestructive: true,
-							onClick: function () { go( 'untangling_reset_demo', '1' ); },
-						}, 'Reset demo state (plan: ' + data.plan + ')' ),
-						el( Button, { variant: 'link', onClick: copyLink }, copied ? 'Copied ✓' : 'Copy link to this view' )
+						)
 					)
+				),
+				el( CardFooter, { className: 'untangling-proto-foot' },
+					el( Button, { variant: 'link', onClick: copyLink }, copied ? 'Copied ✓' : 'Copy link' ),
+					data.planOverride && el( Button, {
+						variant: 'link',
+						isDestructive: true,
+						onClick: function () { go( 'untangling_reset_demo', '1' ); },
+					}, 'Reset demo (' + data.plan + ')' )
 				)
 			)
 		);
@@ -2438,21 +2473,13 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-siteid-icon.is-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--wpds-color-background-surface-neutral-weak); color: var(--wpds-color-foreground-content-neutral); font-size: var(--wpds-typography-font-size-xl); font-weight: 500; }
 .untangling-app .untangling-siteid-main { display: grid; gap: 2px; }
 .untangling-app .untangling-siteid-meta { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); }
-.untangling-app .untangling-wpcom-lockup { display: inline-flex; align-items: center; gap: var(--wpds-dimension-gap-sm); color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); text-decoration: none; transition: color 0.1s linear; }
-.untangling-app .untangling-wpcom-lockup:hover,
-.untangling-app .untangling-wpcom-lockup:focus-visible { color: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); }
-.untangling-app .untangling-wpcom-lockup-mark { display: inline-flex; }
-.untangling-app .untangling-wpcom-lockup-mark svg { width: 20px; height: 20px; fill: currentColor; }
 .untangling-app .untangling-header-domain-sep { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); line-height: var(--wpds-typography-line-height-md); }
-/* The domain links to the live site. Rest state reads as plain header text;
-   hover reveals the ↗ and takes the admin accent color. The arrow toggles
-   opacity (not display) so the header never reflows. */
+/* The domain links to the live site. The ↗ is always visible (hiding it left
+   a hover-reserved gap before the visibility badge that read as a bug); rest
+   state is neutral, hover/focus takes the admin accent color. */
 .untangling-app .untangling-header-domain { color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); line-height: var(--wpds-typography-line-height-md); text-decoration: none; transition: color 0.1s linear; }
-.untangling-app .untangling-header-domain-arrow { opacity: 0; transition: opacity 0.1s linear; }
 .untangling-app .untangling-header-domain:hover,
 .untangling-app .untangling-header-domain:focus-visible { color: var(--wpds-color-stroke-surface-brand-strong, var(--wp-admin-theme-color, #3858e9)); }
-.untangling-app .untangling-header-domain:hover .untangling-header-domain-arrow,
-.untangling-app .untangling-header-domain:focus-visible .untangling-header-domain-arrow { opacity: 1; }
 /* Page h1 sits one type step above the card titles (lg) so the hierarchy reads. */
 .untangling-app .untangling-title { font-size: var(--wpds-typography-font-size-xl); line-height: var(--wpds-typography-line-height-xl); font-weight: var(--wpds-typography-font-weight-emphasis); margin: 0; padding: 0; }
 /* The rule is an inset shadow (not border-bottom) so the DS active-tab
@@ -2510,13 +2537,13 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-domain-card { overflow: hidden; }
 .untangling-app .components-card__body.untangling-domain-body { padding: 0; }
 .untangling-app .untangling-domain-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.untangling-app .untangling-domain-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 16px; padding: 24px; }
+.untangling-app .untangling-domain-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 16px; padding: 24px; }
 .untangling-app .untangling-domain-desc { margin: 0; color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-domain-desc a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .untangling-app .untangling-upsell-cta-icon { display: inline-flex; }
 .untangling-app .untangling-domain-cta-icon svg { display: block; width: 20px; height: 20px; }
 .untangling-app .untangling-domain-cta-icon svg path { fill: currentColor; }
-.untangling-app .untangling-domain-art { position: relative; min-height: 248px; }
+.untangling-app .untangling-domain-art { position: relative; }
 .untangling-app .untangling-domain-art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 @media ( max-width: 782px ) { .untangling-app .untangling-domain-body { grid-template-columns: 1fr; } .untangling-app .untangling-domain-art { display: none; } }
 .untangling-app .untangling-caution { color: var(--wpds-color-foreground-content-caution-weak); font-size: var(--wpds-typography-font-size-sm); margin: var(--wpds-dimension-gap-xs) 0 0; }
@@ -2751,6 +2778,12 @@ body.toplevel_page_untangling-hosting #wpcontent {
 /* Minimize is chrome, not an action: gray at rest, brand blue on hover. */
 .untangling-app .untangling-proto-min.components-button { color: var(--wpds-color-foreground-content-neutral-weak); }
 .untangling-app .untangling-proto-min.components-button:hover:not(:disabled) { color: var(--wpds-color-foreground-interactive-brand); }
+/* Compact density: the panel is a dev tool that must fit a laptop viewport
+   without scrolling, so it runs tighter than the DS card defaults. */
+.untangling-app .untangling-proto-panel .components-card__body { padding: 12px 16px; }
+.untangling-app .untangling-proto-head.components-card__header { padding: 6px 16px; }
+.untangling-app .untangling-proto-panel .components-base-control__help { margin-top: 4px; font-size: 11px; line-height: 1.4; }
+.untangling-app .untangling-proto-foot.components-card__footer { padding: 10px 16px; }
 /* The bundled ToggleGroupControl draws its active-segment fill with an
    animated backdrop that never mounts in this environment, so paint the DS
    pressed state from the data-active-item attribute with the wpds tokens. */
@@ -2764,9 +2797,14 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-plan-upsell-price { font-size: var(--wpds-typography-font-size-sm); color: var(--wpds-color-foreground-content-neutral-weak); font-variant-numeric: tabular-nums; }
 .untangling-app .untangling-plan-upsell-cta { margin-top: var(--wpds-dimension-gap-md); }
 .untangling-app .untangling-feature-tip { position: relative; cursor: default; }
+/* The badge recipe clips overflow (ellipsis); a badge hosting the tooltip must not. */
+.untangling-app .untangling-hubrow-badge.untangling-feature-tip { overflow: visible; }
 /* Bubble matches wordpress.com/pricing: dark, wrapped at ~240px, 8px radius.
    It centers above the cursor — a mousemove listener feeds --untangling-tip-x. */
-.untangling-app .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: 240px; background: #101517; color: #fff; font-size: var(--wpds-typography-font-size-md); line-height: var(--wpds-typography-line-height-sm); padding: var(--wpds-dimension-padding-md) var(--wpds-dimension-padding-lg); border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle); z-index: 10; }
+/* Metrics mirror the wp.components Tooltip (12px text, 4×8 padding, 2px
+   radius, content-sized up to 300px) — the component itself silently fails
+   with a delay prop in this bundle, so the bubble stays hand-rolled CSS. */
+.untangling-app .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: max-content; max-width: 300px; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle); z-index: 10; }
 .untangling-app .untangling-feature-tip:hover::after,
 .untangling-app .untangling-feature-tip:focus-visible::after { opacity: 1; }
 @media ( prefers-reduced-motion: reduce ) { .untangling-app .untangling-feature-tip::after { transition: none; } }
@@ -2921,7 +2959,7 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 		if ( $included ) {
 			echo '<li><a class="install-now button" href="#">' . esc_html__( 'Install Now' ) . '</a></li>';
 		} else {
-			echo '<li><a class="button button-primary untangling-upgrade" href="' . esc_url( UNTANGLING_MSD_URL . '/plans' ) . '">' . esc_html__( 'Upgrade and Activate' ) . '</a></li>';
+			echo '<li><a class="button button-primary untangling-upgrade" href="' . esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'type' => 'plugin', 'slug' => $slug ) ) ) . '">' . esc_html__( 'Upgrade and Activate' ) . '</a></li>';
 		}
 		echo '<li><a href="' . esc_url( $details ) . '" target="_blank" rel="noreferrer">' . esc_html__( 'More Details' ) . '</a></li>';
 		echo '</ul></div>';
@@ -3016,7 +3054,11 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 
 // Simple mode: core plugin search results keep the exact core UI, but the
 // install action becomes an upgrade CTA (open question #1, now decided).
-add_filter( 'plugin_install_action_links', function ( $links ) {
+// The CTA opens the fullscreen pricing step tailored to the clicked plugin
+// (flow=install carries the wp.org name; the required tier matches the
+// cards' "Requires the X plan" signal). `back` is a fixed admin URL, not
+// REQUEST_URI: search results re-render through admin-ajax.php.
+add_filter( 'plugin_install_action_links', function ( $links, $plugin ) {
 	if ( ! untangling_is_simple() ) {
 		return $links;
 	}
@@ -3024,11 +3066,61 @@ add_filter( 'plugin_install_action_links', function ( $links ) {
 	$details = array_values( array_filter( $links, function ( $link ) {
 		return false !== strpos( $link, 'open-plugin-details-modal' );
 	} ) );
+	$pricing = untangling_marketplace_url( 'plugins', array(
+		'ustep' => 'pricing',
+		'type'  => 'plugin',
+		'flow'  => 'install',
+		'pname' => isset( $plugin['name'] ) ? wp_strip_all_tags( $plugin['name'] ) : '',
+		'back'  => rawurlencode( admin_url( 'plugin-install.php' ) ),
+	) );
 	return array_merge(
-		array( '<a class="button button-primary untangling-upgrade" href="' . esc_url( UNTANGLING_MSD_URL . '/plans' ) . '">' . untangling_upsell_diamond() . esc_html__( 'Upgrade to install' ) . '</a>' ),
+		array( '<a class="button button-primary untangling-upgrade" href="' . esc_url( $pricing ) . '">' . untangling_upsell_diamond() . esc_html__( 'Upgrade to install' ) . '</a>' ),
 		$details
 	);
-}, 20 );
+}, 20, 2 );
+
+// Simple mode: the More Details modal (core's plugin-information iframe)
+// follows the cards — Install Now becomes Upgrade to install and opens the
+// same fullscreen pricing → checkout flow in the parent window. The iframe
+// document doesn't get the admin inline styles or the card filter, so both
+// the diamond rule and the button swap are injected here.
+add_action( 'admin_print_footer_scripts', function () {
+	global $pagenow;
+	if ( 'plugin-install.php' !== $pagenow || ! isset( $_GET['tab'] ) || 'plugin-information' !== $_GET['tab'] || ! untangling_is_simple() ) {
+		return;
+	}
+	$pricing = untangling_marketplace_url( 'plugins', array(
+		'ustep' => 'pricing',
+		'type'  => 'plugin',
+		'flow'  => 'install',
+		'back'  => rawurlencode( admin_url( 'plugin-install.php' ) ),
+	) );
+	?>
+	<style>.untangling-upsell-diamond { width: 14px; height: 12px; fill: currentColor; vertical-align: -1px; margin-inline-end: 6px; }</style>
+	<script>
+	( function () {
+		var footer = document.getElementById( 'plugin-information-footer' );
+		var button = footer && footer.querySelector( '.button' );
+		if ( ! button ) {
+			return;
+		}
+		var title = document.querySelector( '#plugin-information-title h2' );
+		var url = new URL( <?php echo wp_json_encode( $pricing ); ?> );
+		if ( title ) {
+			url.searchParams.set( 'pname', title.textContent.trim() );
+		}
+		var link = document.createElement( 'a' );
+		// Primary like every upgrade CTA; `right` keeps core's bottom-right
+		// placement for the stock Install Now.
+		link.className = 'button button-primary right untangling-upgrade';
+		link.href = url.toString();
+		link.target = '_parent';
+		link.innerHTML = <?php echo wp_json_encode( untangling_upsell_diamond() . esc_html__( 'Upgrade to install' ) ); ?>;
+		button.replaceWith( link );
+	} )();
+	</script>
+	<?php
+} );
 
 // Simple mode: the Upload Plugin form is removed (no upgrade prompt shown).
 add_action( 'admin_init', function () {
@@ -3119,7 +3211,7 @@ function untangling_plugins_upsell_banner() {
 			<h2><?php esc_html_e( 'Access thousands of plugins with the Personal Plan' ); ?></h2>
 			<p><?php esc_html_e( 'Free domain included.' ); ?></p>
 		</div>
-		<a class="button button-primary untangling-upgrade" href="<?php echo esc_url( UNTANGLING_MSD_URL . '/plans' ); ?>"><?php esc_html_e( 'Upgrade' ); ?></a>
+		<a class="button button-primary untangling-upgrade" href="<?php echo esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'ref' => 'plugins-upsell-hero', 'back' => rawurlencode( $_SERVER['REQUEST_URI'] ) ) ) ); ?>"><?php esc_html_e( 'Upgrade' ); ?></a>
 	</div>
 	<?php
 }
@@ -3127,8 +3219,7 @@ function untangling_plugins_upsell_banner() {
 // Split (V2) and Tabs (V3): the Free-plan upsell renders as a WP.com showcase hero —
 // same visual language as the wpcom themes/plugins banners (Recoleta
 // heading, logo lockup, rounded dark panel, plugin-tile artwork) instead
-// of an admin notice. Same copy and CTA behavior (.untangling-upgrade
-// opens the upgrade overlay).
+// of an admin notice. Both CTAs open the fullscreen pricing step.
 function untangling_plugins_upsell_hero() {
 	static $printed = false;
 	$assets = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-plugins/images';
@@ -3142,47 +3233,38 @@ function untangling_plugins_upsell_hero() {
 			font-weight: 400;
 			src: url(https://s1.wp.com/i/fonts/recoleta/400.woff2) format("woff2"), url(https://s1.wp.com/i/fonts/recoleta/400.woff) format("woff");
 		}
+		/* Compact banner: metrics mirror .wpcom-themes-banner.is-upsell exactly
+		   so the plugins and themes upsells come out the same height. */
 		.untangling-upsell-hero {
 			/* White Recoleta on dark renders heavier than the Themes banner's
 			   dark-on-light without antialiasing. */
 			-webkit-font-smoothing: antialiased;
 			-moz-osx-font-smoothing: grayscale;
 			background-color: #242424;
-			padding: 48px 32px;
+			padding: 24px 32px;
 			border-radius: 10px;
 			margin: 20px 0 24px;
 			background-image: url(<?php echo esc_url( $assets . '/banner-background.webp' ); ?>);
 			background-repeat: no-repeat;
-			background-position: bottom 12px right 64px;
-			background-size: 430px;
+			background-position: bottom right 48px;
+			background-size: 340px;
 		}
 		.untangling-upsell-hero__content { width: 540px; }
-		.untangling-upsell-hero__content img { height: 21px; width: auto; display: block; }
+		.untangling-upsell-hero__content img { height: 16px; width: auto; display: block; }
 		#wpcontent .untangling-upsell-hero h3,
-		#wpcontent .untangling-upsell-hero p { font-weight: 400; letter-spacing: -0.32px; margin: 10px 0; text-wrap: pretty; }
-		.untangling-upsell-hero h3 { font-family: Recoleta, serif; font-size: 32px; line-height: 40px; color: #fff; }
-		.untangling-upsell-hero p { font-size: 16px; line-height: 24px; color: #a7aaad; }
+		#wpcontent .untangling-upsell-hero p { font-weight: 400; letter-spacing: -0.32px; margin: 8px 0; text-wrap: pretty; }
+		.untangling-upsell-hero h3 { font-family: Recoleta, serif; font-size: 24px; line-height: 32px; color: #fff; }
+		.untangling-upsell-hero p { font-size: 14px; line-height: 20px; color: #a7aaad; }
 		.untangling-upsell-hero a,
-		.untangling-upsell-hero a:visited { background-color: #3858e9; color: #fff; border-radius: 4px; padding: 10px 24px; font-size: 14px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 24px; }
+		.untangling-upsell-hero a:visited { background-color: #3858e9; color: #fff; border-radius: 4px; padding: 8px 16px; font-size: 13px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 12px; }
 		.untangling-upsell-hero a:hover,
 		.untangling-upsell-hero a:focus { background-color: #fff; color: #1d2327; }
-		@media ( max-width: 1260px ) {
-			.untangling-upsell-hero { padding: 32px; background-size: 360px; }
-			.untangling-upsell-hero a { padding: 10px 20px; margin-top: 12px; }
-		}
 		@media ( max-width: 1120px ) {
-			.untangling-upsell-hero { background-position: bottom right 5px; background-size: 300px; }
+			.untangling-upsell-hero { background-position: bottom right 5px; background-size: 280px; }
 		}
 		@media ( max-width: 850px ) {
 			.untangling-upsell-hero { background-image: none; }
 			.untangling-upsell-hero__content { width: auto; }
-		}
-		@media ( max-width: 782px ) {
-			.untangling-upsell-hero { padding: 24px; }
-			#wpcontent .untangling-upsell-hero h3,
-			#wpcontent .untangling-upsell-hero p { margin: 8px 0; }
-			.untangling-upsell-hero h3 { font-size: 24px; line-height: 32px; }
-			.untangling-upsell-hero p { font-size: 14px; line-height: 20px; }
 		}
 		</style>
 		<?php
@@ -3191,8 +3273,8 @@ function untangling_plugins_upsell_hero() {
 	<div class="untangling-upsell-hero">
 		<div class="untangling-upsell-hero__content">
 			<img src="<?php echo esc_url( $assets . '/wpcom-logo.svg' ); ?>" alt="WordPress.com">
-			<h3><?php esc_html_e( 'Upgrade your plan to access thousands of plugins' ); ?></h3>
-			<p><?php esc_html_e( 'A free domain for the first year is included with any annual plan.' ); ?></p>
+			<h3><?php esc_html_e( 'Unlock thousands of plugins' ); ?></h3>
+			<p><?php esc_html_e( 'Upgrade to any annual plan and get a free domain for the first year.' ); ?></p>
 			<a class="untangling-upsell-cta" href="<?php echo esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'ref' => 'plugins-upsell-hero', 'back' => rawurlencode( $_SERVER['REQUEST_URI'] ) ) ) ); ?>"><?php esc_html_e( 'See all plans' ); ?></a>
 		</div>
 	</div>
@@ -3219,8 +3301,8 @@ function untangling_themes_banner() {
 	if ( $is_tabs && 'themes.php' === $GLOBALS['pagenow'] ) {
 		return;
 	}
-	$heading   = $is_tabs ? __( 'Upgrade your plan to access thousands of themes' ) : __( 'Beautiful themes for every idea' );
-	$blurb     = $is_tabs ? __( 'A free domain for the first year is included with any annual plan.' ) : __( 'Dive deep into the world of WordPress.com themes. Discover the responsive and stunning designs waiting to bring your site to life.' );
+	$heading   = $is_tabs ? __( 'Unlock thousands of themes' ) : __( 'Beautiful themes for every idea' );
+	$blurb     = $is_tabs ? __( 'Upgrade to any annual plan and get a free domain for the first year.' ) : __( 'Dive deep into the world of WordPress.com themes. Discover the responsive and stunning designs waiting to bring your site to life.' );
 	$cta_label = $is_tabs ? __( 'See all plans' ) : __( 'Explore themes' );
 	$cta_url   = $is_tabs
 		? untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ref' => 'themes-upsell-banner', 'back' => rawurlencode( $_SERVER['REQUEST_URI'] ) ) )
@@ -3233,25 +3315,22 @@ function untangling_themes_banner() {
 		font-weight: 400;
 		src: url(https://s1.wp.com/i/fonts/recoleta/400.woff2) format("woff2"), url(https://s1.wp.com/i/fonts/recoleta/400.woff) format("woff");
 	}
+	/* Compact banner: vertical metrics mirror .untangling-upsell-hero (the
+	   dark plugins hero) exactly so the two banners come out the same height.
+	   Applies to both the tabs-mode upsell and the discovery variant. */
 	.wpcom-themes-banner {
 		background-color: #dbe0f9;
-		padding: 64px 32px;
+		padding: 24px 32px;
 		border-radius: 10px;
 		margin-bottom: 25px;
 		background-image: url(<?php echo esc_url( $assets . '/banner-background.webp' ); ?>);
 		background-repeat: no-repeat;
 		background-position: center right 10px;
-		background-size: 530px;
+		background-size: 300px;
 	}
 	.wpcom-themes-banner.hidden { display: none; }
-	.wpcom-themes-banner__content { width: 490px; }
-	/* Tabs-mode plans upsell: vertical metrics mirror .untangling-upsell-hero
-	   (the dark plugins hero) so the two Marketplace banners come out the same
-	   height. The non-tabs discovery banner keeps production geometry. */
-	.wpcom-themes-banner.is-upsell { padding-top: 48px; padding-bottom: 48px; }
-	.wpcom-themes-banner.is-upsell .wpcom-themes-banner__content img { height: 21px; width: auto; display: block; }
-	.wpcom-themes-banner.is-upsell a,
-	.wpcom-themes-banner.is-upsell a:visited { padding-top: 10px; padding-bottom: 10px; margin-top: 24px; }
+	.wpcom-themes-banner__content { width: 540px; }
+	.wpcom-themes-banner__content img { height: 16px; width: auto; display: block; }
 	/* themes.php: the installed-themes search moves below the banner (see
 	   the script), so the banner tops both this page and the Plugins page
 	   at the same spot under the page title. */
@@ -3259,34 +3338,19 @@ function untangling_themes_banner() {
 	.themes-php .search-form.search-themes { float: right; margin: 0 0 16px; }
 	.themes-php .theme-browser { clear: both; }
 	.wpcom-themes-banner h3,
-	.wpcom-themes-banner p { font-weight: 400; letter-spacing: -0.32px; margin: 10px 0; text-wrap: pretty; }
-	.wpcom-themes-banner h3 { font-family: Recoleta, serif; font-size: 32px; line-height: 40px; color: #101517; }
-	.wpcom-themes-banner p { font-size: 16px; line-height: 24px; color: #2c3338; }
+	.wpcom-themes-banner p { font-weight: 400; letter-spacing: -0.32px; margin: 8px 0; text-wrap: pretty; }
+	.wpcom-themes-banner h3 { font-family: Recoleta, serif; font-size: 24px; line-height: 32px; color: #101517; }
+	.wpcom-themes-banner p { font-size: 14px; line-height: 20px; color: #2c3338; }
 	.wpcom-themes-banner a,
-	.wpcom-themes-banner a:visited { background-color: #101517; color: #fff; border-radius: 4px; padding: 14px 24px; font-size: 14px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 17px; }
+	.wpcom-themes-banner a:visited { background-color: #101517; color: #fff; border-radius: 4px; padding: 8px 16px; font-size: 13px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 12px; }
 	.wpcom-themes-banner a:hover,
 	.wpcom-themes-banner a:focus { background-color: #1d2327; color: #fff; }
-	@media ( max-width: 1260px ) {
-		.wpcom-themes-banner { padding: 32px; background-size: 400px; }
-		.wpcom-themes-banner a { padding: 10px 20px; margin-top: 12px; }
-		.wpcom-themes-banner.is-upsell { padding-top: 32px; padding-bottom: 32px; }
-		.wpcom-themes-banner.is-upsell a,
-		.wpcom-themes-banner.is-upsell a:visited { padding: 10px 20px; margin-top: 12px; }
-	}
 	@media ( max-width: 1120px ) {
-		.wpcom-themes-banner { background-position: center right -150px; }
+		.wpcom-themes-banner { background-position: center right -60px; background-size: 260px; }
 	}
 	@media ( max-width: 850px ) {
 		.wpcom-themes-banner { background-image: none; }
 		.wpcom-themes-banner__content { width: auto; }
-	}
-	@media ( max-width: 782px ) {
-		.wpcom-themes-banner { padding: 24px; }
-		.wpcom-themes-banner.is-upsell { padding-top: 24px; padding-bottom: 24px; }
-		.wpcom-themes-banner h3,
-		.wpcom-themes-banner p { margin: 8px 0; }
-		.wpcom-themes-banner h3 { font-size: 24px; line-height: 32px; }
-		.wpcom-themes-banner p { font-size: 14px; line-height: 20px; }
 	}
 	</style>
 	<script>
@@ -3391,15 +3455,25 @@ add_action( 'admin_footer-theme-install.php', function () {
 	   margins, which still count display:none cards, so client-side filtering
 	   leaves holes mid-row. Grid reflows the survivors cleanly. */
 	#untangling-theme-marketplace .untangling-tab-themes { clear: both; display: grid; grid-template-columns: repeat( 3, minmax( 0, 1fr ) ); column-gap: 4%; }
-	#untangling-theme-marketplace .theme-browser .theme { float: none; width: auto; margin: 0 0 4%; }
-	@media ( max-width: 1120px ) { #untangling-theme-marketplace .untangling-tab-themes { grid-template-columns: repeat( 2, minmax( 0, 1fr ) ); } }
-	@media ( max-width: 480px ) { #untangling-theme-marketplace .untangling-tab-themes { grid-template-columns: 1fr; } }
+	/* Core's float grid puts 4%-of-container gutters on both axes. A grid
+	   item's percentage margin resolves against its own grid area (~30.67%
+	   of the container here), so the bottom margin is scaled per column
+	   count to land back at 4% of the container: 4 / 30.67 ≈ 13%. */
+	#untangling-theme-marketplace .theme-browser .theme { float: none; width: auto; margin: 0 0 13%; }
+	@media ( max-width: 1120px ) {
+		#untangling-theme-marketplace .untangling-tab-themes { grid-template-columns: repeat( 2, minmax( 0, 1fr ) ); }
+		/* 2 columns: item ≈ 48% of container → 4 / 48 ≈ 8.33%. */
+		#untangling-theme-marketplace .theme-browser .theme { margin-bottom: 8.33%; }
+	}
+	@media ( max-width: 480px ) {
+		#untangling-theme-marketplace .untangling-tab-themes { grid-template-columns: 1fr; }
+		#untangling-theme-marketplace .theme-browser .theme { margin-bottom: 4%; }
+	}
 	#untangling-theme-marketplace .untangling-filter-row { margin: 8px 0 24px; }
 	#untangling-theme-marketplace .theme { cursor: pointer; }
-	/* Plan-tier signal, like the tier pills on wordpress.com/themes. */
-	#untangling-theme-marketplace .untangling-tab-badge { opacity: 0; position: absolute; top: 8px; inset-inline-end: 8px; z-index: 2; background: #fff; color: #1d2327; border-radius: 3px; padding: 4px 8px; font-size: 12px; line-height: 1.2; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: opacity 0.1s ease-in-out; }
-	#untangling-theme-marketplace .theme:hover .untangling-tab-badge,
-	#untangling-theme-marketplace .theme:focus-within .untangling-tab-badge { opacity: 1; }
+	/* Plan-tier signal, like the tier pills on wordpress.com/themes. Always
+	   visible (not hover-revealed) so the required plan reads upfront. */
+	#untangling-theme-marketplace .untangling-tab-badge { position: absolute; top: 8px; inset-inline-end: 8px; z-index: 2; background: #fff; color: #1d2327; border-radius: 3px; padding: 4px 8px; font-size: 12px; line-height: 1.2; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 	#untangling-theme-marketplace .untangling-tab-badge.is-active-badge { background: #00a32a; color: #fff; }
 	#untangling-theme-marketplace .untangling-tab-badge.is-tier-badge { background: #101517; color: #fff; }
 	/* The Details & Preview pill mirrors core's .more-details under our own
@@ -3429,7 +3503,13 @@ add_action( 'admin_footer-theme-install.php', function () {
 	#untangling-theme-overlay .previous-theme.disabled,
 	#untangling-theme-overlay .next-theme.disabled { color: #c3c4c7; background: #f0f0f1; cursor: default; pointer-events: none; }
 	#untangling-theme-overlay .install-theme-info { display: block; padding: 10px 20px 60px; }
-	#untangling-theme-overlay .wp-full-overlay-header .theme-install { float: right; margin: 8px 10px 0 0; }
+	/* Core's .theme-install-overlay rules our container can't carry (the
+	   class is dropped so Backbone leaves us alone): white content area, and
+	   the 32px header button — pinned explicitly because the local admin
+	   refresh inflates .wp-core-ui .button to a 40px min-height. */
+	#untangling-theme-overlay .wp-full-overlay-sidebar { background: #f0f0f1; border-right: 1px solid #dcdcde; }
+	#untangling-theme-overlay .wp-full-overlay-sidebar-content { background: #fff; border-top: 1px solid #dcdcde; border-bottom: 1px solid #dcdcde; }
+	#untangling-theme-overlay .wp-full-overlay-header .theme-install { float: right; margin: 7px 10px 0 0; min-height: 32px; line-height: 2.30769231; font-size: 13px; padding: 0 10px; }
 	#untangling-theme-overlay .theme-by { display: block; color: #646970; margin-top: 2px; }
 	#untangling-theme-overlay .theme-screenshot:after { content: ""; display: block; padding-top: 66.66%; }
 	#untangling-theme-overlay .theme-description { margin-top: 12px; line-height: 1.6; color: #50575e; }
@@ -3495,6 +3575,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 						'badge'  => $badge_class,
 						'cta'    => $is_active ? '' : ( $included ? __( 'Install' ) : __( 'Upgrade' ) ),
 						'ctaUrl' => $is_active ? '' : $cta_url,
+						'gated'  => ! $is_active && ! $included,
 					);
 					?>
 					<div class="theme" data-idx="<?php echo (int) $card_idx++; ?>" data-category="<?php echo esc_attr( $subject ); ?>" data-tier="<?php echo esc_attr( $tier_plan ); ?>" data-included="<?php echo $included ? '1' : ''; ?>" data-details="<?php echo esc_url( $detail_url ); ?>" tabindex="0">
@@ -3678,7 +3759,9 @@ add_action( 'admin_footer-theme-install.php', function () {
 			ov.shot.src = d.shot;
 			ov.desc.textContent = d.desc;
 			if ( d.cta ) {
-				ov.cta.textContent = d.cta;
+				// d.cta is a fixed i18n label; the diamond marks gated tiers,
+				// matching the card CTAs.
+				ov.cta.innerHTML = ( d.gated ? <?php echo wp_json_encode( untangling_upsell_diamond() ); ?> : '' ) + d.cta;
 				ov.cta.href = d.ctaUrl;
 				ov.cta.style.display = '';
 			} else {
@@ -4124,7 +4207,7 @@ function untangling_plan_pricing() {
 	// plugins rows, entering from the themes upsell banner bolds the theme
 	// rows; every other entry (the WordPress.com page) shows all features
 	// in regular weight.
-	$from_plugins     = isset( $_GET['ref'] ) && 'plugins-upsell-hero' === $_GET['ref'];
+	$from_plugins     = ( isset( $_GET['ref'] ) && 'plugins-upsell-hero' === $_GET['ref'] ) || ( isset( $_GET['flow'] ) && 'install' === $_GET['flow'] );
 	$from_themes      = isset( $_GET['ref'] ) && 'themes-upsell-banner' === $_GET['ref'];
 	$domain           = array( __( 'Free domain for one year' ), $domain_tip );
 	$premium_themes   = array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ), $from_themes );
@@ -4799,6 +4882,17 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 		echo '<div class="untangling-mkt-hero"><h1 class="untangling-mkt-brandfont">' . esc_html__( 'Item not found' ) . '</h1></div>';
 		return;
 	}
+	// Core Add Plugins cards (wp.org catalog, Simple sites) enter with
+	// flow=install: not a marketplace item, but the hero still names the
+	// clicked plugin and the required tier matches the cards'
+	// "Requires the X plan" signal (Free → Personal, Premium → Business).
+	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
+		$pname = isset( $_GET['pname'] ) ? sanitize_text_field( wp_unslash( $_GET['pname'] ) ) : '';
+		$item  = array(
+			'name' => $pname ? $pname : __( 'any plugin' ),
+			'tier' => 'Premium' === $plan ? 'Business' : 'Personal',
+		);
+	}
 	// No slug = generic plan-upgrade entry (from the WordPress.com page plan
 	// card): same pricing page, Premium highlighted as Recommended.
 	$tier_rank = untangling_plan_rank( $item ? $item['tier'] : 'Premium' );
@@ -4824,9 +4918,20 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			}
 			list( $price, $features ) = $info;
 			$is_required = $prank === $tier_rank;
-			$checkout    = $item
-				? untangling_marketplace_url( $mkt, array( 'ustep' => 'checkout', 'type' => $type, 'slug' => $slug, 'plan' => $name ) )
-				: untangling_marketplace_url( $mkt, array( 'ustep' => 'checkout', 'plan' => $name ) );
+			$checkout_args = $item && $slug
+				? array( 'ustep' => 'checkout', 'type' => $type, 'slug' => $slug, 'plan' => $name )
+				: array( 'ustep' => 'checkout', 'plan' => $name );
+			if ( isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
+				$checkout_args['type'] = 'plugin';
+				$checkout_args['flow'] = 'install';
+				if ( ! empty( $_GET['pname'] ) ) {
+					$checkout_args['pname'] = sanitize_text_field( wp_unslash( $_GET['pname'] ) );
+				}
+			}
+			if ( ! empty( $_GET['back'] ) ) {
+				$checkout_args['back'] = rawurlencode( wp_unslash( $_GET['back'] ) );
+			}
+			$checkout = untangling_marketplace_url( $mkt, $checkout_args );
 			?>
 			<div class="untangling-mkt-plan<?php echo $is_current ? ' is-current' : ''; ?><?php echo $is_required && ! $is_current ? ' is-required' : ''; ?>">
 				<div class="untangling-mkt-plan-badges">
@@ -4872,6 +4977,12 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		return;
 	}
 	// No slug = plan-only checkout (from the WordPress.com page plan card).
+	// Core Add Plugins entries (flow=install) carry the wp.org plugin name so
+	// the order summary lists it as included with the new plan.
+	$install_name = '';
+	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
+		$install_name = isset( $_GET['pname'] ) ? sanitize_text_field( wp_unslash( $_GET['pname'] ) ) : '';
+	}
 	$pricing  = untangling_plan_pricing();
 	$new_plan = ( isset( $_GET['plan'] ) && isset( $pricing[ $_GET['plan'] ] ) ) ? $_GET['plan'] : ( $item ? $item['tier'] : 'Premium' );
 	$mkt      = 'plugin' === $type ? 'plugins' : 'themes';
@@ -4884,6 +4995,13 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	if ( $item ) {
 		$done_args['type'] = $type;
 		$done_args['slug'] = $slug;
+	} elseif ( $install_name ) {
+		$done_args['type']  = 'plugin';
+		$done_args['flow']  = 'install';
+		$done_args['pname'] = $install_name;
+	}
+	if ( ! empty( $_GET['back'] ) ) {
+		$done_args['back'] = rawurlencode( wp_unslash( $_GET['back'] ) );
 	}
 	$done = untangling_marketplace_url( $mkt, $done_args );
 	?>
@@ -4936,6 +5054,11 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 					</span>
 					<span><?php echo $item_price ? esc_html( 'US$' . number_format_i18n( $item_price, 2 ) ) : esc_html__( 'Included' ); ?></span>
 				</div>
+			<?php elseif ( $install_name ) : ?>
+				<div class="untangling-mkt-sumrow">
+					<span class="who"><span><?php echo esc_html( $install_name ); ?><small><?php esc_html_e( 'Plugin' ); ?></small></span></span>
+					<span><?php esc_html_e( 'Included' ); ?></span>
+				</div>
 			<?php endif; ?>
 			<div class="untangling-mkt-sumdivider"></div>
 			<div class="untangling-mkt-sumtotal">
@@ -4952,6 +5075,10 @@ function untangling_marketplace_done_step( $type ) {
 	$item = untangling_marketplace_find_item( $type, $slug );
 	$plan = untangling_get_plan(); // Already overridden by untangling_set_plan on this request.
 	$mkt  = 'plugin' === $type ? 'plugins' : 'themes';
+	$install_name = '';
+	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
+		$install_name = isset( $_GET['pname'] ) ? sanitize_text_field( wp_unslash( $_GET['pname'] ) ) : '';
+	}
 	?>
 	<div class="untangling-mkt-done">
 		<span class="untangling-mkt-done-check">
@@ -4962,10 +5089,15 @@ function untangling_marketplace_done_step( $type ) {
 			<?php echo esc_html( sprintf( __( 'The %1$s plan is now active on %2$s.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
 			<?php if ( $item ) : ?>
 				<?php echo esc_html( sprintf( 'theme' === $type ? __( '%s is now included in your plan — head back to the Marketplace to activate it.' ) : __( '%s is now included in your plan — head back to the Marketplace to install it.' ), $item['name'] ) ); ?>
+			<?php elseif ( $install_name ) : ?>
+				<?php echo esc_html( sprintf( __( '%s is now included in your plan — head back to Add Plugins to install it.' ), $install_name ) ); ?>
 			<?php endif; ?>
 		</p>
 		<div class="untangling-mkt-done-actions">
-			<?php if ( $item ) : ?>
+			<?php if ( $install_name ) : ?>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'plugin-install.php' ) ); ?>"><?php esc_html_e( 'Back to Add Plugins' ); ?></a>
+				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
+			<?php elseif ( $item ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( untangling_marketplace_url( $mkt ) ); ?>"><?php esc_html_e( 'Back to Marketplace' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php else : ?>
@@ -5293,7 +5425,7 @@ function untangling_marketplace_styles() {
 		.untangling-mkt-plan { flex: 0 0 280px; margin-left: 0; border-radius: 8px; }
 	}
 	.untangling-mkt-plan .untangling-feature-tip { position: relative; cursor: default; }
-	.untangling-mkt-plan .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: 220px; background: #101517; color: #fff; font-size: 13px; font-weight: 400; line-height: 1.4; padding: 8px 12px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
+	.untangling-mkt-plan .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: max-content; max-width: 300px; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
 	.untangling-mkt-plan .untangling-feature-tip:hover::after,
 	.untangling-mkt-plan .untangling-feature-tip:focus-visible::after { opacity: 1; }
 	/* Onboarding-grid badges: static chips inside the card top, with the
@@ -5587,12 +5719,25 @@ add_action( 'admin_footer', function () {
 				<?php
 				$seg( __( 'Menu variant' ), 'untangling_variant', array( 'submenu' => __( 'With submenu' ), 'plain' => __( 'Plain' ) ), $variant );
 				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type );
+				// One line about the selected mode only — the segments reload the
+				// page, so the hint re-renders with each choice.
+				$mode_hints = array(
+					'fullscreen' => __( 'Themes + plugins in the chromeless Marketplace.' ),
+					'split'      => __( 'Plugins keep the Add Plugins tab; themes go fullscreen.' ),
+					'tabs'       => __( 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.' ),
+				);
 				$seg( __( 'Marketplace' ), 'untangling_marketplace', array( 'fullscreen' => __( 'Fullscreen' ), 'split' => __( 'Split' ), 'tabs' => __( 'Tabs' ) ), $mode );
+				echo '<p class="untangling-gproto-hint">' . esc_html( $mode_hints[ $mode ] ) . '</p>';
 				if ( 'tabs' === $mode ) {
-					$seg( __( 'Plan filter' ), 'untangling_plan_filter', array( 'included' => __( 'Included' ), 'dropdown' => __( 'Dropdown' ) ), untangling_get_plan_filter() );
+					$filter_hints = array(
+						'included' => __( '“Included with my plan” links on both Marketplace tabs.' ),
+						'dropdown' => __( 'A tier dropdown on both Marketplace tabs.' ),
+					);
+					$filter = untangling_get_plan_filter();
+					$seg( __( 'Plan filter' ), 'untangling_plan_filter', array( 'included' => __( 'Included' ), 'dropdown' => __( 'Dropdown' ) ), $filter );
+					echo '<p class="untangling-gproto-hint">' . esc_html( $filter_hints[ $filter ] ) . '</p>';
 				}
 				?>
-				<p class="untangling-gproto-hint"><?php esc_html_e( 'Fullscreen: themes + plugins in the chromeless Marketplace. Split: plugins keep the Add Plugins tab. Tabs: Marketplace tabs in Add Plugins and Add Themes, plans-upsell banners, no Theme Showcase entry. Plan filter compares the "Included with my plan" links against a tier dropdown on both Marketplace tabs.' ); ?></p>
 				<?php if ( $override ) : ?>
 					<button type="button" class="untangling-gproto-reset"><?php echo esc_html( sprintf( __( 'Reset demo state (plan override: %s)' ), $plan ) ); ?></button>
 				<?php endif; ?>
