@@ -27,6 +27,17 @@ function untangling_is_locked_demo() {
 	return defined( 'UNTANGLING_LOCKED_DEMO' ) && UNTANGLING_LOCKED_DEMO;
 }
 
+// Playground ships an older WP image, so core's "WordPress x.y is available!
+// Please update now." nag shows on every screen. Visitors can't update a
+// throwaway demo instance anyway — hide core update notices in standalone.
+if ( untangling_is_standalone() ) {
+	add_filter( 'pre_site_transient_update_core', '__return_null' );
+	add_action( 'admin_menu', function () {
+		remove_action( 'admin_notices', 'update_nag', 3 );
+		remove_action( 'network_admin_notices', 'update_nag', 3 );
+	} );
+}
+
 function untangling_standalone_link_guard() {
 	if ( ! untangling_is_standalone() ) {
 		return;
