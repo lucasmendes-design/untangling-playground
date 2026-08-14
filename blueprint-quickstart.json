@@ -1,7 +1,7 @@
 {
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"meta": {
-		"title": "Untangling IA — Quick start to Grow",
+		"title": "Untangling IA — My Site",
 		"author": "lucasmendes-design"
 	},
 	"preferredVersions": {
@@ -9,7 +9,7 @@
 		"wp": "latest"
 	},
 	"login": true,
-	"landingPage": "/wp-admin/admin.php?page=untangling-hosting",
+	"landingPage": "/wp-admin/admin.php?page=untangling-mysite",
 	"steps": [
 		{
 			"step": "mkdir",
