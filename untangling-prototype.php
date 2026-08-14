@@ -118,8 +118,9 @@ function untangling_upsell_diamond() {
 	return '<svg class="untangling-upsell-diamond" xmlns="http://www.w3.org/2000/svg" viewBox="4.4 5.4 15.2 13.2" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
 }
 
-// Plan-dependent card data for the WordPress.com page.
-function untangling_get_plan_meta() {
+// Plan-dependent card data for the WordPress.com page. Pass a plan to read
+// another scope's plan (the My Site drawer keeps its own override).
+function untangling_get_plan_meta( $for_plan = null ) {
 	$plans = array(
 		'Free'     => array(
 			'renew'    => 'No expiration, free forever',
@@ -147,7 +148,8 @@ function untangling_get_plan_meta() {
 			'storage'  => array( 22.4, 50, null ),
 		),
 	);
-	return $plans[ untangling_get_plan() ];
+	$plan = $for_plan && isset( $plans[ $for_plan ] ) ? $for_plan : untangling_get_plan();
+	return $plans[ $plan ];
 }
 
 // Simple vs Atomic default follows the plan (Free/Premium sites are Simple);
@@ -200,14 +202,18 @@ add_action( 'init', function () {
 } );
 
 /**
- * Hosting menu variant: 'submenu' or 'plain'.
- * Switch with ?untangling_variant=submenu|plain (persisted), or from the Hosting page.
+ * Menu variant: 'submenu' or 'plain' (both = the "Hosting" top-level page with
+ * tabs), or 'drawer' (the My Site drawer: a My Site item directly below
+ * Dashboard whose four children are sidebar submenu links, no tabs — the
+ * Untangle Calypso IA shape).
+ * Switch with ?untangling_variant=submenu|plain|drawer (persisted), or from
+ * Prototype controls.
  */
 function untangling_get_variant() {
 	if ( defined( 'UNTANGLING_FORCE_VARIANT' ) ) {
 		return UNTANGLING_FORCE_VARIANT;
 	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'submenu', 'plain' ), true ) ) {
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'submenu', 'plain', 'drawer' ), true ) ) {
 		update_option( 'untangling_variant', $_GET['untangling_variant'] );
 	}
 	return get_option( 'untangling_variant', 'submenu' );
@@ -274,6 +280,37 @@ function untangling_get_plan_filter() {
 		update_option( 'untangling_plan_filter', $_GET['untangling_plan_filter'] );
 	}
 	return get_option( 'untangling_plan_filter', 'included' );
+}
+
+/* -------------------------------------------------------------------------
+ * My Site drawer state — every option the drawer variant touches is
+ * namespaced `untangling_ms_*`, on purpose: the submenu/plain variants and
+ * the Marketplace keep their own shared demo state (untangling_plan_override
+ * and friends), and interacting with one variant must never bleed into
+ * another. The drawer reads and writes only these keys.
+ * ---------------------------------------------------------------------- */
+
+// The drawer's own plan: its checkout flow (ctx=ms) persists here, never in
+// untangling_plan_override.
+function untangling_ms_get_plan() {
+	$plan = get_option( 'untangling_ms_plan_override' );
+	if ( ! $plan ) {
+		$plan = defined( 'UNTANGLING_PLAN' ) ? UNTANGLING_PLAN : 'Business';
+	}
+	return in_array( $plan, array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ? $plan : 'Business';
+}
+
+// Just created vs Established. The override (Prototype controls) wins; with
+// no override the site is Established exactly when the launchpad is complete.
+function untangling_ms_get_state() {
+	if ( defined( 'UNTANGLING_FORCE_MS_STATE' ) ) {
+		return UNTANGLING_FORCE_MS_STATE;
+	}
+	$override = get_option( 'untangling_ms_state' );
+	if ( in_array( $override, array( 'new', 'established' ), true ) ) {
+		return $override;
+	}
+	return get_option( 'untangling_ms_lp_complete' ) ? 'established' : 'new';
 }
 
 function untangling_plan_filter_styles() {
@@ -347,12 +384,44 @@ add_action( 'admin_init', function () {
 	if ( isset( $_GET['untangling_lp_complete'] ) ) {
 		update_option( 'untangling_lp_complete', $_GET['untangling_lp_complete'] ? 1 : 0 );
 	}
+	// My Site drawer state — namespaced writers; see the untangling_ms_*
+	// helpers for why these never touch the shared keys above.
+	if ( isset( $_GET['untangling_ms_set_plan'] ) && in_array( $_GET['untangling_ms_set_plan'], array( 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
+		update_option( 'untangling_ms_plan_override', $_GET['untangling_ms_set_plan'] );
+	}
+	if ( isset( $_GET['untangling_ms_lp_done'] ) ) {
+		$ms_done = array_values( array_filter( array_map( 'sanitize_key', explode( ',', (string) wp_unslash( $_GET['untangling_ms_lp_done'] ) ) ) ) );
+		update_option( 'untangling_ms_lp_done', $ms_done );
+	}
+	if ( isset( $_GET['untangling_ms_lp_complete'] ) ) {
+		update_option( 'untangling_ms_lp_complete', $_GET['untangling_ms_lp_complete'] ? 1 : 0 );
+	}
+	if ( isset( $_GET['untangling_ms_state'] ) && in_array( $_GET['untangling_ms_state'], array( 'new', 'established' ), true ) ) {
+		update_option( 'untangling_ms_state', $_GET['untangling_ms_state'] );
+		// Jumping states from Prototype controls implies the launchpad moment:
+		// Established means the checklist is behind you, Just created replays it.
+		if ( 'established' === $_GET['untangling_ms_state'] ) {
+			update_option( 'untangling_ms_lp_complete', 1 );
+		} else {
+			delete_option( 'untangling_ms_lp_done' );
+			delete_option( 'untangling_ms_lp_complete' );
+		}
+	}
+	if ( isset( $_GET['untangling_ms_replay'] ) ) {
+		delete_option( 'untangling_ms_lp_done' );
+		delete_option( 'untangling_ms_lp_complete' );
+		delete_option( 'untangling_ms_state' );
+	}
 	if ( isset( $_GET['untangling_reset_demo'] ) ) {
 		delete_option( 'untangling_plan_override' );
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
 		delete_option( 'untangling_lp_done' );
 		delete_option( 'untangling_lp_complete' );
+		delete_option( 'untangling_ms_plan_override' );
+		delete_option( 'untangling_ms_lp_done' );
+		delete_option( 'untangling_ms_lp_complete' );
+		delete_option( 'untangling_ms_state' );
 	}
 } );
 
@@ -364,6 +433,48 @@ add_action( 'admin_init', function () {
 
 add_action( 'admin_menu', function () {
 	$variant = untangling_get_variant();
+
+	if ( 'drawer' === $variant ) {
+		// Drawer variant (Untangle Calypso IA): no Hosting brand anchor. The
+		// old page stays registered but hidden so persisted links keep working.
+		add_menu_page( __( 'Hosting' ), __( 'Hosting' ), 'manage_options', 'untangling-hosting', 'untangling_render_hosting_page', 'dashicons-cloud', 1 );
+		remove_menu_page( 'untangling-hosting' );
+
+		// My Site, directly below Dashboard (index.php holds position 2; a
+		// colliding position lands just after the item it collides with). The
+		// icon is the W mark — @wordpress/icons `wordpress`, the same glyph the
+		// MSD uses on its WP Admin button. Sidebar SVGs inherit the menu color
+		// through fill:currentColor.
+		add_menu_page(
+			__( 'My Site' ),
+			__( 'My Site' ),
+			'manage_options',
+			'untangling-mysite',
+			'untangling_render_mysite_page',
+			'data:image/svg+xml;base64,' . base64_encode( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 24 24"><path fill="currentColor" d="M20 10c0-5.51-4.49-10-10-10C4.48 0 0 4.49 0 10c0 5.52 4.48 10 10 10 5.51 0 10-4.48 10-10zM7.78 15.37L4.37 6.22c.55-.02 1.17-.08 1.17-.08.5-.06.44-1.13-.06-1.11 0 0-1.45.11-2.37.11-.18 0-.37 0-.58-.01C4.12 2.69 6.87 1.11 10 1.11c2.33 0 4.45.87 6.05 2.34-.68-.11-1.65.39-1.65 1.58 0 .74.45 1.36.9 2.1.35.61.55 1.36.55 2.46 0 1.49-1.4 5-1.4 5l-3.03-8.37c.54-.02.82-.17.82-.17.5-.05.44-1.25-.06-1.22 0 0-1.44.12-2.38.12-.87 0-2.33-.12-2.33-.12-.5-.03-.56 1.2-.06 1.22l.92.08 1.26 3.41zM17.41 10c.24-.64.74-1.87.43-4.25.7 1.29 1.05 2.71 1.05 4.25 0 3.29-1.73 6.24-4.4 7.78.97-2.59 1.94-5.2 2.92-7.78zM6.1 18.09C3.12 16.65 1.11 13.53 1.11 10c0-1.3.23-2.48.72-3.59C3.25 10.3 4.67 14.2 6.1 18.09zm4.03-6.63l2.58 6.98c-.86.29-1.76.45-2.71.45-.79 0-1.57-.11-2.29-.33.81-2.38 1.62-4.74 2.42-7.1z"/></svg>' ),
+			2
+		);
+		// Sidebar children, not tabs. The first replaces the auto-duplicated
+		// parent entry; the rest are `admin.php?…` deep links (direct links).
+		add_submenu_page( 'untangling-mysite', __( 'My Site' ), __( 'Next steps' ), 'manage_options', 'untangling-mysite', 'untangling_render_mysite_page' );
+		add_submenu_page( 'untangling-mysite', __( 'Plan & products' ), __( 'Plan & products' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan' );
+		add_submenu_page( 'untangling-mysite', __( 'Hosting' ), __( 'Hosting' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=hosting' );
+		add_submenu_page( 'untangling-mysite', __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=help' );
+
+		// Parity mocks keep their order below My Site: Stats, then Jetpack
+		// (both collide at 3, first registered wins the earlier slot).
+		add_menu_page( __( 'Stats' ), __( 'Stats' ), 'manage_options', UNTANGLING_MSD_URL . '/stats', '', 'dashicons-chart-bar', 3 );
+		add_menu_page(
+			__( 'Jetpack' ),
+			__( 'Jetpack' ),
+			'manage_options',
+			'#',
+			'',
+			'data:image/svg+xml;base64,' . base64_encode( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#a7aaad" d="M16 0C7.2 0 0 7.2 0 16s7.2 16 16 16 16-7.2 16-16S24.8 0 16 0zm-1 19H7l8-16v16zm2 10V13h8l-8 16z"/></svg>' ),
+			3
+		);
+		return;
+	}
 
 	add_menu_page(
 		__( 'Hosting' ),
@@ -432,6 +543,11 @@ add_filter( 'submenu_file', function ( $submenu_file ) {
 	if ( isset( $_GET['page'], $_GET['untangling_tab'] ) && 'untangling-hosting' === $_GET['page']
 		&& in_array( $_GET['untangling_tab'], array( 'learn-more' ), true ) ) {
 		return 'admin.php?page=untangling-hosting&untangling_tab=' . $_GET['untangling_tab'];
+	}
+	// My Site drawer sections are sidebar links, so the sidebar is the tab bar.
+	if ( isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page']
+		&& in_array( $_GET['ms'], array( 'plan', 'hosting', 'help' ), true ) ) {
+		return 'admin.php?page=untangling-mysite&ms=' . $_GET['ms'];
 	}
 	return $submenu_file;
 } );
@@ -678,7 +794,7 @@ function untangling_app_js() {
 	}
 
 	function upsellIcon() {
-		return el( 'span', { className: 'untangling-upsell-cta-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS.upsell } } );
+		return el( 'span', { className: 'untangling-upsell-cta-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS.upsellGlyph } } );
 	}
 
 	function featureList( features ) {
@@ -2106,10 +2222,20 @@ function untangling_app_js() {
 							value: data.variant,
 							isBlock: true,
 							__nextHasNoMarginBottom: true,
-							onChange: function ( value ) { go( 'untangling_variant', value ); },
+							help: 'drawer' === data.variant ? 'My Site below Dashboard — this page leaves the sidebar.' : undefined,
+							onChange: function ( value ) {
+								// Choosing the drawer hides this page from the sidebar —
+								// land on its replacement instead of an orphaned screen.
+								if ( 'drawer' === value ) {
+									window.location.href = 'admin.php?page=untangling-mysite&untangling_variant=drawer';
+									return;
+								}
+								go( 'untangling_variant', value );
+							},
 						},
-							el( ToggleGroupOption, { value: 'submenu', label: 'With submenu' } ),
-							el( ToggleGroupOption, { value: 'plain', label: 'Plain' } )
+							el( ToggleGroupOption, { value: 'submenu', label: 'Submenu' } ),
+							el( ToggleGroupOption, { value: 'plain', label: 'Plain' } ),
+							el( ToggleGroupOption, { value: 'drawer', label: 'My Site' } )
 						),
 						ToggleGroup && el( ToggleGroup, {
 							label: 'Site type',
@@ -2541,6 +2667,12 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-domain-desc { margin: 0; color: var(--wpds-color-foreground-content-neutral-weak); font-size: var(--wpds-typography-font-size-md); }
 .untangling-app .untangling-domain-desc a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .untangling-app .untangling-upsell-cta-icon { display: inline-flex; }
+/* Cropped glyph sized to the 14×12 diamond recipe; the raw 24-box reads
+   oversized and lopsided next to the 13px button label. */
+.untangling-app .untangling-upsell-cta-icon svg { width: 14px; height: 12px; fill: currentColor; }
+/* Button's has-icon recipe trims left padding for a 24px icon; with the 14px
+   diamond that reads lopsided — restore symmetric padding. */
+.untangling-app .components-button.has-icon.has-text { padding-left: 12px; padding-right: 12px; gap: 6px; }
 .untangling-app .untangling-domain-cta-icon svg { display: block; width: 20px; height: 20px; }
 .untangling-app .untangling-domain-cta-icon svg path { fill: currentColor; }
 .untangling-app .untangling-domain-art { position: relative; }
@@ -2784,11 +2916,20 @@ body.toplevel_page_untangling-hosting #wpcontent {
 .untangling-app .untangling-proto-head.components-card__header { padding: 6px 16px; }
 .untangling-app .untangling-proto-panel .components-base-control__help { margin-top: 4px; font-size: 11px; line-height: 1.4; }
 .untangling-app .untangling-proto-foot.components-card__footer { padding: 10px 16px; }
-/* The bundled ToggleGroupControl draws its active-segment fill with an
-   animated backdrop that never mounts in this environment, so paint the DS
-   pressed state from the data-active-item attribute with the wpds tokens. */
-.untangling-app .untangling-proto-panel .components-toggle-group-control-option-base { border-radius: var(--wpds-border-radius-xs); }
-.untangling-app .untangling-proto-panel .components-toggle-group-control-option-base[data-active-item] { background: var(--wpds-color-background-interactive-neutral-strong, #2d2d2d); color: var(--wpds-color-foreground-interactive-neutral-strong, #f0f0f0); }
+/* The bundled ToggleGroupControl mounts with none of its emotion styles in
+   this environment (no container chrome, no animated active backdrop), so
+   paint the whole DS segmented-control recipe here: bordered container,
+   quiet text segments, dark active fill from the data-active-item attribute.
+   App-wide: every toggle group (proto panel, Performance, Logs…) needs it.
+   Labels never wrap — DS guidance for ToggleGroupControl.
+   Radii are hardcoded (4px shell / 2px segment) — the vendored token cascade
+   leaves --wpds-border-radius-* at pill values. */
+.untangling-app .components-toggle-group-control { display: inline-flex; align-items: stretch; gap: 2px; padding: 2px; background: var(--wpds-color-background-surface-neutral, #fff); border: 1px solid var(--wpds-color-stroke-interactive-neutral, #949494); border-radius: 4px; }
+.untangling-app .components-toggle-group-control-option-base { appearance: none; margin: 0; border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: var(--wpds-typography-font-weight-emphasis, 500); line-height: 1; min-height: 24px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--wpds-color-foreground-interactive-neutral-weak, #757575); border-radius: 2px; white-space: nowrap; cursor: var(--wpds-cursor-control, pointer); transition: background var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle), color var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle); }
+.untangling-app .components-toggle-group-control-option-base:hover:not([data-active-item]) { color: var(--wpds-color-foreground-interactive-brand, #3858e9); }
+.untangling-app .components-toggle-group-control-option-base:focus-visible { outline: var(--wpds-border-width-focus, 1.5px) solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -1px; }
+.untangling-app .components-toggle-group-control-option-base[data-active-item] { background: var(--wpds-color-background-interactive-neutral-strong, #2d2d2d); color: var(--wpds-color-foreground-interactive-neutral-strong, #f0f0f0); }
+@media ( prefers-reduced-motion: reduce ) { .untangling-app .components-toggle-group-control-option-base { transition: none; } }
 /* Plan-card variants (switched from the prototype panel) */
 /* Hardcoded surface: the vendored token cascade leaves --wpds-border-radius-*
    at pill values (md = 22px), which balloons this block — 6px is the design. */
@@ -3255,8 +3396,10 @@ function untangling_plugins_upsell_hero() {
 		#wpcontent .untangling-upsell-hero p { font-weight: 400; letter-spacing: -0.32px; margin: 8px 0; text-wrap: pretty; }
 		.untangling-upsell-hero h3 { font-family: Recoleta, serif; font-size: 24px; line-height: 32px; color: #fff; }
 		.untangling-upsell-hero p { font-size: 14px; line-height: 20px; color: #a7aaad; }
+		/* WPDS default Button metrics (40px, emphasis weight, radius-sm);
+		   token fallbacks because wp-admin screens don't load the cascade. */
 		.untangling-upsell-hero a,
-		.untangling-upsell-hero a:visited { background-color: #3858e9; color: #fff; border-radius: 4px; padding: 8px 16px; font-size: 13px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 12px; }
+		.untangling-upsell-hero a:visited { display: inline-flex; align-items: center; box-sizing: border-box; height: var(--wpds-dimension-size-lg, 40px); padding: 0 var(--wpds-dimension-padding-lg, 16px); background-color: var(--wpds-color-background-interactive-brand-strong, #3858e9); color: #fff; border-radius: var(--wpds-border-radius-sm, 4px); font-size: var(--wpds-typography-font-size-md, 13px); font-weight: var(--wpds-typography-font-weight-emphasis, 500); line-height: 20px; letter-spacing: normal; text-decoration: none; margin-top: 12px; }
 		.untangling-upsell-hero a:hover,
 		.untangling-upsell-hero a:focus { background-color: #fff; color: #1d2327; }
 		@media ( max-width: 1120px ) {
@@ -3341,8 +3484,11 @@ function untangling_themes_banner() {
 	.wpcom-themes-banner p { font-weight: 400; letter-spacing: -0.32px; margin: 8px 0; text-wrap: pretty; }
 	.wpcom-themes-banner h3 { font-family: Recoleta, serif; font-size: 24px; line-height: 32px; color: #101517; }
 	.wpcom-themes-banner p { font-size: 14px; line-height: 20px; color: #2c3338; }
+	/* WPDS default Button metrics, mirroring the plugins hero CTA exactly
+	   (including antialiasing — its banner smooths all text, this one
+	   doesn't, which otherwise renders this label visibly heavier). */
 	.wpcom-themes-banner a,
-	.wpcom-themes-banner a:visited { background-color: #101517; color: #fff; border-radius: 4px; padding: 8px 16px; font-size: 13px; line-height: 20px; letter-spacing: 0.32px; text-decoration: none; display: inline-block; margin-top: 12px; }
+	.wpcom-themes-banner a:visited { display: inline-flex; align-items: center; box-sizing: border-box; height: var(--wpds-dimension-size-lg, 40px); padding: 0 var(--wpds-dimension-padding-lg, 16px); background-color: var(--wpds-color-background-interactive-neutral-strong, #101517); color: #fff; border-radius: var(--wpds-border-radius-sm, 4px); font-size: var(--wpds-typography-font-size-md, 13px); font-weight: var(--wpds-typography-font-weight-emphasis, 500); line-height: 20px; letter-spacing: normal; text-decoration: none; margin-top: 12px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 	.wpcom-themes-banner a:hover,
 	.wpcom-themes-banner a:focus { background-color: #1d2327; color: #fff; }
 	@media ( max-width: 1120px ) {
@@ -4931,6 +5077,11 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			if ( ! empty( $_GET['back'] ) ) {
 				$checkout_args['back'] = rawurlencode( wp_unslash( $_GET['back'] ) );
 			}
+			// The My Site drawer enters with ctx=ms so its purchase lands in the
+			// drawer's own namespaced plan, not the shared demo state.
+			if ( isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'] ) {
+				$checkout_args['ctx'] = 'ms';
+			}
 			$checkout = untangling_marketplace_url( $mkt, $checkout_args );
 			?>
 			<div class="untangling-mkt-plan<?php echo $is_current ? ' is-current' : ''; ?><?php echo $is_required && ! $is_current ? ' is-required' : ''; ?>">
@@ -4991,7 +5142,11 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	$item_price = $item && $item['price'] ? (float) $item['price'] : 0;
 	$total      = $plan_price + $item_price;
 	$user       = wp_get_current_user();
-	$done_args  = array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+	$is_ms      = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
+	// ctx=ms = the My Site drawer's flow: persist into its namespaced plan key.
+	$done_args  = $is_ms
+		? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
+		: array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
 	if ( $item ) {
 		$done_args['type'] = $type;
 		$done_args['slug'] = $slug;
@@ -5071,10 +5226,12 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 }
 
 function untangling_marketplace_done_step( $type ) {
-	$slug = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
-	$item = untangling_marketplace_find_item( $type, $slug );
-	$plan = untangling_get_plan(); // Already overridden by untangling_set_plan on this request.
-	$mkt  = 'plugin' === $type ? 'plugins' : 'themes';
+	$slug  = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
+	$item  = untangling_marketplace_find_item( $type, $slug );
+	$is_ms = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
+	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
+	$plan  = $is_ms ? untangling_ms_get_plan() : untangling_get_plan();
+	$mkt   = 'plugin' === $type ? 'plugins' : 'themes';
 	$install_name = '';
 	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
 		$install_name = isset( $_GET['pname'] ) ? sanitize_text_field( wp_unslash( $_GET['pname'] ) ) : '';
@@ -5099,6 +5256,9 @@ function untangling_marketplace_done_step( $type ) {
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php elseif ( $item ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( untangling_marketplace_url( $mkt ) ); ?>"><?php esc_html_e( 'Back to Marketplace' ); ?></a>
+				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
+			<?php elseif ( $is_ms ) : ?>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ); ?>"><?php esc_html_e( 'Back to My Site' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php else : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=untangling-hosting' ) ); ?>"><?php esc_html_e( 'Back to WordPress.com' ); ?></a>
@@ -5159,11 +5319,12 @@ function untangling_help_panel_css() {
 CSS;
 }
 
-// The Hosting page gets the same Support Assistant panel — the "Ask AI"
-// card button opens it (closed by ✕ or Escape, same as the Marketplace).
+// The Hosting page and the My Site drawer get the same Support Assistant
+// panel — an "Ask AI" / contact button opens it (closed by ✕ or Escape,
+// same as the Marketplace).
 add_action( 'admin_footer', function () {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-	if ( ! $screen || 'toplevel_page_untangling-hosting' !== $screen->id ) {
+	if ( ! $screen || ! in_array( $screen->id, array( 'toplevel_page_untangling-hosting', 'toplevel_page_untangling-mysite' ), true ) ) {
 		return;
 	}
 	untangling_marketplace_help_panel();
@@ -5676,6 +5837,8 @@ add_action( 'admin_footer', function () {
 	$mode     = untangling_get_marketplace_mode();
 	$plan     = untangling_get_plan();
 	$override = (bool) get_option( 'untangling_plan_override' );
+	$ms_plan_override = (bool) get_option( 'untangling_ms_plan_override' );
+	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' );
 
 	$seg = function ( $label, $key, $options, $current ) {
 		echo '<label>' . esc_html( $label ) . '</label><div class="untangling-gproto-seg" data-key="' . esc_attr( $key ) . '">';
@@ -5717,7 +5880,20 @@ add_action( 'admin_footer', function () {
 			</div>
 			<div class="untangling-gproto-body">
 				<?php
-				$seg( __( 'Menu variant' ), 'untangling_variant', array( 'submenu' => __( 'With submenu' ), 'plain' => __( 'Plain' ) ), $variant );
+				$variant_hints = array(
+					'submenu' => __( 'Hosting page above Dashboard, with a submenu.' ),
+					'plain'   => __( 'Hosting page above Dashboard, no submenu.' ),
+					'drawer'  => __( 'My Site below Dashboard — sidebar sections, no tabs. Its demo state is independent of the other variants.' ),
+				);
+				$seg( __( 'Menu variant' ), 'untangling_variant', array( 'submenu' => __( 'Submenu' ), 'plain' => __( 'Plain' ), 'drawer' => __( 'My Site' ) ), $variant );
+				echo '<p class="untangling-gproto-hint">' . esc_html( $variant_hints[ $variant ] ) . '</p>';
+				if ( 'drawer' === $variant ) {
+					$ms_state = untangling_ms_get_state();
+					$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state );
+					echo '<p class="untangling-gproto-hint">' . esc_html( 'new' === $ms_state
+						? __( 'Setup unfinished: Next steps leads with the launchpad.' )
+						: __( 'Setup behind you: Next steps shows growth and vitals.' ) ) . '</p>';
+				}
 				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type );
 				// One line about the selected mode only — the segments reload the
 				// page, so the hint re-renders with each choice.
@@ -5738,8 +5914,12 @@ add_action( 'admin_footer', function () {
 					echo '<p class="untangling-gproto-hint">' . esc_html( $filter_hints[ $filter ] ) . '</p>';
 				}
 				?>
-				<?php if ( $override ) : ?>
-					<button type="button" class="untangling-gproto-reset"><?php echo esc_html( sprintf( __( 'Reset demo state (plan override: %s)' ), $plan ) ); ?></button>
+				<?php if ( $override || $ms_dirty ) : ?>
+					<button type="button" class="untangling-gproto-reset"><?php echo esc_html( $override
+						? sprintf( __( 'Reset demo state (plan override: %s)' ), $plan )
+						: ( $ms_plan_override
+							? sprintf( __( 'Reset demo state (My Site plan: %s)' ), untangling_ms_get_plan() )
+							: __( 'Reset demo state' ) ) ); ?></button>
 				<?php endif; ?>
 				<button type="button" class="untangling-gproto-copy"><?php esc_html_e( 'Copy link to this view' ); ?></button>
 			</div>
@@ -5775,6 +5955,19 @@ add_action( 'admin_footer', function () {
 				}
 				var key = button.closest( '.untangling-gproto-seg' ).dataset.key;
 				var value = button.dataset.value;
+				// Variant switches swap which top-level page exists — leaving the
+				// page you are on for the sidebar means landing on its counterpart.
+				if ( 'untangling_variant' === key ) {
+					var onMysite = /[?&]page=untangling-mysite/.test( window.location.search );
+					if ( 'drawer' === value && ! onMysite ) {
+						window.location.href = <?php echo wp_json_encode( admin_url( 'admin.php?page=untangling-mysite' ) ); ?> + '&untangling_variant=drawer';
+						return;
+					}
+					if ( 'drawer' !== value && onMysite ) {
+						window.location.href = <?php echo wp_json_encode( admin_url( 'admin.php?page=untangling-hosting' ) ); ?> + '&untangling_variant=' + value;
+						return;
+					}
+				}
 				// Leaving Fullscreen while browsing its catalog lands on the
 				// equivalent in-admin home: the Add Plugins Marketplace tab,
 				// or (Tabs) the Add Themes Marketplace tab.
@@ -6086,3 +6279,2050 @@ add_action( 'admin_enqueue_scripts', function () {
 		#wpadminbar #wp-admin-bar-untangling-workspace li > .ab-item:focus { color: #7b90ff; background: #0c0c0c; }
 	' );
 } );
+
+/* -------------------------------------------------------------------------
+ * 5. My Site drawer — the Untangle Calypso IA variant. One item directly
+ * below Dashboard; Next steps / Plan & products / Hosting / Help are sidebar
+ * children (no tabs). Pages share one shell that mirrors the MSD PageLayout:
+ * 1344px column, Recoleta 32px/40px H1, 24px rhythm. All demo state is
+ * namespaced untangling_ms_* — see the helpers near untangling_ms_get_plan().
+ * ---------------------------------------------------------------------- */
+
+function untangling_render_mysite_page() {
+	// .untangling-app scopes the vendored --wpds-* tokens onto this page too.
+	echo '<div class="untangling-app untangling-ms"><div id="untangling-ms-root"></div></div>';
+}
+
+// Everything the four sections need, resolved server-side once.
+function untangling_ms_data() {
+	$section = isset( $_GET['ms'] ) && in_array( $_GET['ms'], array( 'plan', 'hosting', 'help' ), true ) ? $_GET['ms'] : 'next';
+	$plan    = untangling_ms_get_plan();
+	$meta    = untangling_get_plan_meta( $plan );
+	$free    = 'Free' === $plan;
+
+	// Signals: the seeded content the Next steps pool grounds its "why" in.
+	$comments       = get_comments( array( 'number' => 1, 'status' => 'approve' ) );
+	$signal_comment = null;
+	if ( $comments ) {
+		$signal_comment = array(
+			'author'   => $comments[0]->comment_author,
+			'post'     => get_the_title( $comments[0]->comment_post_ID ),
+			'time'     => sprintf( __( '%s ago' ), human_time_diff( strtotime( $comments[0]->comment_date_gmt ) ) ),
+			'replyUrl' => admin_url( 'comment.php?action=editcomment&c=' . $comments[0]->comment_ID ),
+		);
+	}
+	$recent_posts = get_posts( array( 'numberposts' => 1, 'post_status' => 'publish' ) );
+	$signal_post  = $recent_posts ? array(
+		'title' => get_the_title( $recent_posts[0] ),
+		'time'  => sprintf( __( '%s ago' ), human_time_diff( strtotime( $recent_posts[0]->post_date_gmt ) ) ),
+	) : null;
+	$products       = get_posts( array( 'numberposts' => 1, 'post_type' => 'product' ) );
+	$signal_product = $products ? get_the_title( $products[0] ) : null;
+
+	// Needs attention: empty by design unless something is genuinely wrong.
+	$attention = array();
+	if ( ! empty( $meta['storage'][2] ) && false !== stripos( $meta['storage'][2], 'almost full' ) ) {
+		$attention[] = array(
+			'title'  => __( 'Storage is almost full' ),
+			'text'   => sprintf( __( 'You’ve used %1$s GB of %2$s GB. New uploads may fail soon.' ), $meta['storage'][0], $meta['storage'][1] ),
+			'action' => __( 'Add storage' ),
+			'href'   => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms' ) ),
+		);
+	}
+
+	// PHP log mimic — plausible rows, newest first, deterministic offsets.
+	$log_seed = array(
+		array( 'error', 'Uncaught Error: Call to undefined function get_field() in wp-content/themes/child-theme/single.php:27', 320 ),
+		array( 'warning', 'Undefined array key "utm_source" in wp-content/themes/child-theme/functions.php on line 112', 1210 ),
+		array( 'notice', 'Function _load_textdomain_just_in_time was called incorrectly. Translation loading triggered too early.', 3660 ),
+		array( 'warning', 'Attempt to read property "post_title" on null in wp-content/plugins/related-posts/render.php on line 54', 7420 ),
+		array( 'notice', 'wp_enqueue_script() called incorrectly — scripts should be registered on the wp_enqueue_scripts hook.', 12300 ),
+		array( 'warning', 'Cannot modify header information — headers already sent by output started at functions.php:9', 25800 ),
+		array( 'notice', 'Deprecated: strpos(): Passing null to parameter #1 ($haystack) in inc/meta.php on line 88', 41200 ),
+		array( 'warning', 'Undefined variable $args in wp-content/themes/child-theme/archive.php on line 19', 66300 ),
+		array( 'notice', 'Automatic conversion of false to array is deprecated in wp-content/plugins/gallery/gallery.php:203', 90100 ),
+		array( 'error', 'Maximum execution time of 30 seconds exceeded in wp-content/plugins/importer/import.php on line 342', 172810 ),
+	);
+	$logs = array();
+	$now  = time();
+	foreach ( $log_seed as $row ) {
+		$logs[] = array(
+			'severity' => $row[0],
+			'message'  => $row[1],
+			'time'     => gmdate( 'M j, Y, g:i A', $now - $row[2] ),
+		);
+	}
+
+	// Activity + web-server rows for the Logs card, mirroring the MSD's three
+	// log views (Activity / PHP errors / Web server). Icons are PATHS keys.
+	$user_name = wp_get_current_user()->display_name;
+	if ( ! $user_name ) {
+		$user_name = 'Site owner';
+	}
+	$activity_seed = array(
+		array( 'plugin', 'Plugin update available', 'Jetpack 14.8 is ready to install.', 'WordPress', 7200 ),
+		array( 'post', 'Post published', '“Golden hour at the pier”', $user_name, 28800 ),
+		array( 'comment', 'Comment approved', 'On “Fog over the marina”', $user_name, 93600 ),
+		array( 'pencil', 'Theme customized', 'Colors and typography updated.', $user_name, 121000 ),
+		array( 'login', 'Login succeeded', 'From Safari on macOS.', $user_name, 205000 ),
+		array( 'plugin', 'Plugin activated', 'Jetpack', $user_name, 292000 ),
+	);
+	$activity = array();
+	foreach ( $activity_seed as $row ) {
+		$activity[] = array(
+			'icon'    => $row[0],
+			'title'   => $row[1],
+			'summary' => $row[2],
+			'actor'   => $row[3],
+			'time'    => gmdate( 'M j, Y, g:i A', $now - $row[4] ),
+		);
+	}
+	$server_seed = array(
+		array( 200, 'GET', '/wp-json/wp/v2/posts?per_page=10&_embed=1', 60 ),
+		array( 200, 'POST', '/wp-admin/admin-ajax.php', 340 ),
+		array( 404, 'GET', '/apple-touch-icon.png', 1220 ),
+		array( 200, 'GET', '/?feed=rss2', 4100 ),
+		array( 301, 'GET', '/gallery', 9800 ),
+		array( 200, 'GET', '/wp-content/uploads/2026/08/pier-golden-hour-1600.jpg', 15600 ),
+	);
+	$server_logs = array();
+	foreach ( $server_seed as $row ) {
+		$server_logs[] = array(
+			'status' => $row[0],
+			'method' => $row[1],
+			'url'    => $row[2],
+			'time'   => gmdate( 'M j, Y, g:i A', $now - $row[3] ),
+		);
+	}
+
+	return array(
+		'msd'          => UNTANGLING_MSD_URL,
+		'adminUrl'     => admin_url(),
+		'pageUrl'      => admin_url( 'admin.php?page=untangling-mysite' ),
+		'section'      => $section,
+		'locked'       => untangling_is_locked_demo(),
+		'plan'         => $plan,
+		'planMeta'     => $meta,
+		'planOverride' => (bool) get_option( 'untangling_ms_plan_override' ),
+		'state'        => untangling_ms_get_state(),
+		'lpDone'       => array_values( (array) get_option( 'untangling_ms_lp_done', array( 'design' ) ) ),
+		'lpComplete'   => (bool) get_option( 'untangling_ms_lp_complete' ),
+		'siteName'     => get_bloginfo( 'name' ),
+		'siteIcon'     => get_site_icon_url( 64 ),
+		'siteUrl'      => home_url( '/' ),
+		'siteSlug'     => untangling_get_site_slug(),
+		'domain'       => untangling_get_primary_domain(),
+		'domainUpsell' => untangling_get_domain_upsell(),
+		'visibility'   => untangling_get_visibility(),
+		'siteType'     => untangling_get_site_type(),
+		'plansUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms' ) ),
+		'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'ctx' => 'ms' ) ),
+		'signals'      => array(
+			'comment'    => $signal_comment,
+			'lastPost'   => $signal_post,
+			'topProduct' => $signal_product,
+		),
+		'attention'    => $attention,
+		'logs'         => $logs,
+		'activity'     => $activity,
+		'serverLogs'   => $server_logs,
+	);
+}
+
+add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	if ( 'toplevel_page_untangling-mysite' !== $hook ) {
+		return;
+	}
+	wp_enqueue_style( 'wp-components' );
+	wp_register_script( 'untangling-ms-app', '', array( 'wp-element', 'wp-components', 'wp-i18n' ), '0.1.0', true );
+	wp_enqueue_script( 'untangling-ms-app' );
+	wp_add_inline_script( 'untangling-ms-app', 'window.untanglingMsData = ' . wp_json_encode( untangling_ms_data() ) . ';', 'before' );
+	wp_add_inline_script( 'untangling-ms-app', untangling_ms_app_js() );
+	// The shared stylesheet carries the --wpds-* tokens; the ms sheet only
+	// adds this page's own classes on top.
+	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() );
+} );
+
+function untangling_ms_app_js() {
+	return <<<'JS'
+( function () {
+	var el = wp.element.createElement;
+	var useState = wp.element.useState;
+	var useEffect = wp.element.useEffect;
+	var useRef = wp.element.useRef;
+	var useLayoutEffect = wp.element.useLayoutEffect;
+	var Fragment = wp.element.Fragment;
+	var C = wp.components;
+	var Button = C.Button;
+	var Card = C.Card, CardBody = C.CardBody, CardDivider = C.CardDivider;
+	var HStack = C.__experimentalHStack, VStack = C.__experimentalVStack;
+	var Text = C.__experimentalText;
+	var Badge = C.Badge || function ( p ) {
+		return el( 'span', { className: 'untangling-fallback-badge' + ( p.intent && 'default' !== p.intent ? ' is-' + p.intent : '' ) }, p.children );
+	};
+
+	// The DS ToggleGroupControl mounts without its emotion styles in this
+	// environment, so the segmented control is drawn by hand: quiet track,
+	// white pill sliding under the active option. Radio semantics like the
+	// real control — one tab stop, arrows move the selection.
+	function Segmented( props ) {
+		var ref = useRef( null );
+		var pillState = useState( null );
+		var pill = pillState[ 0 ], setPill = pillState[ 1 ];
+		useLayoutEffect( function () {
+			var node = ref.current && ref.current.querySelector( '[aria-checked="true"]' );
+			if ( ! node ) { return; }
+			setPill( { left: node.offsetLeft + 'px', width: node.offsetWidth + 'px' } );
+			if ( ref.current.contains( document.activeElement ) && document.activeElement !== node ) {
+				node.focus();
+			}
+		}, [ props.value ] );
+		function step( delta ) {
+			var i = props.options.findIndex( function ( o ) { return o.value === props.value; } );
+			props.onChange( props.options[ ( i + delta + props.options.length ) % props.options.length ].value );
+		}
+		return el( 'div', { ref: ref, className: 'ms-segmented', role: 'radiogroup', 'aria-label': props.label },
+			pill && el( 'span', { className: 'ms-segmented-pill', 'aria-hidden': true, style: pill } ),
+			props.options.map( function ( option ) {
+				var active = option.value === props.value;
+				return el( 'button', {
+					key: option.value,
+					type: 'button',
+					role: 'radio',
+					'aria-checked': active,
+					tabIndex: active ? 0 : -1,
+					className: 'ms-segmented-option' + ( active ? ' is-active' : '' ),
+					onClick: function () { props.onChange( option.value ); },
+					onKeyDown: function ( event ) {
+						if ( 'ArrowRight' === event.key || 'ArrowDown' === event.key ) { event.preventDefault(); step( 1 ); }
+						else if ( 'ArrowLeft' === event.key || 'ArrowUp' === event.key ) { event.preventDefault(); step( -1 ); }
+					},
+				}, option.label );
+			} )
+		);
+	}
+
+	var data = window.untanglingMsData || {};
+	var msd = data.msd || '#';
+	var isFree = 'Free' === data.plan;
+	var isCommerce = 'Commerce' === data.plan;
+	var meta = data.planMeta || { features: [], storage: [ 0, 1, null ] };
+
+	/* ---- icons: @wordpress/icons paths, inlined (wp.icons is not exposed) ---- */
+
+	function icon( path, viewBox, size ) {
+		return el( 'svg', {
+			xmlns: 'http://www.w3.org/2000/svg',
+			viewBox: viewBox || '0 0 24 24',
+			width: size || 24,
+			height: size || 24,
+			'aria-hidden': true,
+		}, el( 'path', { d: path, 'fill-rule': 'evenodd', 'clip-rule': 'evenodd' } ) );
+	}
+
+	var PATHS = {
+		// The production launchpad checkmark (@wordpress/icons `check`, rendered at 25).
+		check: 'M16.5 7.5 10 13.9l-2.5-2.4-1 1 3.5 3.6 7.5-7.6z',
+		chevron: 'M10.6 6 9.4 7l4.6 5-4.6 5 1.2 1 5.4-6z',
+		external: 'M19.5 4.5h-7V6h4.44l-5.97 5.97 1.06 1.06L18 7.06v4.44h1.5v-7ZM6 6.75c0-.41.34-.75.75-.75H11V4.5H6.75c-1.24 0-2.25 1.01-2.25 2.25v10.5c0 1.24 1.01 2.25 2.25 2.25h10.5c1.24 0 2.25-1.01 2.25-2.25V13H18v4.25c0 .41-.34.75-.75.75H6.75c-.41 0-.75-.34-.75-.75V6.75Z',
+		cloud: 'M17.3 10.1c-.3-2.9-2.8-5.1-5.8-5.1-2.2 0-4.2 1.2-5.2 3.1-2.4.3-4.3 2.4-4.3 4.9 0 2.8 2.2 5 5 5h10c2.2 0 4-1.8 4-4 0-2-1.6-3.7-3.7-3.9ZM17 16.5H7c-1.9 0-3.5-1.6-3.5-3.5 0-1.8 1.4-3.3 3.2-3.5l.6-.1.3-.6c.7-1.4 2.2-2.3 3.9-2.3 2.3 0 4.2 1.7 4.4 4l.1.9h1c1.4 0 2.5 1.1 2.5 2.5s-1.1 2.6-2.5 2.6Z',
+		shield: 'M12 3.2 5.5 5.9v4.4c0 4.1 2.6 7.9 6.5 9.5 3.9-1.6 6.5-5.4 6.5-9.5V5.9L12 3.2Zm5 7.1c0 3.3-2 6.4-5 7.9-3-1.5-5-4.6-5-7.9V6.9l5-2.1 5 2.1v3.4Z',
+		layout: 'M18 5.5H6a.5.5 0 0 0-.5.5v3h13V6a.5.5 0 0 0-.5-.5Zm.5 5H10v8h8a.5.5 0 0 0 .5-.5v-7.5Zm-10 8v-8h-3v7.5c0 .28.22.5.5.5h2.5ZM6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
+		stats: 'M11.25 5h1.5v15h-1.5V5ZM6 10h1.5v10H6V10Zm12 4h-1.5v6H18v-6Z',
+		globe: 'M12 4c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8Zm6.5 8c0 .6 0 1.2-.2 1.8h-2.7c0-.6.2-1.1.2-1.8s0-1.2-.2-1.8h2.7c.2.6.2 1.1.2 1.8Zm-.9-3.2h-2.4c-.3-.9-.7-1.8-1.1-2.4-.1-.2-.2-.4-.3-.5 1.6.5 3 1.6 3.8 3ZM12.8 17c-.3.5-.6 1-.8 1.3-.2-.3-.5-.8-.8-1.3-.3-.5-.6-1.1-.8-1.7h3.3c-.2.6-.5 1.2-.8 1.7Zm-2.9-3.2c-.1-.6-.2-1.1-.2-1.8s0-1.2.2-1.8H14c.1.6.2 1.1.2 1.8s0 1.2-.2 1.8H9.9ZM11.2 7c.3-.5.6-1 .8-1.3.2.3.5.8.8 1.3.3.5.6 1.1.8 1.7h-3.3c.2-.6.5-1.2.8-1.7Zm-1-1.2c-.1.2-.2.3-.3.5-.4.7-.8 1.5-1.1 2.4H6.4c.8-1.4 2.2-2.5 3.8-3Zm-1.8 8H5.7c-.2-.6-.2-1.1-.2-1.8s0-1.2.2-1.8h2.7c0 .6-.2 1.1-.2 1.8s0 1.2.2 1.8Zm-2 1.4h2.4c.3.9.7 1.8 1.1 2.4.1.2.2.4.3.5-1.6-.5-3-1.6-3.8-3Zm7.4 3c.1-.2.2-.3.3-.5.4-.7.8-1.5 1.1-2.4h2.4c-.8 1.4-2.2 2.5-3.8 3Z',
+		pencil: 'm19 7-3-3-8.5 8.5-1 4 4-1L19 7Zm-7 11.5H5V20h7v-1.5Z',
+		email: 'M3 7c0-1.1.9-2 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm2-.5h14c.3 0 .5.2.5.5v1L12 13.5 4.5 7.9V7c0-.3.2-.5.5-.5Zm-.5 3.3V17c0 .3.2.5.5.5h14c.3 0 .5-.2.5-.5V9.8L12 15.4 4.5 9.8Z',
+		storage: 'M19 6.5H5c-.8 0-1.5.7-1.5 1.5v8c0 .8.7 1.5 1.5 1.5h14c.8 0 1.5-.7 1.5-1.5V8c0-.8-.7-1.5-1.5-1.5ZM19 16H5V8h14v8ZM7 13h10v1.5H7V13Z',
+		performance: 'M3.445 16.505a.75.75 0 0 0 1.06.05l5.005-4.55 4.024 3.521 4.716-4.715V14h1.5V8.25H14v1.5h3.19l-3.724 3.723L9.49 9.995l-5.995 5.45a.75.75 0 0 0-.05 1.06Z',
+		comment: 'M18 4H6c-1.1 0-2 .9-2 2v12.9c0 .6.5 1.1 1.1 1.1.3 0 .5-.1.7-.3l2.8-2.8H18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm.5 10.9c0 .3-.2.5-.5.5H8l-2.5 2.5V6c0-.3.2-.5.5-.5h12c.3 0 .5.2.5.5v8.9Z',
+		// Vertical key: ring on top, stem with two teeth. The old diagonal
+		// circle-and-handle glyph read as a magnifier next to PATHS.search.
+		key: 'M12 3.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 1 0 0-6.5Zm0 1.75a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3ZM11.25 10.1v9.4h1.5v-9.4ZM12.6 14.75v1.5h2.4v-1.5ZM12.6 17.25v1.5h1.9v-1.5Z',
+		code: 'm8.9 7.1-1-1L3 11l4.9 4.9 1-1L5.1 11l3.8-3.9Zm6.2 0 1-1L21 11l-4.9 4.9-1-1 3.8-3.9-3.8-3.9Z',
+		search: 'M13 5c-3.3 0-6 2.7-6 6 0 1.4.5 2.7 1.3 3.7l-3.8 3.8 1 1 3.8-3.8c1 .8 2.3 1.3 3.7 1.3 3.3 0 6-2.7 6-6s-2.7-6-6-6Zm0 10.5c-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5-2 4.5-4.5 4.5Z',
+		help: 'M12 4c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8Zm.8 12.5h-1.5V15h1.5v1.5Zm2.1-5.6c-.1.5-.4 1.1-.8 1.5-.4.4-.9.7-1.4.8v.8h-1.5v-1.2c0-.6.5-1 .9-1s.7-.2 1-.5c.2-.3.4-.7.4-1 0-.4-.2-.7-.5-1-.3-.3-.6-.4-1-.4s-.8.2-1.1.4c-.3.3-.4.7-.4 1.1H9c0-.6.2-1.1.5-1.6s.7-.9 1.2-1.1c.5-.2 1.1-.3 1.6-.3s1.1.3 1.5.6c.4.3.8.8 1 1.3.2.5.2 1.1.1 1.6Z',
+		megaphone: 'M12 3.5 5.5 8H3c-.6 0-1 .4-1 1v6c0 .6.4 1 1 1h2.5L12 20.5V3.5ZM14 7.6v8.7c1.5-.8 2.5-2.4 2.5-4.3 0-2-1-3.6-2.5-4.4Z',
+		login: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5ZM5 19.2c.6-2.9 3.5-4.7 7-4.7s6.4 1.8 7 4.7l-1.5.3c-.4-2-2.6-3.5-5.5-3.5s-5.1 1.5-5.5 3.5L5 19.2Z',
+		seen: 'M12 6.5c-3 0-5.9 1.4-7.9 3.9L3.5 11l.6.6c2 2.5 4.9 3.9 7.9 3.9s5.9-1.4 7.9-3.9l.6-.6-.6-.6c-2-2.5-4.9-3.9-7.9-3.9Zm0 7.5c-2.3 0-4.6-1-6.3-2.9C7.4 9.2 9.7 8 12 8s4.6 1.2 6.3 3.1C16.6 13 14.3 14 12 14Zm0-5a1.9 1.9 0 1 0 0 3.8A1.9 1.9 0 0 0 12 9Z',
+		plugin: 'M10.5 4v4h3V4H15v4h1.5a1 1 0 0 1 1 1v4l-3 4v2a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-2l-3-4V9a1 1 0 0 1 1-1H9V4h1.5Zm.5 12.5v2h2v-2l3-4v-3H8v3l3 4Z',
+		post: 'M6 4h12c.6 0 1 .4 1 1v14c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V5c0-.6.4-1 1-1Zm.5 1.5v13h11v-13h-11ZM8 8h8v1.5H8V8Zm0 3.5h8V13H8v-1.5Zm0 3.5h5v1.5H8V15Z',
+		tip: 'M12 15.8c-3.7 0-6.8-3-6.8-6.8s3-6.8 6.8-6.8c3.7 0 6.8 3 6.8 6.8s-3.1 6.8-6.8 6.8zm0-12C9.1 3.8 6.8 6.1 6.8 9s2.4 5.2 5.2 5.2c2.9 0 5.2-2.4 5.2-5.2S14.9 3.8 12 3.8zM8 17.5h8V19H8zM10 20.5h4V22h-4z',
+		dollar: 'M10.7 9.6c.3-.2.8-.4 1.3-.4s1 .2 1.3.4c.3.2.4.5.4.6 0 .4.3.8.8.8s.8-.3.8-.8c0-.8-.5-1.4-1.1-1.9-.4-.3-.9-.5-1.4-.6v-.3c0-.4-.3-.8-.8-.8s-.8.3-.8.8v.3c-.5 0-1 .3-1.4.6-.6.4-1.1 1.1-1.1 1.9s.5 1.4 1.1 1.9c.6.4 1.4.6 2.2.6h.2c.5 0 .9.2 1.1.4.3.2.4.5.4.6s0 .4-.4.6c-.3.2-.8.4-1.3.4s-1-.2-1.3-.4c-.3-.2-.4-.5-.4-.6 0-.4-.3-.8-.8-.8s-.8.3-.8.8c0 .8.5 1.4 1.1 1.9.4.3.9.5 1.4.6v.3c0 .4.3.8.8.8s.8-.3.8-.8v-.3c.5 0 1-.3 1.4-.6.6-.4 1.1-1.1 1.1-1.9s-.5-1.4-1.1-1.9c-.5-.4-1.2-.6-1.9-.6H12c-.6 0-1-.2-1.3-.4-.3-.2-.4-.5-.4-.6s0-.4.4-.6ZM12 4c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8Zm0 14.5c-3.6 0-6.5-2.9-6.5-6.5S8.4 5.5 12 5.5s6.5 2.9 6.5 6.5-2.9 6.5-6.5 6.5Z',
+	};
+
+	// The MSD upsell diamond, cropped to its glyph for tiny inline uses.
+	var UPSELL_GLYPH = 'M18.9397 9.87999 15.4197 6.06999 15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999 17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999 14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999 9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49 6.61973 10.6ZM12.0397 15.87 10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24 14.9697 10.6Z';
+
+	function upsellDiamond() {
+		return icon( UPSELL_GLYPH, '4.4 5.4 15.2 13.2', 14 );
+	}
+
+	/* ---- shared shell: same width and heading treatment on every page ----
+	   The heading mirrors the tailored launchpad's: 32px sans title + grey
+	   subline, actions right-aligned on the title row. Pages that carry their
+	   own heading (the new-state launchpad) pass no title and get no header. */
+
+	function Shell( props ) {
+		return el( 'div', { className: 'ms-page' },
+			props.title && el( 'header', { className: 'ms-header' },
+				el( 'div', { className: 'ms-header-row' },
+					el( 'div', { className: 'ms-header-text' },
+						el( 'h1', { className: 'ms-title' }, props.title ),
+						props.description && el( 'p', { className: 'ms-desc' }, props.description )
+					),
+					props.actions && el( 'div', { className: 'ms-header-actions' }, props.actions )
+				)
+			),
+			el( 'div', { className: 'ms-content' }, props.children )
+		);
+	}
+
+	function cardTitle( text, badge ) {
+		return el( 'div', { className: 'ms-card-titlerow' },
+			el( 'h2', { className: 'ms-card-title' }, text ),
+			badge || null
+		);
+	}
+
+	function cardDesc( text ) {
+		return el( 'p', { className: 'ms-card-desc' }, text );
+	}
+
+	function extLink( href, label ) {
+		return el( 'a', { className: 'ms-extlink', href: href },
+			label,
+			icon( PATHS.external, '0 0 24 24', 16 )
+		);
+	}
+
+	/* ---- charts: hand-rolled SVG in the @automattic/charts visual language ---- */
+
+	function smoothPath( points ) {
+		// Catmull-Rom → cubic bézier, the monotone-ish curve the MSD charts use.
+		if ( points.length < 2 ) {
+			return '';
+		}
+		var d = 'M' + points[ 0 ][ 0 ] + ',' + points[ 0 ][ 1 ];
+		for ( var i = 0; i < points.length - 1; i++ ) {
+			var p0 = points[ Math.max( 0, i - 1 ) ];
+			var p1 = points[ i ];
+			var p2 = points[ i + 1 ];
+			var p3 = points[ Math.min( points.length - 1, i + 2 ) ];
+			var c1x = p1[ 0 ] + ( p2[ 0 ] - p0[ 0 ] ) / 6;
+			var c1y = p1[ 1 ] + ( p2[ 1 ] - p0[ 1 ] ) / 6;
+			var c2x = p2[ 0 ] - ( p3[ 0 ] - p1[ 0 ] ) / 6;
+			var c2y = p2[ 1 ] - ( p3[ 1 ] - p1[ 1 ] ) / 6;
+			d += 'C' + c1x.toFixed( 1 ) + ',' + c1y.toFixed( 1 ) + ' ' + c2x.toFixed( 1 ) + ',' + c2y.toFixed( 1 ) + ' ' + p2[ 0 ] + ',' + p2[ 1 ];
+		}
+		return d;
+	}
+
+	function toPoints( values, width, height, max, pad ) {
+		var points = [];
+		var innerW = width - pad * 2;
+		var innerH = height - pad * 2;
+		for ( var i = 0; i < values.length; i++ ) {
+			points.push( [
+				Math.round( pad + ( innerW * i ) / ( values.length - 1 ) ),
+				Math.round( pad + innerH - ( innerH * values[ i ] ) / max ),
+			] );
+		}
+		return points;
+	}
+
+	// Area chart with 1–2 series, gradient fills fading to transparent —
+	// the monitoring-card look (withGradientFill, curveType monotone). Each
+	// series is normalized to its own scale, like the MSD's dual-axis
+	// performance chart — requests and milliseconds share a canvas, not a max.
+	function AreaChart( props ) {
+		var width = 640;
+		var height = props.height || 200;
+		var pad = 8;
+		var gid = 'msgrad-' + ( props.id || 'chart' );
+		return el( 'svg', {
+			className: 'ms-chart',
+			viewBox: '0 0 ' + width + ' ' + height,
+			preserveAspectRatio: 'none',
+			style: { width: '100%', height: height + 'px' },
+			'aria-hidden': true,
+		},
+			el( 'defs', null, props.series.map( function ( s, si ) {
+				return el( 'linearGradient', { key: si, id: gid + si, x1: 0, y1: 0, x2: 0, y2: 1 },
+					el( 'stop', { offset: '0%', stopColor: s.color, stopOpacity: 0.2 } ),
+					el( 'stop', { offset: '100%', stopColor: s.color, stopOpacity: 0 } )
+				);
+			} ) ),
+			props.series.map( function ( s, si ) {
+				// sameScale: series share units (visitors/views). Otherwise each
+				// series gets its own scale (requests vs milliseconds).
+				var max = 1;
+				var pool = props.sameScale ? props.series : [ s ];
+				pool.forEach( function ( ps ) {
+					ps.values.forEach( function ( v ) { max = Math.max( max, v ); } );
+				} );
+				var points = toPoints( s.values, width, height, max * 1.15, pad );
+				var line = smoothPath( points );
+				var area = line + 'L' + points[ points.length - 1 ][ 0 ] + ',' + ( height - pad ) + 'L' + points[ 0 ][ 0 ] + ',' + ( height - pad ) + 'Z';
+				return el( 'g', { key: si },
+					el( 'path', { d: area, fill: 'url(#' + gid + si + ')' } ),
+					el( 'path', { d: line, fill: 'none', stroke: s.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
+				);
+			} )
+		);
+	}
+
+	function chartLegend( series ) {
+		return el( 'div', { className: 'ms-legend' }, series.map( function ( s, i ) {
+			return el( 'span', { key: i, className: 'ms-legend-item' },
+				el( 'span', { className: 'ms-legend-dot', style: { background: s.color } } ),
+				s.label
+			);
+		} ) );
+	}
+
+	/* ---- launchpad: the AI Launchpad tailored list (jetpack-mu-wpcom), faithfully ----
+	   Task set, subtitles, and CTA labels follow the ai-launchpad tailored-list:
+	   goal-aware tasks, accordion cards in a grey group, site preview on the right. */
+
+	var LP_TASKS = isCommerce ? [
+		{ id: 'design', label: 'Choose a theme', subtitle: 'Pick a theme that puts your products front and center.', cta: 'Browse themes' },
+		{ id: 'product', label: 'Add your first product', subtitle: 'Add photos, a price, and a description to start selling.', cta: 'Add product' },
+		{ id: 'payments', label: 'Set up payments', subtitle: 'Choose how customers pay you.', cta: 'Set up payments' },
+		{ id: 'shipping', label: 'Set your shipping rates', subtitle: 'Tell customers what delivery costs before checkout.', cta: 'Set rates' },
+		{ id: 'domain', label: 'Pick a custom domain', subtitle: 'A short address customers can remember.', cta: 'Search domains' },
+		{ id: 'launch', label: 'Launch your store', subtitle: 'When everything feels ready, open your store to customers.', cta: 'Launch store' },
+	] : [
+		{ id: 'design', label: 'Choose a theme', subtitle: 'Choose a theme that highlights your stunning photos.', cta: 'Browse themes' },
+		{ id: 'first-post', label: 'Write your first post', subtitle: 'Say hello and share the story behind your photos.', cta: 'Write post' },
+		{ id: 'social', label: 'Connect your social media accounts', subtitle: 'Connect your accounts to share new posts automatically.', cta: 'Connect socials' },
+		{ id: 'traffic', label: 'Drive traffic to your site', subtitle: 'Turn on the basics that help new readers find your site.', cta: 'Get started' },
+		{ id: 'gallery', label: 'Create your first gallery', subtitle: 'Show your best photos together on one page.', cta: 'Create gallery' },
+		{ id: 'launch', label: 'Launch your blog', subtitle: 'When everything feels ready, make your blog public.', cta: 'Launch site' },
+	];
+
+	function lpInitialDone() {
+		var map = {};
+		( data.lpDone || [] ).forEach( function ( id ) {
+			map[ id ] = true;
+		} );
+		return map;
+	}
+
+	function lpPersist( done, complete ) {
+		var ids = LP_TASKS.filter( function ( t ) { return done[ t.id ]; } ).map( function ( t ) { return t.id; } );
+		try {
+			window.fetch(
+				'admin.php?page=untangling-mysite&untangling_ms_lp_done=' + ids.join( ',' ) + ( complete ? '&untangling_ms_lp_complete=1' : '' ),
+				{ credentials: 'same-origin' }
+			);
+		} catch ( e ) {}
+	}
+
+	// The ai-launchpad "done" glyph (@wordpress/icons `published`: circled check).
+	var TL_DONE_PATH = 'M12 3.25a8.75 8.75 0 1 0 0 17.5 8.75 8.75 0 0 0 0-17.5Zm0 16a7.25 7.25 0 1 1 0-14.5 7.25 7.25 0 0 1 0 14.5Zm3.69-10.06-4.44 4.44-1.94-1.94-1.06 1.06 3 3 5.5-5.5-1.06-1.06Z';
+
+	// The ai-launchpad "to-do" glyph (@wordpress/icons `border`: dashed circle).
+	function tlPendingIcon() {
+		return el( 'svg', {
+			xmlns: 'http://www.w3.org/2000/svg',
+			viewBox: '0 0 24 24',
+			width: 24,
+			height: 24,
+			'aria-hidden': true,
+		}, el( 'circle', {
+			cx: 12, cy: 12, r: 8,
+			fill: 'none',
+			stroke: 'currentColor',
+			strokeWidth: 1.5,
+			strokeLinecap: 'round',
+			strokeDasharray: '2.2 3.2',
+		} ) );
+	}
+
+	// A single tailored-list task: completed cards are plain and inert with a
+	// struck-through title; pending cards expand (accordion) to the subtitle
+	// plus the primary CTA and Skip — both complete the task in this mimic.
+	function TailoredTaskCard( props ) {
+		var task = props.task;
+		if ( props.done ) {
+			return el( 'div', { className: 'ms-tl-card is-done' },
+				el( 'div', { className: 'ms-tl-card-header' },
+					el( 'span', { className: 'ms-tl-icon is-done', 'aria-hidden': true }, icon( TL_DONE_PATH ) ),
+					el( 'span', { className: 'ms-tl-card-title is-done' }, task.label )
+				)
+			);
+		}
+		return el( 'div', { className: 'ms-tl-card' + ( props.open ? ' is-open' : '' ) },
+			el( 'button', {
+				className: 'ms-tl-card-header',
+				'aria-expanded': props.open,
+				'data-task': task.id,
+				onClick: props.onToggle,
+			},
+				el( 'span', { className: 'ms-tl-icon', 'aria-hidden': true }, tlPendingIcon() ),
+				el( 'span', { className: 'ms-tl-card-title' }, task.label ),
+				el( 'span', { className: 'ms-tl-chevron', 'aria-hidden': true }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
+			),
+			props.open && el( 'div', { className: 'ms-tl-card-content' },
+				el( 'p', { className: 'ms-tl-subtitle' }, task.subtitle ),
+				el( 'div', { className: 'ms-tl-actions' },
+					el( Button, { variant: 'primary', onClick: props.onComplete }, task.cta ),
+					el( Button, { variant: 'tertiary', onClick: props.onComplete }, 'Skip' )
+				)
+			)
+		);
+	}
+
+	// The site-preview column: a scaled live iframe of the front end (the
+	// prototype's ?iframe=true hides the admin bar), an "Edit site" hover
+	// overlay, and the site name + domain below.
+	function TailoredSitePreview() {
+		return el( 'aside', { className: 'ms-tl-preview' },
+			el( 'div', { className: 'ms-tl-preview-frame' },
+				el( 'iframe', {
+					className: 'ms-tl-preview-iframe',
+					title: data.siteName || data.domain || 'Site preview',
+					src: ( data.siteUrl || '/' ) + '?iframe=true',
+					tabIndex: -1,
+				} ),
+				el( 'span', { className: 'ms-tl-preview-edit' },
+					el( Button, { variant: 'primary', href: data.adminUrl + 'site-editor.php' }, 'Edit site' )
+				)
+			),
+			el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.domain ),
+			el( 'a', { className: 'ms-tl-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' },
+				data.domain,
+				el( 'span', { 'aria-hidden': true }, ' ↗' )
+			)
+		);
+	}
+
+	function firstIncomplete( done ) {
+		var next = LP_TASKS.filter( function ( t ) { return ! done[ t.id ]; } )[ 0 ];
+		return next ? next.id : null;
+	}
+
+	// The AI Launchpad tailored list: heading + progress line, the grey task
+	// group with single-open accordion cards, and the site preview column.
+	function LaunchpadCard( props ) {
+		var doneState = useState( lpInitialDone );
+		var done = doneState[ 0 ], setDone = doneState[ 1 ];
+		var openState = useState( function () { return firstIncomplete( lpInitialDone() ); } );
+		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
+		var count = LP_TASKS.filter( function ( t ) { return done[ t.id ]; } ).length;
+
+		function complete( id ) {
+			if ( done[ id ] ) {
+				return;
+			}
+			var next = Object.assign( {}, done );
+			next[ id ] = true;
+			setDone( next );
+			setOpenId( firstIncomplete( next ) );
+			var doneCount = LP_TASKS.filter( function ( t ) { return next[ t.id ]; } ).length;
+			var isComplete = doneCount === LP_TASKS.length;
+			lpPersist( next, isComplete );
+			if ( isComplete && props.onComplete ) {
+				props.onComplete();
+			}
+		}
+
+		return el( 'div', { className: 'ms-tl' + ( props.leaving ? ' is-leaving' : '' ) },
+			el( 'header', { className: 'ms-tl-heading' },
+				el( 'h1', { className: 'ms-tl-title' }, 'Get the most out of WordPress' ),
+				el( 'p', { className: 'ms-tl-progress' }, count + ' of ' + LP_TASKS.length + ' completed' )
+			),
+			el( 'div', { className: 'ms-tl-columns' },
+				el( 'div', { className: 'ms-tl-tasks', 'aria-label': 'Launchpad checklist' },
+					LP_TASKS.map( function ( task ) {
+						return el( TailoredTaskCard, {
+							key: task.id,
+							task: task,
+							done: !! done[ task.id ],
+							open: openId === task.id,
+							onToggle: function () { setOpenId( openId === task.id ? null : task.id ); },
+							onComplete: function () { complete( task.id ); },
+						} );
+					} )
+				),
+				el( TailoredSitePreview )
+			),
+			el( MadeForLine )
+		);
+	}
+
+	/* ---- the completion moment: confetti (MSD recipe), collapse, reveal ---- */
+
+	function confettiBurst() {
+		var canvas = document.createElement( 'canvas' );
+		canvas.className = 'ms-confetti-canvas';
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		document.body.appendChild( canvas );
+		var ctx = canvas.getContext( '2d' );
+		var colors = [ '#31CC9F', '#618DF2', '#6AB3D0', '#B35EB1', '#F2D76B', '#FAA754', '#E34C84' ];
+		var particles = [];
+		// Five bursts with widening spreads — the MSD celebration recipe.
+		var bursts = [ [ 30, 26 ], [ 24, 60 ], [ 42, 100 ], [ 12, 120 ], [ 12, 120 ] ];
+		bursts.forEach( function ( burst ) {
+			for ( var i = 0; i < burst[ 0 ]; i++ ) {
+				var angle = ( -90 + ( Math.random() - 0.5 ) * burst[ 1 ] ) * Math.PI / 180;
+				var speed = 7 + Math.random() * 9;
+				particles.push( {
+					x: canvas.width / 2,
+					y: canvas.height * 0.4,
+					vx: Math.cos( angle ) * speed,
+					vy: Math.sin( angle ) * speed,
+					size: 5 + Math.random() * 5,
+					color: colors[ Math.floor( Math.random() * colors.length ) ],
+					rotation: Math.random() * Math.PI,
+					vr: ( Math.random() - 0.5 ) * 0.3,
+					life: 1,
+				} );
+			}
+		} );
+		var start = null;
+		function frame( ts ) {
+			if ( ! start ) {
+				start = ts;
+			}
+			var t = ( ts - start ) / 1600;
+			ctx.clearRect( 0, 0, canvas.width, canvas.height );
+			particles.forEach( function ( p ) {
+				p.x += p.vx;
+				p.y += p.vy;
+				p.vy += 0.35;
+				p.vx *= 0.99;
+				p.rotation += p.vr;
+				p.life = Math.max( 0, 1 - t );
+				ctx.save();
+				ctx.globalAlpha = p.life;
+				ctx.translate( p.x, p.y );
+				ctx.rotate( p.rotation );
+				ctx.fillStyle = p.color;
+				ctx.fillRect( -p.size / 2, -p.size / 2, p.size, p.size * 0.6 );
+				ctx.restore();
+			} );
+			if ( t < 1 ) {
+				window.requestAnimationFrame( frame );
+			} else {
+				canvas.remove();
+			}
+		}
+		window.requestAnimationFrame( frame );
+	}
+
+	/* ---- Next steps: just created ---- */
+
+	function NewState( props ) {
+		return el( 'div', { className: 'ms-new' },
+			el( LaunchpadCard, { onComplete: props.onComplete, leaving: props.leaving } )
+		);
+	}
+
+	/* ---- Next steps: established ----
+	   The page is one ordered pool of steps per site type. Every step is
+	   grounded in something the site actually has (data.signals: latest
+	   comment, latest post, top product) and says why now — the Dia-brief
+	   grounding. Done/skipped ids persist per browser, the hero shows the
+	   first unhandled step, and the queue below moves up as you go, so the
+	   page always has a next step. Upsells sit in the pool like any other
+	   step, each tied to the moment that earns it. */
+
+	var sig = data.signals || {};
+
+	// Do-steps: timely actions with a grounded why, all in the launchpad's
+	// accordion — the first pending one opens by default.
+	var DO_STEPS = ( isCommerce ? [
+		sig.comment && {
+			id: 'reply',
+			title: 'Answer ' + sig.comment.author + '’s question',
+			why: sig.comment.author + ' commented on “' + sig.comment.post + '” ' + sig.comment.time + '. Quick answers turn browsers into buyers.',
+			cta: 'Reply', href: sig.comment.replyUrl,
+		},
+		{
+			id: 'bestseller',
+			title: 'Put your bestseller to work',
+			why: '“' + ( sig.topProduct || 'Your top product' ) + '” got 214 views this month — more than anything else in the store. Feature it on your homepage, or give it a Blaze boost.',
+			cta: 'Promote it', href: msd + '/advertising',
+		},
+		{
+			id: 'product-seo',
+			title: 'Add descriptions Google loves',
+			why: 'Several products are missing the descriptions search engines rely on. A few honest sentences each can lift your search traffic.',
+			cta: 'Edit products', href: data.adminUrl + 'edit.php?post_type=product',
+		},
+		{
+			id: 'coupon',
+			title: 'Welcome first-time buyers',
+			why: 'Most visitors leave without buying anything. A small first-order coupon turns lookers into customers.',
+			cta: 'Create a coupon', href: data.adminUrl + 'edit.php?post_type=shop_coupon',
+		},
+		{
+			id: 'reviews',
+			title: 'Turn on product reviews',
+			why: 'Shoppers trust other shoppers. Reviews on your product pages help new visitors buy with confidence.',
+			cta: 'Enable reviews', href: data.adminUrl + 'admin.php?page=wc-settings&tab=products',
+		},
+		{
+			id: 'social',
+			title: 'Share new products automatically',
+			why: 'Connect your social accounts once and every new product reaches them as soon as it goes live.',
+			cta: 'Connect accounts', href: msd + '/marketing',
+		},
+		{
+			id: 'repeat',
+			title: 'Thank your repeat customers',
+			why: 'A short note or a small coupon after a second order turns customers into regulars.',
+			cta: 'View orders', href: data.adminUrl + 'edit.php?post_type=shop_order',
+		},
+	] : [
+		sig.comment && {
+			id: 'reply',
+			title: 'Reply to ' + sig.comment.author,
+			why: sig.comment.author + ' commented on “' + sig.comment.post + '” ' + sig.comment.time + '. A reply doubles the chance they come back.',
+			cta: 'Reply', href: sig.comment.replyUrl,
+		},
+		{
+			id: 'next-post',
+			title: 'Keep the rhythm — write the next post',
+			why: '“' + ( sig.lastPost ? sig.lastPost.title : 'Your last post' ) + '” went out ' + ( sig.lastPost ? sig.lastPost.time : 'a while ago' ) + '. Sites that publish weekly hold on to twice as many readers.',
+			cta: 'Write post', href: data.adminUrl + 'post-new.php',
+		},
+		{
+			id: 'subscribers',
+			title: 'Reach your first 100 subscribers',
+			why: '12 people follow ' + data.siteName + ' so far. Add a subscribe block to your posts so readers can sign up where they already are.',
+			cta: 'Add a subscribe block', href: data.adminUrl + 'post-new.php',
+		},
+		{
+			id: 'blaze',
+			title: 'Give your top post a push',
+			why: '“' + ( sig.lastPost ? sig.lastPost.title : 'Your top post' ) + '” got 214 views — your best this month. Blaze can put it in front of new readers for a few dollars.',
+			cta: 'Promote with Blaze', href: msd + '/advertising',
+		},
+		{
+			id: 'about',
+			title: 'Introduce yourself on your About page',
+			why: 'About pages are among the most-visited on any site. A short introduction tells new readers who’s behind ' + data.siteName + '.',
+			cta: 'Edit About page', href: data.adminUrl + 'edit.php?post_type=page',
+		},
+		{
+			id: 'social',
+			title: 'Share new posts automatically',
+			why: 'Connect your social accounts once and every new post reaches them the moment you publish.',
+			cta: 'Connect accounts', href: msd + '/marketing',
+		},
+		{
+			id: 'tags',
+			title: 'Help readers find related posts',
+			why: 'Tags connect your posts to each other and to Reader topics, where new readers browse for sites like yours.',
+			cta: 'Add tags', href: data.adminUrl + 'edit.php',
+		},
+	] ).filter( Boolean );
+
+	// Grow: the standing picks — upsells and guides, each tied to the moment
+	// that earns it. Titles stay short enough to share a line with their
+	// badge; descriptions run ~10 words so the cards read as one set.
+	var GROW_ITEMS = isCommerce ? [
+		{ icon: 'email', title: 'Start a newsletter', desc: 'Email every new product and post straight to your customers.', href: msd, badge: 'Included' },
+		{ icon: 'performance', title: 'Recover abandoned carts', desc: '3 carts were left behind this week — a reminder wins some back.', href: data.adminUrl },
+		{ icon: 'seen', title: 'Get products on Google', desc: 'Free listings put your catalog in front of active shoppers.', href: 'https://wordpress.com/support/', external: true, badge: 'Guide' },
+		{ icon: 'post', title: 'Show delivery times', desc: 'Unclear shipping is the top reason carts get abandoned.', href: 'https://wordpress.com/support/', external: true, badge: 'Guide' },
+	] : [
+		isFree
+			? { icon: 'globe', title: 'Claim your domain', desc: data.domainUpsell + ' is available — trust for the readers you’re gaining.', href: data.plansUrl, upsell: true }
+			: { icon: 'performance', title: 'Set up payments', desc: 'Accept one-time or recurring payments from your readers.', href: msd },
+		{ icon: 'email', title: 'Start a newsletter', desc: 'Your 12 subscribers already want to hear from you, by email.', href: isFree ? data.plansUrl : msd, badge: isFree ? '' : 'Included', upsell: isFree },
+		{ icon: 'seen', title: 'Get found on Google', desc: 'Search descriptions help new readers find you — quick to add.', href: 'https://wordpress.com/support/seo/', external: true, badge: 'Guide' },
+		{ icon: 'post', title: 'Add alt text to photos', desc: 'Alt text helps screen readers and search engines see your galleries.', href: 'https://wordpress.com/support/accessibility/', external: true, badge: 'Guide' },
+	];
+
+	var UPNEXT_KEY = 'untangling_ms_upnext';
+	function upnextHandled() {
+		try { return JSON.parse( window.localStorage.getItem( UPNEXT_KEY ) || '[]' ); } catch ( e ) { return []; }
+	}
+	function upnextSave( ids ) {
+		try { window.localStorage.setItem( UPNEXT_KEY, JSON.stringify( ids ) ); } catch ( e ) {}
+	}
+
+	function stepBadge( step ) {
+		if ( step.upsell ) {
+			return el( 'span', { className: 'ms-grow-badge' }, upsellDiamond(), 'Premium' );
+		}
+		if ( step.badge ) {
+			return el( 'span', { className: 'ms-grow-badge is-included' }, step.badge );
+		}
+		return null;
+	}
+
+	// The launchpad's task card, reused for the living pool so the page keeps
+	// one component before and after setup: same classes, same accordion, same
+	// done treatment — plus badges and a real link CTA.
+	function NextStepCard( props ) {
+		var step = props.step;
+		if ( props.done ) {
+			return el( 'div', { className: 'ms-tl-card is-done' },
+				el( 'div', { className: 'ms-tl-card-header' },
+					el( 'span', { className: 'ms-tl-icon is-done', 'aria-hidden': true }, icon( TL_DONE_PATH ) ),
+					el( 'span', { className: 'ms-tl-card-title is-done' }, step.title )
+				)
+			);
+		}
+		return el( 'div', { className: 'ms-tl-card' + ( props.open ? ' is-open' : '' ) },
+			el( 'button', {
+				className: 'ms-tl-card-header',
+				'aria-expanded': props.open,
+				'data-step': step.id,
+				onClick: props.onToggle,
+			},
+				el( 'span', { className: 'ms-tl-icon', 'aria-hidden': true }, tlPendingIcon() ),
+				el( 'span', { className: 'ms-tl-card-title' }, step.title, stepBadge( step ) ),
+				el( 'span', { className: 'ms-tl-chevron', 'aria-hidden': true }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
+			),
+			props.open && el( 'div', { className: 'ms-tl-card-content' },
+					el( 'p', { className: 'ms-tl-subtitle' }, step.why ),
+				el( 'div', { className: 'ms-tl-actions' },
+					el( Button, {
+						variant: 'primary', href: step.href,
+						target: step.external ? '_blank' : undefined,
+						onClick: function () { props.onHandle( step.id ); },
+					}, step.cta ),
+					el( Button, { variant: 'tertiary', onClick: function () { props.onHandle( step.id ); } }, 'Skip for now' )
+				)
+			)
+		);
+	}
+
+	// Runs dry into a caught-up card in the same group.
+	function CaughtUpCard( props ) {
+		return el( 'div', { className: 'ms-hero' },
+			el( 'p', { className: 'ms-hero-eyebrow' }, 'All caught up' ),
+			el( 'h3', { className: 'ms-hero-title' }, 'Nothing pressing right now' ),
+			el( 'p', { className: 'ms-hero-why' }, 'New steps appear here as ' + data.siteName + ' picks up new comments, readers, and posts.' ),
+			el( 'div', { className: 'ms-hero-actions' },
+				el( Button, { variant: 'tertiary', onClick: props.onReset }, 'Start over' )
+			)
+		);
+	}
+
+	// Grow: the standing picks in the earlier grid recipe.
+	function GrowGrid() {
+		return el( 'div', { className: 'ms-grow-grid' },
+			GROW_ITEMS.map( function ( item, i ) {
+				return el( 'a', { key: i, className: 'ms-grow-item', href: item.href, target: item.external ? '_blank' : undefined },
+					el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ item.icon ] ) ),
+					el( 'span', { className: 'ms-grow-main' },
+						el( 'span', { className: 'ms-grow-title' }, item.title, stepBadge( item ) ),
+						el( 'span', { className: 'ms-grow-desc' }, item.desc )
+					),
+					el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
+				);
+			} )
+		);
+	}
+
+	// The provenance line — tailored with AI, from this site's own signals.
+	// Moving the mouse across it scatters little sparks (skipped under
+	// prefers-reduced-motion); the AI phrase carries a gradient shimmer.
+	var SPARK_COLORS = [ '#3858e9', '#b35eb1', '#e34c84', '#f2a33c', '#31cc9f' ];
+	function MadeForLine() {
+		function spawnSpark( e ) {
+			if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+				return;
+			}
+			if ( Math.random() > 0.45 ) {
+				return;
+			}
+			var host = e.currentTarget;
+			var rect = host.getBoundingClientRect();
+			var spark = document.createElement( 'span' );
+			spark.className = 'ms-spark';
+			spark.textContent = '✦';
+			spark.style.color = SPARK_COLORS[ Math.floor( Math.random() * SPARK_COLORS.length ) ];
+			spark.style.left = ( e.clientX - rect.left + ( Math.random() * 16 - 8 ) ) + 'px';
+			spark.style.top = ( e.clientY - rect.top + ( Math.random() * 10 - 5 ) ) + 'px';
+			spark.style.fontSize = ( 8 + Math.random() * 7 ) + 'px';
+			host.appendChild( spark );
+			window.setTimeout( function () { spark.remove(); }, 900 );
+		}
+		return el( 'p', { className: 'ms-madefor', onMouseMove: spawnSpark },
+			el( 'span', { className: 'ms-ai' }, '✦ Tailored with AI' ),
+			' for ' + data.siteName + ' — from your ' + ( isCommerce ? 'stats, products, and orders' : 'stats, comments, and posts' ) + '. New steps appear as your site changes.'
+		);
+	}
+
+	function AttentionCard() {
+		if ( ! data.attention || ! data.attention.length ) {
+			return null;
+		}
+		return el( Card, { className: 'ms-rise ms-attention' },
+			el( CardBody, null,
+				cardTitle( 'Needs attention' ),
+				data.attention.map( function ( item, i ) {
+					return el( 'div', { key: i, className: 'ms-attention-item' },
+						el( 'p', { className: 'ms-attention-title' }, item.title ),
+						el( 'p', { className: 'ms-attention-text' }, item.text ),
+						el( Button, { variant: 'secondary', size: 'compact', href: item.href }, item.action )
+					);
+				} )
+			)
+		);
+	}
+
+	function EstablishedState() {
+		var handledState = useState( upnextHandled );
+		var handled = handledState[ 0 ], setHandled = handledState[ 1 ];
+		function pendingOf( ids ) {
+			return DO_STEPS.filter( function ( s ) { return ids.indexOf( s.id ) === -1; } );
+		}
+		var openState = useState( function () {
+			var first = pendingOf( upnextHandled() )[ 0 ];
+			return first ? first.id : '';
+		} );
+		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
+		function onHandle( id ) {
+			var next = handled.concat( [ id ] );
+			setHandled( next );
+			upnextSave( next );
+			var first = pendingOf( next )[ 0 ];
+			setOpenId( first ? first.id : '' );
+		}
+		function onReset() {
+			setHandled( [] );
+			upnextSave( [] );
+			setOpenId( DO_STEPS.length ? DO_STEPS[ 0 ].id : '' );
+		}
+		var pending = pendingOf( handled );
+		var hasAttention = data.attention && data.attention.length;
+		return el( 'div', { className: 'ms-next' },
+			hasAttention ? el( AttentionCard ) : null,
+			el( 'div', { className: 'ms-tl-columns' },
+				el( 'div', { className: 'ms-next-main' },
+					el( 'div', { className: 'ms-tl-tasks ms-next-flow', 'aria-label': 'Next steps' },
+						pending.length ? pending.map( function ( step, i ) {
+							return el( NextStepCard, {
+								key: step.id,
+								step: step,
+								done: false,
+								open: openId === step.id,
+								onToggle: function () { setOpenId( openId === step.id ? '' : step.id ); },
+								onHandle: onHandle,
+							} );
+						} ) : el( CaughtUpCard, { onReset: onReset } )
+					),
+					el( 'section', null,
+						el( 'h2', { className: 'ms-next-h2' }, isCommerce ? 'Grow your store' : 'Grow your site' ),
+						el( GrowGrid )
+					)
+				),
+				el( TailoredSitePreview )
+			),
+			el( MadeForLine )
+		);
+	}
+
+	function NextStepsPage() {
+		// launchpad → celebrating (confetti, checklist collapses) → established.
+		var phaseState = useState( 'established' === data.state ? 'established' : 'launchpad' );
+		var phase = phaseState[ 0 ], setPhase = phaseState[ 1 ];
+
+		function onComplete() {
+			confettiBurst();
+			setPhase( 'celebrating' );
+			window.setTimeout( function () {
+				setPhase( 'leaving' );
+			}, 1100 );
+			window.setTimeout( function () {
+				setPhase( 'established' );
+			}, 1650 );
+		}
+
+		var isNew = 'established' !== phase;
+		// The new state carries its own heading (the launchpad's), so the Shell
+		// header only appears once the site is established.
+		// Continues the launchpad's "Get the most out of WordPress": setup is
+		// closed, the ongoing mode begins. The subline explains the living list.
+		return el( Shell, isNew ? {} : {
+			title: 'Keep the momentum',
+			description: 'New steps appear as ' + data.siteName + ' picks up ' + ( isCommerce ? 'orders, reviews, and visitors.' : 'readers, comments, and posts.' ),
+		},
+			isNew
+				? el( NewState, { onComplete: onComplete, leaving: 'leaving' === phase } )
+				: el( EstablishedState )
+		);
+	}
+
+	/* ---- Hosting ---- */
+
+	function OvCard( props ) {
+		var tag = props.href ? 'a' : 'div';
+		return el( tag, { className: 'ms-ovcard' + ( props.muted ? ' is-muted' : '' ), href: props.href },
+			el( 'span', { className: 'ms-ovcard-label' },
+				icon( PATHS[ props.icon ], '0 0 24 24', 20 ),
+				el( 'span', null, props.label ),
+				props.href && el( 'span', { className: 'ms-ovcard-linkicon' }, icon( PATHS.external, '0 0 24 24', 16 ) )
+			),
+			el( 'span', { className: 'ms-ovcard-heading' }, props.heading ),
+			el( 'span', { className: 'ms-ovcard-desc' }, props.desc )
+		);
+	}
+
+	function perfSeries( range ) {
+		// Deterministic mock series shaped per range (points, wobble, daily wave).
+		var shapes = {
+			'6h': [ 24, 3 ], '24h': [ 24, 8 ], '3d': [ 36, 12 ], '7d': [ 42, 18 ],
+		};
+		var shape = shapes[ range ] || shapes[ '24h' ];
+		var requests = [];
+		var response = [];
+		for ( var i = 0; i < shape[ 0 ]; i++ ) {
+			var wave = Math.sin( i / shape[ 1 ] * Math.PI * 2 );
+			var jitter = Math.sin( i * 2.7 ) * 0.5 + Math.sin( i * 1.3 ) * 0.3;
+			requests.push( Math.round( 46 + wave * 18 + jitter * 10 ) );
+			response.push( Math.round( 180 + wave * -30 + jitter * 26 ) );
+		}
+		return [
+			{ label: 'Requests per minute', color: '#3858e9', values: requests },
+			{ label: 'Average response time (ms)', color: '#5ba300', values: response },
+		];
+	}
+
+	var RANGE_LABELS = { '6h': 'Last 6 hours', '24h': 'Last 24 hours', '3d': 'Last 3 days', '7d': 'Last 7 days' };
+
+	function PerformanceCard() {
+		var rangeState = useState( '24h' );
+		var range = rangeState[ 0 ], setRange = rangeState[ 1 ];
+		var series = perfSeries( range );
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'div', null,
+						el( 'h2', { className: 'ms-card-title' }, 'Performance' ),
+						cardDesc( 'How the server is holding up — ' + RANGE_LABELS[ range ].toLowerCase() + '.' )
+					),
+					el( Segmented, {
+						label: 'Time range',
+						value: range,
+						onChange: setRange,
+						options: [
+							{ value: '6h', label: '6H' },
+							{ value: '24h', label: '24H' },
+							{ value: '3d', label: '3D' },
+							{ value: '7d', label: '7D' },
+						],
+					} )
+				),
+				el( AreaChart, { id: 'perf-' + range, series: series, height: 220 } ),
+				chartLegend( series )
+			)
+		);
+	}
+
+	function severityBadge( severity ) {
+		var intents = { error: 'error', warning: 'warning', notice: 'default' };
+		return el( Badge, { intent: intents[ severity ] || 'default' }, severity.charAt( 0 ).toUpperCase() + severity.slice( 1 ) );
+	}
+
+	// The MSD's three log views (Activity / PHP errors / Web server), column
+	// order and cell recipes matching the Hosting Dashboard tables.
+	function actorCell( name ) {
+		return el( 'span', { className: 'ms-activity-actor' },
+			el( 'span', { className: 'ms-activity-avatar', 'aria-hidden': true }, name.charAt( 0 ) ),
+			name
+		);
+	}
+
+	function LogsCard() {
+		var kindState = useState( 'activity' );
+		var kind = kindState[ 0 ], setKind = kindState[ 1 ];
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'div', null,
+						el( 'h2', { className: 'ms-card-title' }, 'Logs' ),
+						cardDesc( 'What the site and server have been up to, newest first.' )
+					),
+					el( Segmented, {
+						label: 'Log type',
+						value: kind,
+						onChange: setKind,
+						options: [
+							{ value: 'activity', label: 'Activity' },
+							{ value: 'php', label: 'PHP errors' },
+							{ value: 'server', label: 'Web server' },
+						],
+					} )
+				),
+				'activity' === kind && el( 'table', { className: 'ms-logs' },
+					el( 'thead', null, el( 'tr', null,
+						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
+						el( 'th', null, 'Event' ),
+						el( 'th', { className: 'ms-activity-user' }, 'User' )
+					) ),
+					el( 'tbody', null, ( data.activity || [] ).map( function ( row, i ) {
+						return el( 'tr', { key: i },
+							el( 'td', { className: 'ms-logs-time' }, row.time ),
+							el( 'td', null,
+								el( 'span', { className: 'ms-activity-event' },
+									el( 'span', { className: 'ms-activity-icon', 'aria-hidden': true }, icon( PATHS[ row.icon ] || PATHS.post, '0 0 24 24', 20 ) ),
+									el( 'span', { className: 'ms-activity-main' },
+										el( 'span', { className: 'ms-activity-title' }, row.title ),
+										el( 'span', { className: 'ms-activity-summary' }, row.summary )
+									)
+								)
+							),
+							el( 'td', { className: 'ms-activity-user' }, actorCell( row.actor ) )
+						);
+					} ) )
+				),
+				'php' === kind && el( 'table', { className: 'ms-logs' },
+					el( 'thead', null, el( 'tr', null,
+						el( 'th', { className: 'ms-logs-sev' }, 'Severity' ),
+						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
+						el( 'th', null, 'Message' )
+					) ),
+					el( 'tbody', null, ( data.logs || [] ).map( function ( row, i ) {
+						return el( 'tr', { key: i },
+							el( 'td', { className: 'ms-logs-sev' }, severityBadge( row.severity ) ),
+							el( 'td', { className: 'ms-logs-time' }, row.time ),
+							el( 'td', { className: 'ms-logs-msg' }, row.message )
+						);
+					} ) )
+				),
+				'server' === kind && el( 'table', { className: 'ms-logs' },
+					el( 'thead', null, el( 'tr', null,
+						el( 'th', { className: 'ms-logs-status' }, 'Status' ),
+						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
+						el( 'th', { className: 'ms-logs-type' }, 'Request type' ),
+						el( 'th', null, 'Request URL' )
+					) ),
+					el( 'tbody', null, ( data.serverLogs || [] ).map( function ( row, i ) {
+						return el( 'tr', { key: i },
+							el( 'td', { className: 'ms-logs-status' }, row.status ),
+							el( 'td', { className: 'ms-logs-time' }, row.time ),
+							el( 'td', { className: 'ms-logs-type' }, el( 'span', { className: 'ms-logs-method is-' + row.method.toLowerCase() }, row.method ) ),
+							el( 'td', { className: 'ms-logs-url' }, row.url )
+						);
+					} ) )
+				),
+				el( 'div', { className: 'ms-logs-foot' },
+					el( Button, { variant: 'secondary', size: 'compact', href: '#', onClick: function ( e ) { e.preventDefault(); } }, 'Download logs' ),
+					el( 'span', { className: 'ms-logs-note' }, 'Keeping the last 7 days' )
+				)
+			)
+		);
+	}
+
+	// Caching — the layer every developer reaches for when a change won’t
+	// show up. Statuses mirror the MSD caching settings; Clear is a mimic.
+	var CACHE_ROWS = [
+		{ title: 'Edge cache', desc: 'Pages cached and served from the closest data center.', state: 'Active', intent: 'success' },
+		{ title: 'Object cache', desc: 'Repeated database queries answered from memory.', state: 'Active', intent: 'success' },
+		{ title: 'Defensive mode', desc: 'Extra caching during traffic spikes. Turns on by itself.', state: 'Off', intent: 'default' },
+	];
+
+	function CacheCard() {
+		var clearedState = useState( false );
+		var cleared = clearedState[ 0 ], setCleared = clearedState[ 1 ];
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				cardTitle( 'Caching' ),
+				cardDesc( 'Two layers keep the site fast. Clear them when a change won’t show up.' ),
+				el( 'div', { className: 'ms-cache-list' },
+					CACHE_ROWS.map( function ( row, i ) {
+						return el( 'div', { key: i, className: 'ms-cache-row' },
+							el( 'span', { className: 'ms-grow-main' },
+								el( 'span', { className: 'ms-grow-title' }, row.title ),
+								el( 'span', { className: 'ms-grow-desc' }, row.desc )
+							),
+							el( Badge, { intent: row.intent }, row.state )
+						);
+					} )
+				),
+				el( 'div', { className: 'ms-logs-foot' },
+					el( Button, { variant: 'secondary', size: 'compact', onClick: function () { setCleared( true ); } }, 'Clear all caches' ),
+					el( 'span', { className: 'ms-logs-note' + ( cleared ? ' is-cleared' : '' ) }, cleared ? 'Cleared. The next visit rebuilds them.' : 'Cleared automatically on every update' )
+				)
+			)
+		);
+	}
+
+	var ADVANCED_ROWS = [
+		{ icon: 'key', title: 'SFTP/SSH credentials', desc: 'Direct file access for developers.' },
+		{ icon: 'storage', title: 'Database', desc: 'Browse tables with phpMyAdmin.' },
+		{ icon: 'code', title: 'PHP version', desc: 'Running PHP 8.3 — managed for you.' },
+		{ icon: 'globe', title: 'Server settings', desc: 'Primary data center and static file 404s.' },
+	];
+
+	function AdvancedCard() {
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				cardTitle( 'Advanced' ),
+				cardDesc( 'Genuinely hosting-level things. These open the Hosting Dashboard.' ),
+				el( 'div', { className: 'ms-advanced-grid' },
+					ADVANCED_ROWS.map( function ( row, i ) {
+						return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug },
+							el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ row.icon ] ) ),
+							el( 'span', { className: 'ms-grow-main' },
+								el( 'span', { className: 'ms-grow-title' }, row.title ),
+								el( 'span', { className: 'ms-grow-desc' }, row.desc )
+							),
+							el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.external, '0 0 24 24', 18 ) )
+						);
+					} )
+				)
+			)
+		);
+	}
+
+	function HostingPage() {
+		var stateCards = isFree ? [
+			{ icon: 'cloud', label: 'Backups', heading: 'Not included yet', desc: 'Daily backups and one-click restores come with any paid plan.', muted: true },
+			{ icon: 'shield', label: 'Security', heading: 'Basic protection on', desc: 'Brute-force protection is active. Malware scans come with a paid plan.', muted: true },
+			{ icon: 'layout', label: 'Staging', heading: 'Not available', desc: 'Test changes on a private copy — included with the Business plan.', muted: true },
+		] : [
+			{ icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', href: msd + '/sites/' + data.siteSlug },
+			{ icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', href: msd + '/sites/' + data.siteSlug },
+			{ icon: 'layout', label: 'Staging', heading: 'No staging site yet', desc: 'Test changes on a private copy before they go live.', href: msd + '/sites/' + data.siteSlug },
+		];
+		return el( Shell, {
+			title: 'Hosting',
+			description: 'Your site’s engine room. The Hosting Dashboard keeps the multi-site view — and the recovery path if this site is ever down.',
+			actions: el( Button, { variant: 'secondary', href: msd + '/overview', __next40pxDefaultSize: true, icon: icon( PATHS.external, '0 0 24 24', 20 ), iconPosition: 'right' }, 'Hosting Dashboard' ),
+		},
+			el( 'div', { className: 'ms-grid' },
+				el( 'div', { className: 'ms-span2 ms-ovcard-row' },
+					stateCards.map( function ( card, i ) {
+						return el( OvCard, Object.assign( { key: i }, card ) );
+					} )
+				),
+				el( PerformanceCard ),
+				el( LogsCard ),
+				el( CacheCard ),
+				el( AdvancedCard )
+			)
+		);
+	}
+
+	/* ---- Plan & products ---- */
+
+	// Free vs Premium compare, the plan-upgrade card design from the WP.com
+	// page (V5): each column pairs row for row — storage, themes, domain,
+	// support — so the upgrade reads as a line-by-line answer to what you have.
+	// Same CSS tooltips as that page (span.untangling-feature-tip + data-tip);
+	// copy follows wordpress.com/pricing.
+	var COMPARE_FREE = [
+		{ label: '1 GB storage', tip: 'Room for your images, documents, and other media.' },
+		{ label: 'Dozens of free themes', tip: 'Choose from dozens of professionally designed free themes.' },
+		{ label: 'Free .wordpress.com address', tip: 'Your site address ends in .wordpress.com, like ' + ( data.siteSlug || 'yoursite' ) + '.wordpress.com.' },
+		{ label: 'Community support', tip: 'Get help from support guides and the community forums.' },
+	];
+	var COMPARE_PREMIUM = [
+		{ label: '13 GB storage', tip: 'Upload more images, videos, audio, and documents to your website.' },
+		{ label: 'All premium themes', tip: 'Install any premium theme from the WordPress.com marketplace.' },
+		{ label: 'Free domain for one year', tip: 'Get a custom domain – like ' + data.domainUpsell + ' – free for the first year.' },
+		{ label: 'Fast support from our expert team', tip: 'Fast email support from our expert team of Happiness Engineers.' },
+	];
+
+	function compareColMs( name, chip, price, features, muted, cta, recommended ) {
+		return el( 'div', { className: 'ms-plancompare-col' + ( recommended ? ' is-recommended' : '' ) },
+			el( 'div', { className: 'ms-plancompare-name' },
+				el( 'span', null, name ),
+				chip
+			),
+			el( 'div', { className: 'ms-plancompare-price' }, price ),
+			el( 'ul', { className: 'ms-plancompare-list' + ( muted ? ' is-muted' : '' ) },
+				features.map( function ( feature, i ) {
+					return el( 'li', { key: i },
+						el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
+					);
+				} )
+			),
+			el( 'div', { className: 'ms-plancompare-cta' }, cta )
+		);
+	}
+
+	function PlanUpgradeCardMs() {
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, { className: 'ms-plancompare-head' },
+				el( 'h2', { className: 'ms-card-title' }, 'Plan upgrade' )
+			),
+			el( CardDivider ),
+			el( CardBody, null,
+				el( 'div', { className: 'ms-plancompare' },
+					compareColMs( 'Free', el( Badge, { intent: 'default' }, 'Current plan' ), 'US$0/month', COMPARE_FREE, true,
+						el( Button, { variant: 'secondary', href: data.plansUrl, __next40pxDefaultSize: true }, 'Manage plan' ), false ),
+					compareColMs( 'Premium', el( 'span', { className: 'ms-chip-dark' }, 'Recommended' ), 'US$8/month, billed annually', COMPARE_PREMIUM, false,
+						// iconSize beats Button's Icon wrapper, which otherwise
+						// blows the cropped glyph up to 24×24 beside 13px text.
+						el( Button, { variant: 'primary', icon: upsellDiamond(), iconSize: 14, href: data.checkoutUrl || data.plansUrl, __next40pxDefaultSize: true }, 'Upgrade to Premium' ), true )
+				)
+			),
+			el( CardDivider ),
+			el( 'a', { className: 'ms-linkfooter', href: data.plansUrl },
+				el( 'span', null, 'See all plans' ),
+				icon( PATHS.chevron, '0 0 24 24', 20 )
+			)
+		);
+	}
+
+	function PlanCardMs() {
+		if ( isFree ) {
+			return el( PlanUpgradeCardMs );
+		}
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'div', null,
+						el( 'div', { className: 'ms-plan-namerow' },
+							el( 'h2', { className: 'ms-card-title' }, 'WordPress.com ' + data.plan ),
+							el( Badge, { intent: 'success' }, 'Active' )
+						),
+						cardDesc( meta.renew )
+					),
+					el( Button, { variant: 'primary', href: data.plansUrl, __next40pxDefaultSize: true }, 'Compare plans' )
+				),
+				el( CardDivider ),
+				el( 'ul', { className: 'ms-plan-features' },
+					( meta.features || [] ).map( function ( feature, i ) {
+						return el( 'li', { key: i },
+							el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
+							feature
+						);
+					} )
+				)
+			)
+		);
+	}
+
+	function StorageMeter() {
+		var storage = meta.storage || [ 0, 1, null ];
+		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
+		return el( 'div', { className: 'ms-storage' },
+			el( 'div', { className: 'ms-storage-bar' },
+				el( 'div', { className: 'ms-storage-fill' + ( pct > 80 ? ' is-warning' : '' ), style: { width: pct + '%' } } )
+			),
+			el( 'p', { className: 'ms-storage-note' }, storage[ 0 ] + ' GB used of ' + storage[ 1 ] + ' GB' + ( storage[ 2 ] ? ' — ' + storage[ 2 ] : '' ) )
+		);
+	}
+
+	function DomainsCardMs() {
+		var sub = data.siteSlug.replace( /\..*$/, '' ) + '.wordpress.com';
+		// Sites configured with a wordpress.com primary (Free identities) show
+		// the upsell domain as the custom one once the drawer plan is paid.
+		var custom = /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain;
+		var rows = isFree ? [
+			{ domain: sub, badge: [ 'default', 'Primary' ], note: 'Free forever' },
+			{ domain: data.domainUpsell, badge: [ 'info', 'Available' ], note: 'Free for a year with any paid plan', href: data.plansUrl },
+		] : [
+			{ domain: custom, badge: [ 'success', 'Primary' ], note: 'Renews with your plan' },
+			{ domain: sub, badge: [ 'default', 'Redirects' ], note: 'Free forever' },
+		];
+		return el( Card, null,
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'h2', { className: 'ms-card-title' }, 'Domains' ),
+					extLink( msd + '/domains', 'Manage' )
+				),
+				el( 'ul', { className: 'ms-domains' }, rows.map( function ( row, i ) {
+					return el( 'li', { key: i, className: 'ms-domain-row' },
+						el( 'span', { className: 'ms-domain-name' }, row.domain ),
+						el( Badge, { intent: row.badge[ 0 ] }, row.badge[ 1 ] ),
+						el( 'span', { className: 'ms-domain-note' },
+							row.href ? el( 'a', { href: row.href }, row.note ) : row.note
+						)
+					);
+				} ) )
+			)
+		);
+	}
+
+	function EmailCardMs() {
+		return el( Card, null,
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'h2', { className: 'ms-card-title' }, 'Email' ),
+					extLink( msd + '/emails', 'Manage' )
+				),
+				isFree
+					? el( Fragment, null,
+						cardDesc( 'No mailboxes yet. A custom address like hello@' + data.domainUpsell + ' starts with a domain.' ),
+						el( Button, { variant: 'secondary', size: 'compact', href: data.plansUrl }, 'Get started' )
+					)
+					: el( 'ul', { className: 'ms-domains' },
+						el( 'li', { className: 'ms-domain-row' },
+							el( 'span', { className: 'ms-domain-name' }, 'hello@' + ( /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain ) ),
+							el( Badge, { intent: 'success' }, 'Active' ),
+							el( 'span', { className: 'ms-domain-note' }, 'Professional Email' )
+						)
+					)
+			)
+		);
+	}
+
+	function StorageCardMs() {
+		return el( Card, null,
+			el( CardBody, null,
+				cardTitle( 'Storage' ),
+				el( StorageMeter ),
+				cardDesc( 'Photos, videos, themes, and plugins all share this space.' )
+			)
+		);
+	}
+
+	// Billing pointer — history stays with the account (per the page intro);
+	// this card carries what's site-relevant and links out for the rest.
+	function BillingCardMs() {
+		return el( Card, null,
+			el( CardBody, null,
+				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
+					el( 'h2', { className: 'ms-card-title' }, 'Billing' ),
+					extLink( msd + '/me/billing', 'Manage' )
+				),
+				isFree
+					? cardDesc( 'No payments needed — the Free plan is free forever. Receipts for any upgrade will show up here.' )
+					: el( 'ul', { className: 'ms-domains' },
+						el( 'li', { className: 'ms-domain-row' },
+							el( 'span', { className: 'ms-domain-name' }, 'WordPress.com ' + data.plan ),
+							el( Badge, { intent: 'success' }, 'Active' ),
+							el( 'span', { className: 'ms-domain-note' }, meta.renew )
+						),
+						el( 'li', { className: 'ms-domain-row' },
+							el( 'span', { className: 'ms-domain-name' }, 'Visa ending in 4242' ),
+							el( 'span', { className: 'ms-domain-note' }, 'Payment method' )
+						)
+					)
+			)
+		);
+	}
+
+	var ADDON_TILES = ( function () {
+		var tiles = [];
+		if ( isFree ) {
+			tiles.push( { icon: 'globe', title: 'A domain of your own', desc: data.domainUpsell + ' is free for a year with any paid plan.' } );
+			tiles.push( { icon: 'pencil', title: 'Premium themes', desc: 'Designs with more range, included from Premium up.' } );
+		} else {
+			tiles.push( { icon: 'performance', title: 'Site speed tools', desc: 'Boost keeps scores high without tuning.' } );
+		}
+		tiles.push( { icon: 'email', title: 'Professional Email', desc: 'hello@' + ( isFree ? data.domainUpsell : data.domain ) + ', 3 months free.' } );
+		tiles.push( { icon: 'storage', title: 'More storage', desc: 'Add 50 GB as your library grows.' } );
+		if ( ! isFree && ! isCommerce ) {
+			tiles.push( { icon: 'plugin', title: 'Plugins', desc: 'Thousands of ways to extend your site.' } );
+		}
+		if ( isCommerce ) {
+			tiles.push( { icon: 'megaphone', title: 'Blaze ads', desc: 'Put your products in front of new buyers.' } );
+		}
+		return tiles.slice( 0, 4 );
+	} )();
+
+	function AddonsCardMs() {
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				cardTitle( 'Add to your site' ),
+				cardDesc( 'Picked for a ' + ( isCommerce ? 'store' : 'site' ) + ' on the ' + data.plan + ' plan.' ),
+				el( 'div', { className: 'ms-grow-grid' },
+					ADDON_TILES.map( function ( tile, i ) {
+						return el( 'a', { key: i, className: 'ms-grow-item', href: data.plansUrl },
+							el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ tile.icon ] ) ),
+							el( 'span', { className: 'ms-grow-main' },
+								el( 'span', { className: 'ms-grow-title' }, tile.title ),
+								el( 'span', { className: 'ms-grow-desc' }, tile.desc )
+							),
+							el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
+						);
+					} )
+				)
+			)
+		);
+	}
+
+	function PlanPage() {
+		return el( Shell, {
+			title: 'Plan & products',
+			description: 'What you’re on, what’s attached to this site, and what could help. Billing history stays with your account.',
+		},
+			el( 'div', { className: 'ms-grid' },
+				el( PlanCardMs ),
+				el( DomainsCardMs ),
+				el( EmailCardMs ),
+				el( StorageCardMs ),
+				el( BillingCardMs ),
+				el( AddonsCardMs )
+			)
+		);
+	}
+
+	/* ---- Help & Learn ---- */
+
+	// Mirrors the hosting page's Help & Learn tab — the same real videos,
+	// courses, guides, and support links — inside the My Site shell. The
+	// media/topic/support card styles ride in with untangling_app_css()
+	// (scoped under .untangling-app, which the wrapper carries).
+	var LEARN_VIDEOS = [
+		[ 'wm0jPV234zc', 'The New WordPress Editor Built for Writing', '3:56' ],
+		[ '9rCal5dxMiM', 'Turn a rough draft into a finished post with AI', '3:31' ],
+		[ 'KDLqEd_QAD8', 'Connect Claude to your WordPress.com site', '3:30' ],
+		[ 'OFRAPMPQMeA', 'Create and edit navigation menus', '6:12' ],
+		[ 'wHz4uiaBbOE', 'Connect an existing domain to WordPress.com', '10:12' ],
+		[ 'i0zK9qNIj_g', 'WordPress Forms Made Simple', '8:14' ],
+	];
+
+	var LEARN_COURSES = [
+		[ 'https://wordpress.com/support/courses/create-your-blog/', 'https://en.support.wordpress.com/wp-content/uploads/2025/06/blogging-course.jpg', 'Create your blog', '1 hour', 'Set up your blog, publish posts, and grow your audience.' ],
+		[ 'https://wordpress.com/support/courses/grow-your-audience/', 'https://en.support.wordpress.com/wp-content/uploads/2025/11/final.png', 'Grow your audience', '1 hour', 'Attract visitors, build subscribers, and engage your community.' ],
+		[ 'https://wordpress.com/support/courses/monetize-your-website/', 'https://en.support.wordpress.com/wp-content/uploads/2026/02/thumbnail-monetize-your-site.png', 'Monetize your site', '1 hour', 'Charge for content, sell products, and grow recurring revenue.' ],
+	];
+
+	var LEARN_GUIDES = [
+		[ 'tip', 'Get started', [
+			[ 'Build a website with AI', 'https://wordpress.com/support/ai-website-builder/' ],
+			[ 'Build your website in five steps', 'https://wordpress.com/support/five-step-website-setup/' ],
+			[ 'Set up your blog in five steps', 'https://wordpress.com/support/five-step-blog-setup/' ],
+		] ],
+		[ 'globe', 'Domains', [
+			[ 'Register a new domain name', 'https://wordpress.com/support/domains/register-domain/' ],
+			[ 'Connecting vs transferring a domain', 'https://wordpress.com/support/domain-connection-vs-domain-transfer/' ],
+			[ 'Set up your custom domain', 'https://wordpress.com/support/domains/' ],
+		] ],
+		[ 'pencil', 'Create content', [
+			[ 'About the WordPress editors', 'https://wordpress.com/support/editors/' ],
+			[ 'Start from pre-built content', 'https://wordpress.com/support/starter-content/' ],
+			[ 'Improve a post with Jetpack AI', 'https://wordpress.com/support/wordpress-editor/jetpack-ai/' ],
+		] ],
+		[ 'stats', 'Grow your audience', [
+			[ 'Increase your site’s traffic', 'https://wordpress.com/support/getting-more-views-and-traffic/' ],
+			[ 'Optimize for search engines (SEO)', 'https://wordpress.com/support/seo/' ],
+			[ 'Advertise your content with Blaze', 'https://wordpress.com/support/promote-a-post/' ],
+		] ],
+		[ 'dollar', 'Monetize', [
+			[ 'Earn money from ads', 'https://wordpress.com/support/wordads-and-earn/' ],
+			[ 'Accept payments', 'https://wordpress.com/support/wordpress-editor/blocks/payments/accept-payments/' ],
+			[ 'Sell digital products', 'https://wordpress.com/support/sell-digital-products/' ],
+		] ],
+		[ 'cloud', 'Move your site', [
+			[ 'Migrate a site to WordPress.com', 'https://wordpress.com/support/import/import-an-entire-wordpress-site/' ],
+			[ 'Import a website', 'https://wordpress.com/support/import/' ],
+			[ 'Request a free migration', 'https://wordpress.com/support/request-a-free-migration/' ],
+		] ],
+	];
+
+	var LEARN_SUPPORT = [
+		[ 'comment', 'Contact us', 'Get answers from our AI assistant, with access to 24/7 expert human support on paid plans.', 'https://wordpress.com/help/contact/' ],
+		[ 'login', 'Ask a question in our forum', 'Browse questions and get answers from other experienced users.', 'https://wordpress.com/forums/' ],
+	];
+
+	function openAssistant() {
+		var panel = document.querySelector( '.untangling-mkt-help' );
+		if ( panel ) {
+			panel.hidden = false;
+			var input = panel.querySelector( 'input' );
+			if ( input ) {
+				input.focus();
+			}
+		}
+	}
+
+	function learnHead( heading, linkLabel, href ) {
+		return el( 'div', { className: 'ms-learn-head' },
+			el( 'h2', { className: 'ms-next-h2' }, heading ),
+			linkLabel && el( Button, { variant: 'tertiary', href: href, target: '_blank' }, linkLabel + ' ↗' )
+		);
+	}
+
+	function VideoCardMs( props ) {
+		var video = props.video;
+		return el( 'a', { className: 'untangling-media-card', href: 'https://www.youtube.com/watch?v=' + video[ 0 ], target: '_blank', rel: 'noreferrer' },
+			el( 'span', { className: 'untangling-media-thumb' },
+				el( 'img', { src: 'https://i.ytimg.com/vi/' + video[ 0 ] + '/hq720.jpg', alt: '', loading: 'lazy' } ),
+				el( 'span', { className: 'untangling-media-play', 'aria-hidden': true } )
+			),
+			el( 'span', { className: 'untangling-media-body' },
+				el( 'span', { className: 'untangling-media-row' },
+					el( 'span', { className: 'untangling-media-title' }, video[ 1 ] ),
+					el( 'span', { className: 'untangling-media-duration' }, video[ 2 ] )
+				)
+			)
+		);
+	}
+
+	function CourseCardMs( props ) {
+		var course = props.course;
+		return el( 'a', { className: 'untangling-media-card', href: course[ 0 ], target: '_blank', rel: 'noreferrer' },
+			el( 'span', { className: 'untangling-media-thumb' },
+				el( 'img', { src: course[ 1 ], alt: '', loading: 'lazy' } )
+			),
+			el( 'span', { className: 'untangling-media-body' },
+				el( 'span', { className: 'untangling-media-row' },
+					el( 'span', { className: 'untangling-media-title' }, course[ 2 ] ),
+					el( 'span', { className: 'untangling-media-duration' }, course[ 3 ] )
+				),
+				el( 'span', { className: 'untangling-media-desc' }, course[ 4 ] )
+			)
+		);
+	}
+
+	function GuideTopicCardMs( props ) {
+		var topic = props.topic;
+		return el( 'div', { className: 'untangling-topic-card' },
+			el( 'span', { className: 'untangling-topic-icon', 'aria-hidden': true }, icon( PATHS[ topic[ 0 ] ], '0 0 24 24', 20 ) ),
+			el( 'span', { className: 'untangling-topic-title' }, topic[ 1 ] ),
+			el( 'span', { className: 'untangling-topic-links' },
+				topic[ 2 ].map( function ( link, index ) {
+					return el( 'a', { key: index, href: link[ 1 ], target: '_blank', rel: 'noreferrer' }, link[ 0 ] );
+				} )
+			)
+		);
+	}
+
+	function SupportCardMs( props ) {
+		var item = props.item;
+		return el( 'a', { className: 'untangling-support-card', href: item[ 3 ], target: '_blank', rel: 'noreferrer' },
+			el( 'span', { className: 'untangling-support-icon', 'aria-hidden': true }, icon( PATHS[ item[ 0 ] ], '0 0 24 24', 24 ) ),
+			el( 'span', { className: 'untangling-media-title' }, item[ 1 ] ),
+			el( 'span', { className: 'untangling-media-desc' }, item[ 2 ] )
+		);
+	}
+
+	function HelpPage() {
+		return el( Shell, {
+			title: 'Help & Learn',
+			description: 'Answers first, humans when you need them. Same Help Center as the ? up top — just easier to find.',
+		},
+			el( 'div', { className: 'untangling-app ms-learn' },
+				el( Card, null,
+					el( CardBody, null,
+						el( 'div', { className: 'ms-learn-hero' },
+							el( 'div', null,
+								cardTitle( 'Need a hand?' ),
+								cardDesc( 'Ask the AI assistant anything about your ' + ( isCommerce ? 'store' : 'site' ) + '.' )
+							),
+							el( Button, { variant: 'secondary', onClick: openAssistant }, 'Ask AI' )
+						)
+					)
+				),
+				el( 'section', { className: 'untangling-learn-section' },
+					learnHead( 'Video tutorials', 'Visit our YouTube channel', 'https://www.youtube.com/@wordpressdotcom' ),
+					el( 'div', { className: 'untangling-media-grid' },
+						LEARN_VIDEOS.map( function ( video ) { return el( VideoCardMs, { key: video[ 0 ], video: video } ); } )
+					)
+				),
+				el( 'section', { className: 'untangling-learn-section' },
+					learnHead( 'Courses', 'Browse all courses', 'https://wordpress.com/support/courses/' ),
+					el( 'div', { className: 'untangling-media-grid' },
+						LEARN_COURSES.map( function ( course, index ) { return el( CourseCardMs, { key: index, course: course } ); } )
+					)
+				),
+				el( 'section', { className: 'untangling-learn-section' },
+					learnHead( 'Guides', 'View all guides', 'https://wordpress.com/support/guides/' ),
+					el( 'div', { className: 'untangling-media-grid' },
+						LEARN_GUIDES.map( function ( topic ) { return el( GuideTopicCardMs, { key: topic[ 1 ], topic: topic } ); } )
+					)
+				),
+				el( 'section', { className: 'untangling-learn-section' },
+					learnHead( 'Couldn’t find what you needed?' ),
+					el( 'div', { className: 'untangling-support-grid' },
+						LEARN_SUPPORT.map( function ( item ) { return el( SupportCardMs, { key: item[ 1 ], item: item } ); } )
+					)
+				)
+			)
+		);
+	}
+
+	/* ---- router ---- */
+
+	var PAGES = { next: NextStepsPage, plan: PlanPage, hosting: HostingPage, help: HelpPage };
+
+	function App() {
+		var Page = PAGES[ data.section ] || NextStepsPage;
+		return el( Page );
+	}
+
+	var root = document.getElementById( 'untangling-ms-root' );
+	if ( root && wp.element.createRoot ) {
+		wp.element.createRoot( root ).render( el( App ) );
+	}
+
+	// Feature tooltips open above where the cursor entered, then stay put —
+	// same delegated positioning as the WP.com page app.
+	document.addEventListener( 'mouseover', function ( event ) {
+		var tip = event.target && event.target.closest && event.target.closest( '.untangling-feature-tip' );
+		if ( tip ) {
+			tip.style.setProperty( '--untangling-tip-x', ( event.clientX - tip.getBoundingClientRect().left ) + 'px' );
+		}
+	} );
+} )();
+JS;
+}
+
+function untangling_ms_app_css() {
+	return <<<'CSS'
+/* My Site drawer — page chrome. The MSD canvas color behind a 960px column. */
+body.toplevel_page_untangling-mysite,
+body.toplevel_page_untangling-mysite #wpcontent { background: #fcfcfc; }
+body.toplevel_page_untangling-mysite #wpcontent { padding-left: 0; padding-right: 0; }
+body.toplevel_page_untangling-mysite #wpbody-content { padding-bottom: 0; }
+body.toplevel_page_untangling-mysite #wpfooter { display: none; }
+
+.untangling-ms {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	color: #1e1e1e;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Shell — the tailored-launchpad column: 960px content (+24px side paddings),
+   heading in the launchpad's style (32px sans, weight 500, grey subline). */
+.untangling-ms .ms-page { max-width: 1008px; margin: 0 auto; padding: 32px 24px; box-sizing: border-box; display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+.untangling-ms .ms-header { margin-bottom: 24px; }
+.untangling-ms .ms-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.untangling-ms .ms-title,
+.untangling-ms .ms-tl-title { margin: 0; font-size: 32px; line-height: 1.2; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-desc { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: #757575; max-width: 68ch; }
+.untangling-ms .ms-content { display: flex; flex-direction: column; gap: 24px; flex: 1; }
+/* Grow chain so the "Tailored with AI" line (margin-top: auto) sits at the
+   bottom of the viewport when the content is short, after it when tall. */
+.untangling-ms .ms-content > .ms-next,
+.untangling-ms .ms-content > .ms-new,
+.untangling-ms .ms-new > .ms-tl { flex: 1; }
+.untangling-ms .ms-new,
+.untangling-ms .ms-new > .ms-tl { display: flex; flex-direction: column; }
+
+/* Grid — MSD overview: 2 columns, 24px gap, 1 column under 1100px.
+   Rows stretch so side-by-side cards share the same bottom edge. */
+.untangling-ms .ms-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+.untangling-ms .ms-span2 { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+	.untangling-ms .ms-grid { grid-template-columns: 1fr; }
+}
+
+/* Cards — level-3 section headers on Card bodies, per the monitoring-card shell. */
+.untangling-ms .components-card { border-radius: 8px; box-shadow: 0 0 0 1px #e0e0e0; }
+.untangling-ms .components-card__body { padding: 24px; }
+.untangling-ms .ms-card-titlerow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 0 0 4px; }
+
+/* Segmented control (hand-rolled — see Segmented in the app JS): quiet gray
+   track, white pill slides under the active option. Radii hardcoded — the
+   vendored token cascade leaves --wpds-border-radius-* at pill values. */
+.untangling-ms .ms-segmented { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; padding: 2px; background: var(--wpds-color-background-surface-neutral-weak, #f0f0f0); border-radius: 8px; }
+.untangling-ms .ms-segmented-pill { position: absolute; top: 2px; bottom: 2px; left: 0; background: #fff; border-radius: 6px; box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.12 ), 0 0 0 0.5px rgba( 0, 0, 0, 0.04 ); transition: left 0.15s ease-out, width 0.15s ease-out; }
+.untangling-ms .ms-segmented-option { position: relative; appearance: none; border: 0; margin: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 500; line-height: 1; color: var(--wpds-color-foreground-content-neutral-weak, #757575); min-height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: color 0.15s ease-out; }
+.untangling-ms .ms-segmented-option:hover,
+.untangling-ms .ms-segmented-option.is-active { color: #1e1e1e; }
+.untangling-ms .ms-segmented-option:focus-visible { outline: 1.5px solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -1px; }
+@media ( prefers-reduced-motion: reduce ) {
+	.untangling-ms .ms-segmented-pill,
+	.untangling-ms .ms-segmented-option { transition: none; }
+}
+/* Toggle groups in a title row keep their width — squeezing them wraps labels. */
+.untangling-ms .ms-card-titlerow .components-toggle-group-control { flex-shrink: 0; }
+.untangling-ms .ms-card-title { margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-card-desc { margin: 4px 0 16px; font-size: 13px; line-height: 18px; color: #757575; }
+.untangling-ms .ms-extlink { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; text-decoration: none; color: #3858e9; }
+.untangling-ms .ms-extlink svg { fill: currentColor; }
+.untangling-ms .ms-extlink:hover { color: #2145e6; text-decoration: underline; }
+
+/* Reveal animation — the established cards rise in, staggered. */
+.untangling-ms .ms-rise { animation: ms-rise .38s cubic-bezier(.2,.7,.3,1) both; }
+.untangling-ms .ms-grid > .ms-rise:nth-child(2) { animation-delay: 60ms; }
+.untangling-ms .ms-grid > .ms-rise:nth-child(3) { animation-delay: 120ms; }
+.untangling-ms .ms-grid > .ms-rise:nth-child(4) { animation-delay: 180ms; }
+.untangling-ms .ms-grid > .ms-rise:nth-child(5) { animation-delay: 240ms; }
+@keyframes ms-rise {
+	from { opacity: 0; transform: translateY(12px); }
+	to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.untangling-ms .ms-rise { animation: none; }
+}
+
+/* Just created: the AI Launchpad tailored list (jetpack-mu-wpcom), faithfully.
+   Heading + progress line, a grey group of white accordion task cards on the
+   left, the site-preview column on the right. */
+.untangling-ms .ms-new { display: flex; flex-direction: column; gap: 24px; }
+.untangling-ms .ms-tl { transition: opacity .5s ease, transform .5s ease; }
+.untangling-ms .ms-tl.is-leaving { opacity: 0; transform: translateY(-14px) scale(.985); }
+.untangling-ms .ms-tl-heading { margin-bottom: 24px; }
+.untangling-ms .ms-tl-progress { margin: 8px 0 0; color: #757575; font-size: 14px; }
+.untangling-ms .ms-tl-columns { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+
+/* The task column: a padded grey container so the white cards read as a
+   grouped checklist. */
+.untangling-ms .ms-tl-tasks { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: #f6f7f7; border-radius: 8px; }
+.untangling-ms .ms-tl-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+.untangling-ms .ms-tl-card-header { display: flex; align-items: center; gap: 8px; width: 100%; padding: 16px; background: none; border: 0; cursor: pointer; font: inherit; text-align: left; border-radius: 8px; }
+.untangling-ms .ms-tl-card.is-done .ms-tl-card-header { cursor: default; }
+.untangling-ms .ms-tl-icon { flex-shrink: 0; display: inline-flex; color: #1e1e1e; }
+.untangling-ms .ms-tl-icon svg { fill: currentColor; }
+.untangling-ms .ms-tl-icon.is-done { color: #949494; }
+.untangling-ms .ms-tl-card-title { flex: 1 1 0%; min-width: 0; font-size: 14px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-tl-card-title.is-done { text-decoration: line-through; color: #949494; }
+.untangling-ms .ms-tl-chevron { display: inline-flex; flex-shrink: 0; transform: rotate(90deg); transition: transform .15s ease; }
+.untangling-ms .ms-tl-chevron svg { fill: #757575; }
+.untangling-ms .ms-tl-card.is-open .ms-tl-chevron { transform: rotate(-90deg); }
+.untangling-ms .ms-tl-card-content { padding: 0 16px 16px; }
+.untangling-ms .ms-tl-subtitle { margin: 0 0 16px; color: #757575; font-size: 13px; }
+.untangling-ms .ms-tl-actions { display: flex; align-items: center; gap: 8px; }
+
+/* The site-preview card: a desktop-width iframe scaled to 0.25 (4x the frame),
+   with an "Edit site" overlay on hover/focus. */
+.untangling-ms .ms-tl-preview { display: flex; flex-direction: column; position: sticky; top: 56px; }
+.untangling-ms .ms-tl-preview-frame { position: relative; display: block; width: 100%; max-width: 300px; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; background: #f6f7f7; }
+.untangling-ms .ms-tl-preview-iframe { position: absolute; top: 0; left: 0; width: 400%; min-height: 400%; border: 0; transform: scale(.25); transform-origin: top left; pointer-events: none; }
+.untangling-ms .ms-tl-preview-edit { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity 120ms ease; }
+.untangling-ms .ms-tl-preview-frame:hover .ms-tl-preview-edit,
+.untangling-ms .ms-tl-preview-frame:focus-within .ms-tl-preview-edit { opacity: 1; }
+.untangling-ms .ms-tl-preview-edit a, .untangling-ms .ms-tl-preview-edit a:hover, .untangling-ms .ms-tl-preview-edit a:focus, .untangling-ms .ms-tl-preview-edit a:active { color: #fff; }
+.untangling-ms .ms-tl-preview-title { margin: 12px 0 2px; font-weight: 600; font-size: 15px; }
+.untangling-ms .ms-tl-preview-link { font-size: 13px; text-decoration: none; }
+.untangling-ms .ms-tl-preview-link:hover { text-decoration: underline; }
+
+/* Stack the preview under the tasks on narrow screens. */
+@media (max-width: 782px) {
+	.untangling-ms .ms-tl-columns { grid-template-columns: 1fr; }
+	.untangling-ms .ms-tl-preview { position: static; }
+	.untangling-ms .ms-tl-preview-frame { max-width: none; }
+}
+
+.ms-confetti-canvas { position: fixed; inset: 0; z-index: 1000000; pointer-events: none; }
+
+/* Stats + charts */
+.untangling-ms .ms-stat-line { margin: 0 0 12px; font-size: 13px; color: #757575; display: flex; align-items: center; gap: 6px; }
+.untangling-ms .ms-stat-line strong { font-size: 20px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-chart { display: block; overflow: visible; }
+.untangling-ms .ms-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.untangling-ms .ms-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #757575; }
+.untangling-ms .ms-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Vitals */
+.untangling-ms .ms-vitals { list-style: none; margin: 8px 0 0; padding: 0; }
+.untangling-ms .ms-vital { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.untangling-ms .ms-vital:last-child { border-bottom: none; }
+.untangling-ms .ms-vital-icon { display: flex; }
+.untangling-ms .ms-vital-icon svg { fill: #757575; }
+.untangling-ms .ms-vital-label { color: #757575; flex: 1; }
+.untangling-ms .ms-vital-value { color: #1e1e1e; display: inline-flex; align-items: center; gap: 10px; text-align: right; }
+.untangling-ms .ms-vital-nudge { display: inline-flex; align-items: center; gap: 4px; color: #3858e9; text-decoration: none; font-weight: 500; }
+.untangling-ms .ms-vital-nudge svg { fill: currentColor; }
+.untangling-ms .ms-vital-nudge:hover { text-decoration: underline; }
+
+/* Grow grid (also reused by Add to your site and Advanced) */
+.untangling-ms .ms-grow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+@media (max-width: 782px) {
+	.untangling-ms .ms-grow-grid { grid-template-columns: 1fr; }
+}
+.untangling-ms .ms-grow-item, .untangling-ms .ms-advanced-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px #e0e0e0; text-decoration: none; transition: box-shadow .15s ease, background .15s ease; }
+.untangling-ms .ms-grow-item:hover, .untangling-ms .ms-advanced-row:hover { box-shadow: 0 0 0 1px color-mix(in srgb, #3858e9 40%, transparent); background: color-mix(in srgb, #3858e9 2%, #fff); }
+.untangling-ms .ms-grow-icon { display: flex; flex-shrink: 0; margin-top: 1px; }
+.untangling-ms .ms-grow-icon svg { fill: #757575; }
+.untangling-ms .ms-grow-item:hover .ms-grow-icon svg, .untangling-ms .ms-advanced-row:hover .ms-grow-icon svg { fill: #3858e9; }
+.untangling-ms .ms-grow-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.untangling-ms .ms-grow-title { font-size: 14px; font-weight: 500; color: #1e1e1e; display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.untangling-ms .ms-grow-title .ms-grow-badge { flex-shrink: 0; white-space: nowrap; }
+.untangling-ms .ms-grow-desc { font-size: 12.5px; line-height: 17px; color: #757575; }
+.untangling-ms .ms-grow-chevron { display: flex; flex-shrink: 0; align-self: center; }
+.untangling-ms .ms-grow-chevron svg { fill: #949494; }
+.untangling-ms .ms-grow-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 4px; background: #f0f0f0; color: #1e1e1e; font-size: 11px; font-weight: 500; line-height: 16px; }
+.untangling-ms .ms-grow-badge svg { fill: currentColor; }
+.untangling-ms .ms-grow-badge.is-included { background: #e5f5e9; color: #00753d; }
+/* Next steps (established): the Dia-brief layout — serif section labels in a
+   left rail, content on the right. Four section shapes: the Up-next hero
+   panel, Top to-dos (the launchpad card component, compact), numbered New
+   updates, and the Grow grid. */
+@font-face {
+	font-display: swap;
+	font-family: Recoleta;
+	font-weight: 400;
+	src: url(https://s1.wp.com/i/fonts/recoleta/400.woff2) format("woff2"), url(https://s1.wp.com/i/fonts/recoleta/400.woff) format("woff");
+}
+.untangling-ms .ms-next { display: flex; flex-direction: column; gap: 24px; animation: ms-rise .38s cubic-bezier(.2,.7,.3,1) both; }
+.untangling-ms .ms-next-main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.untangling-ms .ms-next-h2 { margin: 0 0 14px; font-size: 20px; line-height: 1.3; font-weight: 500; color: #1e1e1e; }
+
+/* The caught-up card, shown in the launchpad group once every step is handled. */
+.untangling-ms .ms-hero { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); padding: 24px; animation: ms-rise .35s cubic-bezier(.2,.7,.3,1) both; }
+.untangling-ms .ms-hero-eyebrow { margin: 0 0 10px; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; color: #757575; }
+.untangling-ms .ms-hero-title { margin: 0 0 8px; font-size: 24px; line-height: 1.25; font-weight: 500; color: #1e1e1e; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.untangling-ms .ms-hero-why { margin: 0 0 20px; max-width: 60ch; font-size: 14px; line-height: 1.6; color: #555; }
+.untangling-ms .ms-hero-actions { display: flex; align-items: center; gap: 12px; }
+
+.untangling-ms .ms-tl-card-title .ms-grow-badge { margin-left: 8px; vertical-align: middle; }
+
+@media (prefers-reduced-motion: reduce) {
+	.untangling-ms .ms-next,
+	.untangling-ms .ms-hero { animation: none; }
+}
+
+/* The provenance line: tailored with AI. The phrase carries a slow gradient
+   shimmer on hover, and mousemove scatters ✦ sparks that float up and fade. */
+.untangling-ms .ms-madefor { position: relative; margin: auto 0 0; padding: 16px 0 0; text-align: center; font-size: 12.5px; color: #949494; }
+.untangling-ms .ms-ai { font-weight: 500; background: linear-gradient(90deg, #3858e9, #b35eb1, #e34c84, #3858e9); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
+.untangling-ms .ms-madefor:hover .ms-ai { animation: ms-ai-flow 1.8s linear infinite; }
+@keyframes ms-ai-flow {
+	to { background-position: 300% 0; }
+}
+.untangling-ms .ms-spark { position: absolute; pointer-events: none; line-height: 1; animation: ms-spark .85s ease-out forwards; }
+@keyframes ms-spark {
+	from { opacity: 0; transform: translateY(2px) scale(.4) rotate(0deg); }
+	30% { opacity: 1; }
+	to { opacity: 0; transform: translateY(-22px) scale(1) rotate(45deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.untangling-ms .ms-madefor:hover .ms-ai { animation: none; }
+	.untangling-ms .ms-spark { animation: none; opacity: 0; }
+}
+
+/* Activity */
+.untangling-ms .ms-activity { list-style: none; margin: 8px 0 0; padding: 0; }
+.untangling-ms .ms-activity-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.untangling-ms .ms-activity-row:last-child { border-bottom: none; }
+.untangling-ms .ms-activity-icon { display: flex; }
+.untangling-ms .ms-activity-icon svg { fill: #757575; }
+.untangling-ms .ms-activity-text { flex: 1; color: #1e1e1e; }
+.untangling-ms .ms-activity-time { color: #949494; font-size: 12px; white-space: nowrap; }
+
+/* Needs attention */
+.untangling-ms .ms-attention { box-shadow: 0 0 0 1px #f5c8c4; }
+.untangling-ms .ms-attention-item { margin-top: 8px; }
+.untangling-ms .ms-attention-title { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #8a2424; }
+.untangling-ms .ms-attention-text { margin: 0 0 12px; font-size: 13px; color: #757575; }
+
+/* Hosting overview cards — the MSD OverviewCard atom. */
+.untangling-ms .ms-ovcard-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 1100px) {
+	.untangling-ms .ms-ovcard-row { grid-template-columns: 1fr; }
+}
+.untangling-ms .ms-ovcard { display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px #e0e0e0; text-decoration: none; transition: box-shadow .15s ease, background .15s ease; }
+.untangling-ms a.ms-ovcard:hover { box-shadow: 0 0 0 1px color-mix(in srgb, #3858e9 40%, transparent); background: color-mix(in srgb, #3858e9 2%, transparent); }
+.untangling-ms .ms-ovcard-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: .02em; text-transform: uppercase; color: #757575; }
+.untangling-ms .ms-ovcard-label svg { fill: #757575; }
+.untangling-ms .ms-ovcard-linkicon { margin-left: auto; display: flex; }
+.untangling-ms .ms-ovcard-linkicon svg { fill: #949494; }
+/* Hierarchy: eyebrow (xs) < status (lg + emphasis) > desc (md body). The
+   status is content, not a title — it must not outrank the page's real
+   section titles (.ms-card-title, lg/500), so it matches their size and
+   leans on weight instead. Desc is a sentence: md floor, never sm. */
+.untangling-ms .ms-ovcard-heading { font-size: var(--wpds-typography-font-size-lg); line-height: var(--wpds-typography-line-height-sm); font-weight: var(--wpds-typography-font-weight-emphasis); color: #1e1e1e; }
+.untangling-ms .ms-ovcard-desc { font-size: var(--wpds-typography-font-size-md); line-height: 18px; color: #757575; }
+.untangling-ms .ms-ovcard.is-muted .ms-ovcard-heading { color: #757575; }
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
+
+/* Logs table — the DataViews table look: hairline rows, muted mono details. */
+.untangling-ms .ms-logs { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.untangling-ms .ms-logs th { text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .02em; color: #757575; padding: 8px 12px 8px 0; border-bottom: 1px solid #e0e0e0; }
+.untangling-ms .ms-logs td { padding: 10px 12px 10px 0; border-bottom: 1px solid #f0f0f0; vertical-align: top; font-size: 13px; }
+.untangling-ms .ms-logs tbody tr:hover { background: #fafafa; }
+.untangling-ms .ms-logs-sev { width: 90px; white-space: nowrap; }
+.untangling-ms .ms-logs-msg { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 18px; color: #1e1e1e; word-break: break-word; }
+.untangling-ms .ms-logs-time { width: 170px; white-space: nowrap; color: #757575; }
+.untangling-ms .ms-logs-empty { margin: 24px 0; font-size: 13px; color: #757575; }
+.untangling-ms .ms-logs-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.untangling-ms .ms-logs-note { font-size: 12px; color: #949494; }
+
+/* Activity view — MSD activity-log row: gray icon tile, bold event title with
+   a quiet summary line, actor with an initial avatar. */
+.untangling-ms .ms-activity-event { display: flex; gap: 12px; align-items: flex-start; }
+.untangling-ms .ms-activity-icon { flex-shrink: 0; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 4px; }
+.untangling-ms .ms-activity-icon svg { fill: #1e1e1e; }
+.untangling-ms .ms-activity-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.untangling-ms .ms-activity-title { font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-activity-summary { color: #757575; }
+.untangling-ms .ms-activity-user { width: 160px; white-space: nowrap; }
+.untangling-ms .ms-activity-actor { display: inline-flex; align-items: center; gap: 8px; color: #757575; }
+.untangling-ms .ms-activity-avatar { width: 24px; height: 24px; border-radius: 50%; background: #e0e0e0; color: #1e1e1e; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Fallback Badge intent tones (core here ships no C.Badge) — MSD Badge
+   colors: success green, warning amber, error red; neutral stays gray. */
+.untangling-ms .untangling-fallback-badge { display: inline-block; background: #f4f4f4; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 500; color: #1e1e1e; white-space: nowrap; }
+.untangling-ms .untangling-fallback-badge.is-success { background: #e6f2e8; color: #007017; }
+.untangling-ms .untangling-fallback-badge.is-warning { background: #fcf0d4; color: #996800; }
+.untangling-ms .untangling-fallback-badge.is-error { background: #fce2e4; color: #b32d2e; }
+
+/* Caching card — layer rows with status badges */
+.untangling-ms .ms-cache-list { display: grid; margin-top: 8px; }
+.untangling-ms .ms-cache-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-ms .ms-cache-row:last-child { border-bottom: 0; }
+.untangling-ms .ms-logs-note.is-cleared { color: #008a20; }
+
+/* Web-server view — MSD server-log row: status code, method chip, wrapped URL. */
+.untangling-ms .ms-logs-status { width: 70px; color: #757575; }
+.untangling-ms .ms-logs-type { width: 110px; }
+.untangling-ms .ms-logs-method { display: inline-block; padding: 2px 8px; border-radius: 2px; font-size: 12px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-logs-method.is-get { background: #c8e6cf; }
+.untangling-ms .ms-logs-method.is-post { background: #cddef7; }
+.untangling-ms .ms-logs-url { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 18px; color: #757575; word-break: break-all; }
+
+/* Advanced */
+.untangling-ms .ms-advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+@media (max-width: 782px) {
+	.untangling-ms .ms-advanced-grid { grid-template-columns: 1fr; }
+}
+
+/* Plan & products */
+.untangling-ms .ms-plan-namerow { display: flex; align-items: center; gap: 10px; }
+.untangling-ms .ms-plan-namerow .ms-card-title { font-size: 20px; line-height: 26px; }
+.untangling-ms .ms-plan-features { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+@media (max-width: 782px) {
+	.untangling-ms .ms-plan-features { grid-template-columns: 1fr; }
+}
+.untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1e1e1e; }
+.untangling-ms .ms-plan-check { display: flex; }
+.untangling-ms .ms-plan-check svg { fill: #00a32a; }
+/* Plan upgrade — Free vs Premium compare, ported from the WP.com page V5 card.
+   Subgrid keeps name/price/features/CTA on shared rows across both columns. */
+.untangling-ms .components-card__body.ms-plancompare-head { padding: 16px 24px; }
+.untangling-ms .ms-plancompare { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr auto; gap: 0 24px; }
+.untangling-ms .ms-plancompare-col { min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: 1 / -1; padding: 24px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; }
+.untangling-ms .ms-plancompare-col.is-recommended { background: #f7f8fe; border-color: #ccd6f9; }
+.untangling-ms .ms-plancompare-name { display: flex; align-items: center; gap: 10px; font-size: 20px; line-height: 26px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-plancompare-price { margin: 6px 0 16px; font-size: 13px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-plancompare-list { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: 12px; font-size: 13px; color: #1e1e1e; }
+.untangling-ms .ms-plancompare-list.is-muted { color: #757575; }
+.untangling-ms .ms-plancompare-cta { margin-top: 20px; display: flex; }
+.untangling-ms .ms-plancompare-cta .components-button svg { fill: currentColor; }
+/* Button's has-icon recipe trims left padding to 8px for a 24px icon; with
+   the 14px diamond that reads lopsided — restore symmetric padding. */
+.untangling-ms .components-button.has-icon.has-text { padding-left: 12px; padding-right: 12px; gap: 6px; }
+.untangling-ms .ms-chip-dark { display: inline-block; flex: none; font-size: 12px; line-height: 16px; font-weight: 500; border-radius: 2px; padding: 2px 8px; background: #2c3338; color: #fff; white-space: nowrap; }
+@media (max-width: 782px) {
+	.untangling-ms .ms-plancompare { grid-template-columns: 1fr; grid-template-rows: none; row-gap: 16px; }
+	.untangling-ms .ms-plancompare-col { grid-template-rows: auto auto 1fr auto; grid-row: auto; }
+}
+/* Card footer link row, MSD "See all activity" style: label left, chevron right. */
+/* Same row height as the card header (16px padding + 20px line), title-size
+   text at regular weight. */
+.untangling-ms .ms-linkfooter { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; font-size: 15px; line-height: 20px; color: #1e1e1e; text-decoration: none; }
+.untangling-ms .ms-linkfooter:hover { color: #3858e9; }
+.untangling-ms .ms-linkfooter svg { fill: #757575; }
+.untangling-ms .ms-linkfooter:hover svg { fill: currentColor; }
+.untangling-ms .ms-storage { margin: 12px 0 8px; }
+.untangling-ms .ms-storage-bar { height: 8px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
+.untangling-ms .ms-storage-fill { height: 100%; border-radius: 4px; background: #3858e9; transition: width .4s ease; }
+.untangling-ms .ms-storage-fill.is-warning { background: #d47608; }
+.untangling-ms .ms-storage-note { margin: 8px 0 0; font-size: 13px; color: #757575; }
+.untangling-ms .ms-domains { list-style: none; margin: 8px 0 0; padding: 0; }
+.untangling-ms .ms-domain-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap; }
+.untangling-ms .ms-domain-row:last-child { border-bottom: none; }
+.untangling-ms .ms-domain-name { font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-domain-note { margin-left: auto; color: #757575; font-size: 12px; }
+.untangling-ms .ms-domain-note a { color: #3858e9; text-decoration: none; }
+.untangling-ms .ms-domain-note a:hover { text-decoration: underline; }
+
+/* Help & Learn — the hosting tab's learn layout inside the My Site shell.
+   Media/topic/support card styles come from untangling_app_css(); the page
+   only adds the wrapper rhythm, the hero row, and the ms-style headings. */
+.untangling-ms .ms-learn { display: flex; flex-direction: column; gap: 32px; }
+.untangling-ms .ms-learn-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.untangling-ms .ms-learn-hero .ms-card-desc { margin: 4px 0 0; }
+.untangling-ms .ms-learn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.untangling-ms .ms-learn-head .ms-next-h2 { margin: 0; }
+.untangling-ms .untangling-topic-icon svg,
+.untangling-ms .untangling-support-icon svg { fill: currentColor; display: block; }
+
+/* Narrow screens: keep the 24px rhythm but let paddings breathe less. */
+@media (max-width: 782px) {
+	.untangling-ms .ms-page { padding: 16px; min-height: calc(100vh - 46px); }
+	.untangling-ms .components-card__body { padding: 16px; }
+	.untangling-ms .ms-ovcard { padding: 16px; }
+}
+CSS;
+}
