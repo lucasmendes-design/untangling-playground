@@ -7094,12 +7094,14 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Runs dry into a caught-up card in the same group.
+	// Shown at the top of the group once every step is handled (with a
+	// confetti burst on the final one) — the handled list stays below,
+	// launchpad-style.
 	function CaughtUpCard( props ) {
 		return el( 'div', { className: 'ms-hero' },
 			el( 'p', { className: 'ms-hero-eyebrow' }, 'All caught up' ),
-			el( 'h3', { className: 'ms-hero-title' }, 'Nothing pressing right now' ),
-			el( 'p', { className: 'ms-hero-why' }, 'New steps appear here as ' + data.siteName + ' picks up new comments, readers, and posts.' ),
+			el( 'h3', { className: 'ms-hero-title' }, 'That’s everything for now' ),
+			el( 'p', { className: 'ms-hero-why' }, 'You handled every step. New ones appear as ' + data.siteName + ' picks up ' + ( isCommerce ? 'orders, reviews, and visitors.' : 'readers, comments, and posts.' ) ),
 			el( 'div', { className: 'ms-hero-actions' },
 				el( Button, { variant: 'tertiary', onClick: props.onReset }, 'Start over' )
 			)
@@ -7187,6 +7189,9 @@ function untangling_ms_app_js() {
 			upnextSave( next );
 			var first = pendingOf( next )[ 0 ];
 			setOpenId( first ? first.id : '' );
+			if ( ! pendingOf( next ).length ) {
+				confettiBurst();
+			}
 		}
 		function onReset() {
 			setHandled( [] );
@@ -7200,16 +7205,18 @@ function untangling_ms_app_js() {
 			el( 'div', { className: 'ms-tl-columns' },
 				el( 'div', { className: 'ms-next-main' },
 					el( 'div', { className: 'ms-tl-tasks ms-next-flow', 'aria-label': 'Next steps' },
-						pending.length ? pending.map( function ( step, i ) {
+						! pending.length && el( CaughtUpCard, { onReset: onReset } ),
+						DO_STEPS.map( function ( step ) {
+							var isDone = handled.indexOf( step.id ) !== -1;
 							return el( NextStepCard, {
 								key: step.id,
 								step: step,
-								done: false,
-								open: openId === step.id,
+								done: isDone,
+								open: ! isDone && openId === step.id,
 								onToggle: function () { setOpenId( openId === step.id ? '' : step.id ); },
 								onHandle: onHandle,
 							} );
-						} ) : el( CaughtUpCard, { onReset: onReset } )
+						} )
 					),
 					el( 'section', null,
 						el( 'h2', { className: 'ms-next-h2' }, isCommerce ? 'Grow your store' : 'Grow your site' ),
