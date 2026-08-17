@@ -4,15 +4,11 @@
  * Description: Demo identity for the shared untangling prototype plugin — My Site / Just created scenario, WordPress Playground edition.
  */
 define( 'UNTANGLING_STANDALONE', true );
-// One fixed scenario: the My Site drawer (sidebar item below Dashboard) on a
-// just-created Simple site, so visitors land on the Next steps launchpad.
-// No Prototype controls, no URL toggles.
-define( 'UNTANGLING_LOCKED_DEMO', true );
-define( 'UNTANGLING_FORCE_VARIANT', 'drawer' );
-define( 'UNTANGLING_FORCE_MS_STATE', 'new' );
-define( 'UNTANGLING_FORCE_SITE_TYPE', 'simple' );
-define( 'UNTANGLING_FORCE_MARKETPLACE', 'tabs' );
-define( 'UNTANGLING_FORCE_PLAN_FILTER', 'dropdown' );
+// Not a locked demo: the Prototype controls (bottom-right fab) are visible and
+// every toggle works, so visitors can compare the variants themselves. The
+// starting scenario — My Site drawer, just-created Simple site, Marketplace
+// tabs — comes from the blueprint's seeded options and the Free plan below,
+// not from UNTANGLING_FORCE_* constants (those would pin the toggles).
 define( 'UNTANGLING_PLAN', 'Free' );
 define( 'UNTANGLING_SITE_SLUG', 'aperture-diaries.wordpress.com' );
 define( 'UNTANGLING_PRIMARY_DOMAIN', 'aperture-diaries.wordpress.com' );

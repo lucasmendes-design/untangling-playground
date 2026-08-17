@@ -129,38 +129,121 @@ function untangling_upsell_diamond() {
 	return '<svg class="untangling-upsell-diamond" xmlns="http://www.w3.org/2000/svg" viewBox="4.4 5.4 15.2 13.2" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
 }
 
+// What each plan includes, as {label, tip} pairs — the plan card lists them
+// with the same hover tooltips as the pricing page, so a visitor can read
+// what a feature actually means without leaving the card. Eight per plan
+// (four rows in the card's two-column grid); copy follows
+// untangling_plan_pricing() and wordpress.com/pricing.
+function untangling_plan_card_features( $plan ) {
+	$domain      = array( 'Free domain for one year', sprintf( 'Get a custom domain – like %s – free for the first year.', untangling_get_domain_upsell() ) );
+	$storage_tip = 'Upload more images, videos, audio, and documents to your website.';
+	$ad_free     = array( 'Ad-free experience', 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' );
+	$unlimited   = array( 'Unlimited pages, posts, and users', 'Create as much content as you want and invite as many collaborators as you need.' );
+	$premium_themes  = array( 'All premium themes', 'Install any premium theme from the WordPress.com showcase.' );
+	$install_plugins = array( 'Install plugins and themes', 'Install any of the thousands of WordPress plugins and themes.' );
+	$sftp            = array( 'SFTP/SSH and database access', 'Developer access to your site’s files and database.' );
+	$priority        = array( '24/7 priority support', 'Round-the-clock priority support from our expert team.' );
+	$backups         = array( 'Real-time backups and one-click restores', 'Every change saved; restore any moment with one click.' );
+
+	$features = array(
+		'Free'     => array(
+			array( 'Free .wordpress.com address', 'Get a free site address like yoursite.wordpress.com.' ),
+			array( '1 GB storage', 'Room for your images and documents.' ),
+			array( 'Dozens of free themes', 'Pick from dozens of free themes to style your site.' ),
+			array( 'Community support', 'Get help from community forums and guides.' ),
+			array( 'Unlimited pages and posts', 'Write as much as you want — there is no cap on your content.' ),
+			array( 'Built-in newsletter', 'Send every new post to your subscribers by email.' ),
+			array( 'Spam protection with Akismet', 'Akismet filters spam out of your comments automatically.' ),
+			array( 'Managed hosting and updates', 'We run the servers and keep WordPress up to date for you.' ),
+		),
+		'Personal' => array(
+			$domain,
+			array( '6 GB storage', $storage_tip ),
+			$ad_free,
+			array( 'Fast email support', 'Email our Happiness Engineers and get unblocked quickly.' ),
+			array( 'Personal-tier themes', 'Unlock every theme in the Personal tier of the showcase.' ),
+			array( 'Dozens of premium plugins', 'Install dozens of premium plugins from the WordPress.com marketplace.' ),
+			array( 'Style customization', 'Fine-tune colors, fonts, and layout in the site editor.' ),
+			$unlimited,
+		),
+		'Premium'  => array(
+			$premium_themes,
+			array( '13 GB storage', $storage_tip ),
+			$domain,
+			array( 'Live chat support', 'Chat with our Happiness Engineers in real time.' ),
+			array( 'Payments and paid subscriptions', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
+			array( 'Premium stats and analytics', 'See where your visitors come from and what they read.' ),
+			array( 'Upload videos', 'Ad-free, high-definition video hosting with VideoPress.' ),
+			$ad_free,
+		),
+		// Ordered for the people this prototype is built around — bloggers and
+			// creators — so the card leads with reach, design, and income rather
+			// than the server-level features. SFTP, staging, and edge caching are
+			// still Business; they live on the Hosting page, where a developer
+			// goes looking for them.
+			'Business' => array(
+			$install_plugins,
+			$premium_themes,
+			array( 'Advanced SEO tools', 'Control how your posts appear in search results and on social.' ),
+			array( 'Payments and paid subscriptions', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
+			array( 'Google Analytics integration', 'See who is reading, where they came from, and what they do next.' ),
+			array( '50 GB storage', $storage_tip ),
+			$backups,
+			$priority,
+		),
+		'Commerce' => array(
+			array( 'Sell products and subscriptions', 'Sell physical and digital goods and recurring subscriptions.' ),
+			array( 'Premium store designs', 'Professionally designed store themes built for selling.' ),
+			$install_plugins,
+			array( '50 GB storage', $storage_tip ),
+			array( 'Store analytics', 'Track sales, revenue, and your best-selling products.' ),
+			array( 'Sell in 60+ countries', 'Accept payments and ship worldwide.' ),
+			$sftp,
+			$priority,
+		),
+	);
+	$list = isset( $features[ $plan ] ) ? $features[ $plan ] : $features['Free'];
+	return array_map(
+		function ( $feature ) {
+			return array( 'label' => $feature[0], 'tip' => $feature[1] );
+		},
+		$list
+	);
+}
+
 // Plan-dependent card data for the WordPress.com page. Pass a plan to read
 // another scope's plan (the My Site drawer keeps its own override).
 function untangling_get_plan_meta( $for_plan = null ) {
 	$plans = array(
 		'Free'     => array(
 			'renew'    => 'No expiration, free forever',
-			'features' => array( '1 GB storage', 'Dozens of free themes', 'Community support', 'Free .wordpress.com address' ),
-			'storage'  => array( 0.7, 1, 'Filling up. Photos eat space fast.' ),
+			// No note: at 70% the bar already says it, and the line only
+			// belongs here when storage is actually in warning territory.
+			'storage'  => array( 0.7, 1, null ),
 		),
 		'Personal' => array(
 			'renew'    => 'Renews March 14, 2027',
-			'features' => array( 'Ad-free experience', '6 GB storage', 'Fast support', 'Free domain for one year' ),
 			'storage'  => array( 1.4, 6, null ),
 		),
 		'Premium'  => array(
 			'renew'    => 'Renews March 14, 2027',
-			'features' => array( 'Premium themes', 'Monetization and payments', '13 GB storage', 'Ad-free experience' ),
 			'storage'  => array( 4.2, 13, null ),
 		),
 		'Business' => array(
 			'renew'    => 'Renews March 14, 2027',
-			'features' => array( 'Install plugins & themes', 'SFTP/SSH & database access', 'Monetization and payments', '50 GB storage' ),
-			'storage'  => array( 41.8, 50, 'Almost full. New photos may not upload.' ),
+			// 3rd storage entry: deliberate "needs attention" flag — drives the
+			// My Site AttentionCard (storage almost full) for this plan.
+			'storage'  => array( 41.8, 50, 'Almost full. New uploads may fail.', true ),
 		),
 		'Commerce' => array(
 			'renew'    => 'Renews March 14, 2027',
-			'features' => array( 'Sell products & subscriptions', 'Premium store design tools', 'Install plugins & themes', '50 GB storage' ),
 			'storage'  => array( 22.4, 50, null ),
 		),
 	);
 	$plan = $for_plan && isset( $plans[ $for_plan ] ) ? $for_plan : untangling_get_plan();
-	return $plans[ $plan ];
+	$meta = $plans[ $plan ];
+	$meta['features'] = untangling_plan_card_features( $plan );
+	return $meta;
 }
 
 // Simple vs Atomic default follows the plan (Free/Premium sites are Simple);
@@ -213,21 +296,17 @@ add_action( 'init', function () {
 } );
 
 /**
- * Menu variant: 'submenu' or 'plain' (both = the "Hosting" top-level page with
- * tabs), or 'drawer' (the My Site drawer: a My Site item directly below
- * Dashboard whose four children are sidebar submenu links, no tabs — the
- * Untangle Calypso IA shape).
- * Switch with ?untangling_variant=submenu|plain|drawer (persisted), or from
- * Prototype controls.
+ * Menu variant. Only 'drawer' remains (the My Site drawer: a My Site item
+ * directly below Dashboard whose four children are sidebar submenu links, no
+ * tabs — the Untangle Calypso IA shape). The 'submenu'/'plain' Hosting-page
+ * variants were retired; their render paths survive only for
+ * UNTANGLING_FORCE_VARIANT (Playground demo configs).
  */
 function untangling_get_variant() {
 	if ( defined( 'UNTANGLING_FORCE_VARIANT' ) ) {
 		return UNTANGLING_FORCE_VARIANT;
 	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'submenu', 'plain', 'drawer' ), true ) ) {
-		update_option( 'untangling_variant', $_GET['untangling_variant'] );
-	}
-	return get_option( 'untangling_variant', 'submenu' );
+	return 'drawer';
 }
 
 /**
@@ -241,6 +320,13 @@ function untangling_get_site_type() {
 		return UNTANGLING_FORCE_SITE_TYPE;
 	}
 	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_site_type'] ) && in_array( $_GET['untangling_site_type'], array( 'atomic', 'simple' ), true ) ) {
+		// Toggling resets the My Site plan to the pure mapping (Simple = Free,
+		// Atomic = Business) — a checkout override and its storage add-on
+		// belong to the plan the demo just left behind.
+		if ( $_GET['untangling_site_type'] !== get_option( 'untangling_site_type', untangling_default_site_type() ) ) {
+			delete_option( 'untangling_ms_plan_override' );
+			delete_option( 'untangling_ms_storage_addon' );
+		}
 		update_option( 'untangling_site_type', $_GET['untangling_site_type'] );
 	}
 	return get_option( 'untangling_site_type', untangling_default_site_type() );
@@ -293,6 +379,47 @@ function untangling_get_plan_filter() {
 	return get_option( 'untangling_plan_filter', 'included' );
 }
 
+/**
+ * Free-domain upsell placement — three comparable homes for the same nudge,
+ * switched from Prototype controls:
+ *   'menu-top'  the classic spot, above the menu, redesigned for a 160px
+ *               dark column instead of the white card that ships today;
+ *   'menu-foot' pinned below the menu, out of the navigation's way;
+ *   'omnibar'   no card at all — a pill in the admin bar.
+ * 'none' turns it off. Switch with
+ * ?untangling_upsell=none|menu-top|menu-foot|omnibar (persisted).
+ */
+function untangling_get_upsell_placement() {
+	$allowed = array( 'none', 'menu-top', 'menu-foot', 'omnibar' );
+	if ( defined( 'UNTANGLING_FORCE_UPSELL' ) ) {
+		return in_array( UNTANGLING_FORCE_UPSELL, $allowed, true ) ? UNTANGLING_FORCE_UPSELL : 'none';
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_upsell'] ) && in_array( $_GET['untangling_upsell'], $allowed, true ) ) {
+		update_option( 'untangling_upsell', $_GET['untangling_upsell'] );
+	}
+	return get_option( 'untangling_upsell', 'menu-top' );
+}
+
+/**
+ * What actually renders. Atomic sites are Business in this prototype — there
+ * is no free domain left to sell them — so the nudge is Simple-only. The
+ * chosen placement still persists while you are on Atomic; it just goes quiet.
+ */
+function untangling_get_active_upsell() {
+	return untangling_is_simple() ? untangling_get_upsell_placement() : 'none';
+}
+
+// Where every placement sends you: the plan-only pricing step, entered with a
+// ref so untangling_plan_pricing() can bold the row this nudge promised.
+function untangling_upsell_url( $placement ) {
+	return untangling_marketplace_url( 'themes', array(
+		'ustep' => 'pricing',
+		'ref'   => 'domain-upsell',
+		'back'  => rawurlencode( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : admin_url() ),
+		'from'  => $placement,
+	) );
+}
+
 /* -------------------------------------------------------------------------
  * My Site drawer state — every option the drawer variant touches is
  * namespaced `untangling_ms_*`, on purpose: the submenu/plain variants and
@@ -301,14 +428,17 @@ function untangling_get_plan_filter() {
  * another. The drawer reads and writes only these keys.
  * ---------------------------------------------------------------------- */
 
-// The drawer's own plan: its checkout flow (ctx=ms) persists here, never in
+// The drawer's plan follows the Site type toggle — Simple presents the real
+// Free plan, Atomic the real Business plan — so both variants read as real
+// sites. A checkout "purchase" (ctx=ms → untangling_ms_plan_override) wins
+// until the site type is toggled or the demo is reset; it never touches
 // untangling_plan_override.
 function untangling_ms_get_plan() {
-	$plan = get_option( 'untangling_ms_plan_override' );
-	if ( ! $plan ) {
-		$plan = defined( 'UNTANGLING_PLAN' ) ? UNTANGLING_PLAN : 'Business';
+	$override = get_option( 'untangling_ms_plan_override' );
+	if ( in_array( $override, array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
+		return $override;
 	}
-	return in_array( $plan, array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ? $plan : 'Business';
+	return untangling_is_simple() ? 'Free' : 'Business';
 }
 
 // Just created vs Established. The override (Prototype controls) wins; with
@@ -400,6 +530,13 @@ add_action( 'admin_init', function () {
 	if ( isset( $_GET['untangling_ms_set_plan'] ) && in_array( $_GET['untangling_ms_set_plan'], array( 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
 		update_option( 'untangling_ms_plan_override', $_GET['untangling_ms_set_plan'] );
 	}
+	if ( isset( $_GET['untangling_ms_add_storage'] ) ) {
+		if ( isset( untangling_storage_addon_pricing()[ (int) $_GET['untangling_ms_add_storage'] ] ) ) {
+			update_option( 'untangling_ms_storage_addon', (int) $_GET['untangling_ms_add_storage'] );
+		} elseif ( 0 === (int) $_GET['untangling_ms_add_storage'] ) {
+			delete_option( 'untangling_ms_storage_addon' );
+		}
+	}
 	if ( isset( $_GET['untangling_ms_lp_done'] ) ) {
 		$ms_done = array_values( array_filter( array_map( 'sanitize_key', explode( ',', (string) wp_unslash( $_GET['untangling_ms_lp_done'] ) ) ) ) );
 		update_option( 'untangling_ms_lp_done', $ms_done );
@@ -425,6 +562,9 @@ add_action( 'admin_init', function () {
 	}
 	if ( isset( $_GET['untangling_reset_demo'] ) ) {
 		delete_option( 'untangling_plan_override' );
+		// Site type drives the My Site plan (Simple = Free, Atomic = Business),
+		// so a full reset returns it to the config-derived default too.
+		delete_option( 'untangling_site_type' );
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
 		delete_option( 'untangling_lp_done' );
@@ -433,6 +573,8 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_ms_lp_done' );
 		delete_option( 'untangling_ms_lp_complete' );
 		delete_option( 'untangling_ms_state' );
+		delete_option( 'untangling_ms_storage_addon' );
+		delete_option( 'untangling_upsell' );
 	}
 } );
 
@@ -808,10 +950,17 @@ function untangling_app_js() {
 		return el( 'span', { className: 'untangling-upsell-cta-icon', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: OV_ICONS.upsellGlyph } } );
 	}
 
+	// Accepts plain strings or { label, tip } pairs; the pairs get the same
+	// CSS hover tooltip as the upsell card and the pricing page.
 	function featureList( features ) {
 		return el( 'ul', { className: 'untangling-feature-list' },
 			features.map( function ( feature, index ) {
-				return el( 'li', { key: index }, feature );
+				if ( 'string' === typeof feature ) {
+					return el( 'li', { key: index }, feature );
+				}
+				return el( 'li', { key: index },
+					el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
+				);
 			} )
 		);
 	}
@@ -1794,29 +1943,66 @@ function untangling_app_js() {
 		);
 	}
 
+	// Help & Learn hero: a real prompt box instead of a button that only opens
+	// an empty panel. Enter, "Ask", or a suggestion hands the question to the
+	// Support Assistant panel in the admin footer, which posts it, thinks,
+	// and answers — so the demo shows the whole path without leaving wp-admin.
+	// Copy and suggestions come from untangling_help_panel_data() so both
+	// Help & Learn surfaces and the panel stay in sync.
 	function HelpCard() {
-		// Opens the Support Assistant panel rendered in the admin footer —
-		// the same Help Center mimic the Marketplace uses.
-		function openAssistant() {
-			var panel = document.querySelector( '.untangling-mkt-help' );
-			if ( panel ) {
-				panel.hidden = false;
-				var input = panel.querySelector( 'input' );
-				if ( input ) {
-					input.focus();
-				}
+		var help = window.untanglingHelpData || {};
+		var draftState = useState( '' );
+		var draft = draftState[ 0 ], setDraft = draftState[ 1 ];
+
+		function ask( question ) {
+			var text = ( question || '' ).trim();
+			if ( ! text || ! window.untanglingHelp ) {
+				return;
 			}
+			setDraft( '' );
+			window.untanglingHelp.open( text );
 		}
+
 		return el( Card, { className: 'untangling-help-card' },
 			el( CardBody, null,
-				el( HStack, { justify: 'space-between', alignment: 'center', wrap: true, spacing: 4 },
-					el( FlexBlock, null,
-						title( 'Need a hand?' ),
-						meta( 'Ask the AI assistant anything about your blog.' )
-					),
-					el( FlexItem, null,
-						el( Button, { variant: 'secondary', onClick: openAssistant }, 'Ask AI' )
+				el( 'div', { className: 'untangling-ask-head' },
+					el( 'span', { className: 'untangling-ask-mark', 'aria-hidden': true }, sparkMark() ),
+					el( 'div', null,
+						title( help.heading || 'Ask about your site' ),
+						meta( help.lede || '' )
 					)
+				),
+				el( 'form', {
+					className: 'untangling-ask-form',
+					onSubmit: function ( event ) {
+						event.preventDefault();
+						ask( draft );
+					},
+				},
+					el( 'input', {
+						type: 'text',
+						className: 'untangling-ask-input',
+						value: draft,
+						placeholder: help.placeholder || '',
+						'aria-label': help.heading || 'Ask about your site',
+						autoComplete: 'off',
+						onChange: function ( event ) {
+							setDraft( event.target.value );
+						},
+					} ),
+					el( Button, { variant: 'primary', type: 'submit', disabled: ! draft.trim() }, help.cta || 'Ask' )
+				),
+				el( 'div', { className: 'untangling-chip-row untangling-ask-chips' },
+					( help.suggestions || [] ).map( function ( suggestion ) {
+						return el( Button, {
+							key: suggestion,
+							variant: 'secondary',
+							size: 'small',
+							onClick: function () {
+								ask( suggestion );
+							},
+						}, suggestion );
+					} )
 				)
 			)
 		);
@@ -1901,6 +2087,16 @@ function untangling_app_js() {
 		var icon = DS_ICONS[ name ];
 		return el( 'svg', { className: 'untangling-ds-icon', viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': true },
 			el( 'path', icon[ 1 ] ? { d: icon[ 0 ], fillRule: 'evenodd', clipRule: 'evenodd' } : { d: icon[ 0 ] } )
+		);
+	}
+
+	// The four-point star the Support Assistant panel uses for its own avatar,
+	// so the CTA and the answers it produces read as the same assistant.
+	var SPARK_PATH = 'M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z';
+
+	function sparkMark() {
+		return el( 'svg', { className: 'untangling-ds-icon', viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': true },
+			el( 'path', { d: SPARK_PATH } )
 		);
 	}
 
@@ -2229,30 +2425,11 @@ function untangling_app_js() {
 					el( VStack, { spacing: 2 },
 						el( Text, { upperCase: true, size: 11, weight: 500, variant: 'muted' }, 'Site-wide · reloads' ),
 						ToggleGroup && el( ToggleGroup, {
-							label: 'Menu variant',
-							value: data.variant,
-							isBlock: true,
-							__nextHasNoMarginBottom: true,
-							help: 'drawer' === data.variant ? 'My Site below Dashboard — this page leaves the sidebar.' : undefined,
-							onChange: function ( value ) {
-								// Choosing the drawer hides this page from the sidebar —
-								// land on its replacement instead of an orphaned screen.
-								if ( 'drawer' === value ) {
-									window.location.href = 'admin.php?page=untangling-mysite&untangling_variant=drawer';
-									return;
-								}
-								go( 'untangling_variant', value );
-							},
-						},
-							el( ToggleGroupOption, { value: 'submenu', label: 'Submenu' } ),
-							el( ToggleGroupOption, { value: 'plain', label: 'Plain' } ),
-							el( ToggleGroupOption, { value: 'drawer', label: 'My Site' } )
-						),
-						ToggleGroup && el( ToggleGroup, {
 							label: 'Site type',
 							value: data.siteType,
 							isBlock: true,
 							__nextHasNoMarginBottom: true,
+							help: 'Simple = Free plan · Atomic = Business plan',
 							onChange: function ( value ) { go( 'untangling_site_type', value ); },
 						},
 							el( ToggleGroupOption, { value: 'atomic', label: 'Atomic' } ),
@@ -2782,6 +2959,21 @@ body.toplevel_page_untangling-hosting #wpcontent {
 /* Learn tab: full-width learning hub. Media cards share one shell for
    videos, courses, and guide topics; radius hardcoded like the accordion
    (the vendored token cascade leaves radius-* at pill values). */
+/* Help & Learn hero — a prompt box, shared by the hosting tab and the My Site
+   page. The input is hand-drawn rather than an InputControl: the DS input
+   mounts without its emotion styles in this environment (same reason the
+   segmented control is hand-drawn), so it is matched to the DS geometry
+   instead — 40px tall, 4px radius, brand focus ring. */
+.untangling-app .untangling-ask-head { display: flex; align-items: flex-start; gap: var(--wpds-dimension-gap-md); }
+.untangling-app .untangling-ask-mark { flex: none; width: 32px; height: 32px; border-radius: 999px; background: var(--wpds-color-background-surface-brand); color: var(--wpds-color-foreground-interactive-brand); display: grid; place-items: center; }
+.untangling-app .untangling-ask-mark svg { width: 20px; height: 20px; display: block; fill: currentColor; }
+.untangling-app .untangling-ask-head .untangling-meta-text { margin: 4px 0 0; }
+.untangling-app .untangling-ask-form { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm); margin-top: var(--wpds-dimension-gap-lg); }
+.untangling-app .untangling-ask-input { flex: 1; min-width: 0; height: 40px; box-sizing: border-box; padding: 0 var(--wpds-dimension-padding-md); border: 1px solid var(--wpds-color-stroke-interactive-neutral); border-radius: 4px; background: var(--wpds-color-background-surface-neutral-strong, #fff); color: var(--wpds-color-foreground-content-neutral); font-size: var(--wpds-typography-font-size-md); line-height: 1.5; }
+.untangling-app .untangling-ask-input::placeholder { color: var(--wpds-color-foreground-content-neutral-weak); }
+.untangling-app .untangling-ask-input:focus { border-color: var(--wpds-color-stroke-interactive-brand); box-shadow: 0 0 0 1px var(--wpds-color-stroke-interactive-brand); outline: none; }
+.untangling-app .untangling-ask-form .components-button { flex: none; height: 40px; }
+.untangling-app .untangling-ask-chips { margin-top: var(--wpds-dimension-gap-md); }
 .untangling-app .untangling-learn { margin-top: var(--wpds-dimension-gap-2xl); display: grid; gap: var(--wpds-dimension-gap-2xl); }
 .untangling-app .untangling-learn-section { display: grid; gap: var(--wpds-dimension-gap-md); }
 .untangling-app .untangling-learn-head { display: flex; align-items: center; justify-content: space-between; gap: var(--wpds-dimension-gap-md); }
@@ -4352,6 +4544,12 @@ function untangling_marketplace_find_item( $type, $slug ) {
 // Cumulative production-style lists (wordpress.com/pricing): each tier
 // repeats what the tier below offers and adds its own, so higher tiers
 // visibly list more. Entries are [ label, tooltip ].
+// Storage add-on tiers — GB => US$/month billed yearly, mirroring the
+// production Add-ons page dropdown.
+function untangling_storage_addon_pricing() {
+	return array( 50 => 50.00, 100 => 83.33, 150 => 125.00, 200 => 166.67, 250 => 208.33, 300 => 250.00, 350 => 291.67 );
+}
+
 function untangling_plan_pricing() {
 	$domain_tip  = sprintf( __( 'Get a custom domain – like %s – free for the first year.' ), untangling_get_domain_upsell() );
 	$storage_tip = __( 'Upload more images, videos, audio, and documents to your website.' );
@@ -4360,13 +4558,14 @@ function untangling_plan_pricing() {
 	// support, then the tier-defining themes and plugins rows (bold via the
 	// third entry) — so the columns line up on the pricing grid. Tier
 	// extras stack below in a stable cumulative order.
-	// Three variations: entering from the plugins upsell hero bolds the
-	// plugins rows, entering from the themes upsell banner bolds the theme
-	// rows; every other entry (the WordPress.com page) shows all features
-	// in regular weight.
+	// Four variations: entering from the plugins upsell hero bolds the
+	// plugins rows, from the themes upsell banner bolds the theme rows, from
+	// the free-domain nudge bolds the domain row; every other entry (the
+	// WordPress.com page) shows all features in regular weight.
 	$from_plugins     = ( isset( $_GET['ref'] ) && 'plugins-upsell-hero' === $_GET['ref'] ) || ( isset( $_GET['flow'] ) && 'install' === $_GET['flow'] );
 	$from_themes      = isset( $_GET['ref'] ) && 'themes-upsell-banner' === $_GET['ref'];
-	$domain           = array( __( 'Free domain for one year' ), $domain_tip );
+	$from_domain      = isset( $_GET['ref'] ) && 'domain-upsell' === $_GET['ref'];
+	$domain           = array( __( 'Free domain for one year' ), $domain_tip, $from_domain );
 	$premium_themes   = array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ), $from_themes );
 	$premium_plugins  = array( __( 'All premium plugins' ), __( 'Install any premium plugin from the WordPress.com marketplace.' ), $from_plugins );
 	$priority_support = array( __( '24/7 priority support' ), __( 'Round-the-clock priority support from our expert team.' ) );
@@ -4436,7 +4635,11 @@ function untangling_plan_pricing() {
 
 function untangling_render_marketplace_page() {
 	$mode = untangling_get_marketplace_mode();
-	$plan = untangling_get_plan();
+	// The My Site drawer enters with ctx=ms and keeps its own plan
+	// (untangling_ms_*), so the pricing and checkout steps have to price
+	// against that plan — otherwise a Business drawer site is offered the
+	// whole Free→Commerce ladder from the shared demo plan.
+	$plan = ( isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'] ) ? untangling_ms_get_plan() : untangling_get_plan();
 	$step = isset( $_GET['ustep'] ) && in_array( $_GET['ustep'], array( 'details', 'pricing', 'checkout', 'done' ), true ) ? $_GET['ustep'] : 'browse';
 	$type = ( isset( $_GET['type'] ) && 'plugin' === $_GET['type'] ) ? 'plugin' : 'theme';
 	// V2 (split) restricts the fullscreen page to themes; plugin steps that
@@ -5054,7 +5257,10 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 	// card): same pricing page, Premium highlighted as Recommended.
 	$tier_rank = untangling_plan_rank( $item ? $item['tier'] : 'Premium' );
 	$rank      = untangling_plan_rank( $plan );
-	$mkt       = 'plugin' === $type ? 'plugins' : 'themes';
+	// A top-tier site with nothing to unlock would get a single disabled
+	// column — show the tier below so "Compare plans" still compares.
+	$floor_rank = ( ! $item && $rank >= untangling_plan_rank( 'Commerce' ) ) ? $rank - 1 : $rank;
+	$mkt        = 'plugin' === $type ? 'plugins' : 'themes';
 	?>
 	<div class="untangling-mkt-hero">
 		<h1 class="untangling-mkt-brandfont"><?php esc_html_e( 'There’s a plan for you' ); ?></h1>
@@ -5070,7 +5276,7 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			$is_current = $name === $plan;
 			// Show only the current plan and the plans that unlock the item —
 			// tiers in between (e.g. Personal for a Premium theme) are noise.
-			if ( $prank < $rank || ( $item && ! $is_current && $prank < $tier_rank ) ) {
+			if ( $prank < $floor_rank || ( $item && ! $is_current && $prank < $tier_rank ) ) {
 				continue;
 			}
 			list( $price, $features ) = $info;
@@ -5149,15 +5355,28 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	$new_plan = ( isset( $_GET['plan'] ) && isset( $pricing[ $_GET['plan'] ] ) ) ? $_GET['plan'] : ( $item ? $item['tier'] : 'Premium' );
 	$mkt      = 'plugin' === $type ? 'plugins' : 'themes';
 
-	$plan_price = $pricing[ $new_plan ][0];
+	// Storage add-on checkout (addon=storage&gb=N): the cart carries the
+	// add-on instead of a plan change.
+	$storage_pricing = untangling_storage_addon_pricing();
+	$addon_gb        = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] && isset( $storage_pricing[ (int) $_GET['gb'] ] ) ) ? (int) $_GET['gb'] : 0;
+
+	$plan_price = $addon_gb ? $storage_pricing[ $addon_gb ] : $pricing[ $new_plan ][0];
 	$item_price = $item && $item['price'] ? (float) $item['price'] : 0;
 	$total      = $plan_price + $item_price;
 	$user       = wp_get_current_user();
 	$is_ms      = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// ctx=ms = the My Site drawer's flow: persist into its namespaced plan key.
-	$done_args  = $is_ms
-		? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
-		: array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+	if ( $addon_gb ) {
+		$done_args = array( 'ustep' => 'done', 'addon' => 'storage', 'gb' => $addon_gb );
+		if ( $is_ms ) {
+			$done_args['untangling_ms_add_storage'] = $addon_gb;
+			$done_args['ctx']                       = 'ms';
+		}
+	} else {
+		$done_args = $is_ms
+			? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
+			: array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+	}
 	if ( $item ) {
 		$done_args['type'] = $type;
 		$done_args['slug'] = $slug;
@@ -5209,7 +5428,11 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		<aside class="untangling-mkt-summary">
 			<h2><?php esc_html_e( 'Order summary' ); ?></h2>
 			<div class="untangling-mkt-sumrow">
-				<span class="who"><span><?php echo esc_html( sprintf( __( 'WordPress.com %s' ), $new_plan ) ); ?><small><?php esc_html_e( 'Billed monthly' ); ?></small></span></span>
+				<?php if ( $addon_gb ) : ?>
+					<span class="who"><span><?php echo esc_html( sprintf( __( 'Storage add-on +%d GB' ), $addon_gb ) ); ?><small><?php esc_html_e( 'Per month, billed yearly' ); ?></small></span></span>
+				<?php else : ?>
+					<span class="who"><span><?php echo esc_html( sprintf( __( 'WordPress.com %s' ), $new_plan ) ); ?><small><?php esc_html_e( 'Billed monthly' ); ?></small></span></span>
+				<?php endif; ?>
 				<span><?php echo esc_html( 'US$' . number_format_i18n( $plan_price, 2 ) ); ?></span>
 			</div>
 			<?php if ( $item ) : ?>
@@ -5242,6 +5465,7 @@ function untangling_marketplace_done_step( $type ) {
 	$is_ms = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
 	$plan  = $is_ms ? untangling_ms_get_plan() : untangling_get_plan();
+	$addon_gb = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] ) ? (int) $_GET['gb'] : 0;
 	$mkt   = 'plugin' === $type ? 'plugins' : 'themes';
 	$install_name = '';
 	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
@@ -5254,7 +5478,11 @@ function untangling_marketplace_done_step( $type ) {
 		</span>
 		<h1 class="untangling-mkt-brandfont"><?php esc_html_e( 'You’re all set!' ); ?></h1>
 		<p>
-			<?php echo esc_html( sprintf( __( 'The %1$s plan is now active on %2$s.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
+			<?php if ( $addon_gb ) : ?>
+				<?php echo esc_html( sprintf( __( '%1$d GB of extra storage is now active on %2$s.' ), $addon_gb, get_bloginfo( 'name' ) ) ); ?>
+			<?php else : ?>
+				<?php echo esc_html( sprintf( __( 'The %1$s plan is now active on %2$s.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
+			<?php endif; ?>
 			<?php if ( $item ) : ?>
 				<?php echo esc_html( sprintf( 'theme' === $type ? __( '%s is now included in your plan — head back to the Marketplace to activate it.' ) : __( '%s is now included in your plan — head back to the Marketplace to install it.' ), $item['name'] ) ); ?>
 			<?php elseif ( $install_name ) : ?>
@@ -5280,31 +5508,400 @@ function untangling_marketplace_done_step( $type ) {
 	<?php
 }
 
+// Copy and canned answers shared by the Support Assistant panel and the
+// "Ask about your site" CTA on both Help & Learn surfaces. There is no model
+// behind the prototype — these keyword-matched replies mimic what the Help
+// Center returns for the questions a demo actually asks. Plan- and
+// site-aware: gated features answer honestly about what the current plan
+// includes, and the human handoff follows the same support ladder as the
+// Help & Learn support cards (forums on Free, contact form on paid).
+function untangling_help_panel_data() {
+	$plan     = untangling_get_plan();
+	$has_woo  = class_exists( 'WooCommerce' );
+	$advanced = untangling_plan_rank( $plan ) >= 3; // Business and above: plugins, backups.
+	$noun     = $has_woo ? __( 'store' ) : __( 'site' );
+
+	$answers = array(
+		array(
+			'keys'  => array( 'domain', 'dns', 'nameserver', 'url', 'web address', 'site address' ),
+			'text'  => __( 'You can register a new domain or connect one you already own. Open Domains in your dashboard and pick "Add a domain". A registration is live within minutes; a connection waits on DNS to spread, which can take up to 72 hours.' ),
+			'links' => array(
+				array( __( 'Set up your custom domain' ), 'https://wordpress.com/support/domains/' ),
+				array( __( 'Connecting vs transferring a domain' ), 'https://wordpress.com/support/domain-connection-vs-domain-transfer/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'slow', 'speed', 'performance', 'load time', 'cache', 'faster' ),
+			'text'  => __( 'Three things usually explain it: oversized images, plugins you no longer use, and caching that is turned off. Resize your images, deactivate what you do not need, and leave the edge cache on. Tell me which page feels slow and I can narrow it down further.' ),
+			'links' => array(
+				array( __( 'Make your site faster' ), 'https://wordpress.com/support/site-speed/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'plan', 'upgrade', 'price', 'cost', 'billing', 'refund', 'renew', 'subscription' ),
+			/* translators: %s: current plan name. */
+			'text'  => sprintf( __( 'You are on the %s plan. The Plans page compares what each tier adds — storage, plugins, themes, and the level of support. Upgrades are prorated against what you already paid, and refunds follow the WordPress.com refund policy.' ), $plan ),
+			'links' => array(
+				array( __( 'Compare plans' ), 'https://wordpress.com/pricing/' ),
+				array( __( 'Refund policy' ), 'https://wordpress.com/support/manage-purchases/#refund-policy' ),
+			),
+		),
+		array(
+			'keys'  => array( 'email', 'mailbox', 'inbox', 'forwarding' ),
+			'text'  => __( 'Custom email needs a domain on your account. Once you have one, open Emails and choose Professional Email, Google Workspace, or a free forward to an inbox you already use.' ),
+			'links' => array(
+				array( __( 'Email on WordPress.com' ), 'https://wordpress.com/support/emails/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'backup', 'restore', 'rollback', 'lost my', 'deleted' ),
+			'text'  => $advanced
+				? __( 'Your site is backed up automatically, every day and on every change. Open Backups, pick a restore point, and restore the files, the database, or both. A restore never touches your other restore points.' )
+				: __( 'Automated backups and one-click restores come with the Business plan and above. On your current plan you can still take a full copy at any time from Tools → Export, and I can walk you through that.' ),
+			'links' => array(
+				array( __( 'Backups and restores' ), 'https://wordpress.com/support/backups/' ),
+				array( __( 'Export your content' ), 'https://wordpress.com/support/export/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'theme', 'design', 'layout', 'color', 'font', 'header', 'footer' ),
+			'text'  => __( 'Appearance → Marketplace lists every theme available to you, with a badge on the ones your plan already includes. Activating a theme never deletes your content, and you can switch back whenever you want. For smaller changes, the Site Editor covers colors, fonts, and templates.' ),
+			'links' => array(
+				array( __( 'Themes' ), 'https://wordpress.com/support/themes/' ),
+				array( __( 'Use the Site Editor' ), 'https://wordpress.com/support/site-editor/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'product', 'sell', 'payment', 'checkout', 'shipping', 'order', 'tax', 'woocommerce' ),
+			'text'  => __( 'Products live under Products → Add new: title, price, image, and stock. Payments handles the gateway — Stripe or PayPal — and the WooCommerce settings cover tax and shipping rules per region.' ),
+			'links' => array(
+				array( __( 'Accept payments' ), 'https://wordpress.com/support/wordpress-editor/blocks/payments/accept-payments/' ),
+				array( __( 'Sell products' ), 'https://wordpress.com/support/introduction-to-woocommerce/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'traffic', 'seo', 'visitor', 'google', 'search engine', 'rank', 'audience', 'subscriber' ),
+			'text'  => __( 'Start with the basics: a clear title and description on every page, a sitemap submitted to search engines, and links between related posts. Jetpack Stats shows which posts already bring people in, so you know what to write more of.' ),
+			'links' => array(
+				array( __( 'Optimize for search engines' ), 'https://wordpress.com/support/seo/' ),
+				array( __( 'Get more traffic' ), 'https://wordpress.com/support/getting-more-views-and-traffic/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'plugin', 'extension' ),
+			'text'  => $advanced
+				? __( 'Plugins → Marketplace covers both free WordPress.org plugins and paid ones. Install, activate, and you are done. If a plugin misbehaves, deactivate it first, then restore from a backup if anything is left behind.' )
+				: __( 'Installing third-party plugins comes with the Business plan and above. Your current plan already includes the built-in Jetpack features: stats, forms, social sharing, spam protection, and site search.' ),
+			'links' => array(
+				array( __( 'Plugins on WordPress.com' ), 'https://wordpress.com/support/plugins/' ),
+			),
+		),
+		array(
+			'keys'  => array( 'password', 'log in', 'login', 'locked out', 'two-factor', '2fa', 'account' ),
+			'text'  => __( 'For a lost password, use the reset link on the login screen — it emails a one-time link to the address on your account. If two-step authentication is on and the device is gone, your backup codes get you in.' ),
+			'links' => array(
+				array( __( 'Reset your password' ), 'https://wordpress.com/support/passwords/' ),
+				array( __( 'Two-step authentication' ), 'https://wordpress.com/support/security/two-step-authentication/' ),
+			),
+		),
+	);
+
+	return array(
+		'noun'        => $noun,
+		/* translators: %s: "site" or "store". */
+		'heading'     => sprintf( __( 'Ask about your %s' ), $noun ),
+		'lede'        => $advanced
+			? __( 'Describe what you need in your own words. The AI assistant answers first, and our team backs it up.' )
+			: __( 'Describe what you need in your own words. The AI assistant answers right away, any time of day.' ),
+		'placeholder' => $has_woo ? __( 'How do I add a product?' ) : __( 'How do I connect a custom domain?' ),
+		'panelHint'   => $has_woo ? __( 'Ask anything about your store' ) : __( 'Ask anything about your site' ),
+		'cta'         => __( 'Ask' ),
+		'suggestions' => $has_woo
+			? array( __( 'How do I accept payments?' ), __( 'How do I set up shipping?' ), __( 'What does my plan include?' ) )
+			: array( __( 'Why is my site slow?' ), __( 'How do I get more visitors?' ), __( 'What does my plan include?' ) ),
+		// Shown one after another under the dots while the answer is being
+		// worked out — the prototype's stand-in for a model thinking.
+		'steps'       => array( __( 'Reading your site setup' ), __( 'Checking WordPress.com docs' ), __( 'Writing an answer' ) ),
+		'handoffLead' => __( 'Not what you needed?' ),
+		'handoff'     => $advanced
+			? array( __( 'Contact support' ), 'https://wordpress.com/help/contact/' )
+			: array( __( 'Ask in the forums' ), 'https://wordpress.com/forums/' ),
+		'answers'     => $answers,
+		'fallback'    => array(
+			'text'  => __( 'I need a little more to work with. Tell me what you were doing and what you expected to happen, and I will point you at the exact steps. You can hand this to a person at any point.' ),
+			'links' => array(
+				array( __( 'Browse all guides' ), 'https://wordpress.com/support/guides/' ),
+			),
+		),
+	);
+}
+
 // Help Center mimic — the Support Assistant panel (geometry from
-// packages/help-center: 410×80vh, radius 16, bottom/right 50).
+// packages/help-center: 410×80vh, radius 16, bottom/right 50). The panel is a
+// working conversation: a question typed here (or handed over from the
+// Help & Learn CTA) posts a user bubble, runs the thinking states, then
+// reveals a canned answer word by word. Behavior and data ship with the
+// markup so every surface that prints the panel gets the same assistant.
 function untangling_marketplace_help_panel() {
 	$user = wp_get_current_user();
+	$data = untangling_help_panel_data();
 	?>
 	<div class="untangling-mkt-help" hidden>
 		<header>
-			<button type="button" aria-label="<?php esc_attr_e( 'Back' ); ?>"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M14.6 7l-1.2-1L8 12l5.4 6 1.2-1-4.6-5z"/></svg></button>
+			<button type="button" class="untangling-mkt-help-back" aria-label="<?php esc_attr_e( 'Back' ); ?>"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M14.6 7l-1.2-1L8 12l5.4 6 1.2-1-4.6-5z"/></svg></button>
 			<span class="title"><?php esc_html_e( 'Support Assistant' ); ?></span>
 			<span class="spacer"></span>
 			<button type="button" aria-label="<?php esc_attr_e( 'More options' ); ?>"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg></button>
 			<button type="button" class="untangling-mkt-help-close" aria-label="<?php esc_attr_e( 'Close' ); ?>"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M13 11.8l6.1-6.3-1-1-6.1 6.2-6.1-6.2-1 1 6.1 6.3-6.5 6.7 1 1 6.5-6.6 6.5 6.6 1-1z"/></svg></button>
 		</header>
 		<div class="untangling-mkt-help-body">
-			<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true"><path fill="#3858e9" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>
-			<h3><?php echo esc_html( sprintf( __( 'Howdy %s' ), $user->display_name ) ); ?> 👋</h3>
-			<p><?php esc_html_e( 'I’m your personal Support Assistant. I can help with any questions about your site or account.' ); ?></p>
-			<div class="untangling-mkt-ask">
-				<input type="text" placeholder="<?php esc_attr_e( 'Ask anything…' ); ?>">
-				<button type="button" aria-label="<?php esc_attr_e( 'Send' ); ?>"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 4l6 6-1.4 1.4L13 7.8V20h-2V7.8l-3.6 3.6L6 10z"/></svg></button>
+			<div class="untangling-mkt-help-scroll">
+				<div class="untangling-mkt-help-intro">
+					<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true"><path fill="#3858e9" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>
+					<h3><?php echo esc_html( sprintf( __( 'Howdy %s' ), $user->display_name ) ); ?> 👋</h3>
+					<p><?php esc_html_e( 'I’m your personal Support Assistant. I can help with any questions about your site or account.' ); ?></p>
+				</div>
+				<div class="untangling-mkt-help-thread" role="log" aria-live="polite" aria-label="<?php esc_attr_e( 'Conversation' ); ?>"></div>
 			</div>
-			<p class="untangling-mkt-help-fine"><?php esc_html_e( 'You’re chatting with an AI assistant. Responses may be inaccurate.' ); ?> <a href="#"><?php esc_html_e( 'Learn more' ); ?> ↗</a></p>
+			<div class="untangling-mkt-help-foot">
+				<form class="untangling-mkt-ask">
+					<input type="text" placeholder="<?php echo esc_attr( $data['panelHint'] ); ?>" aria-label="<?php esc_attr_e( 'Ask the Support Assistant' ); ?>" autocomplete="off">
+					<button type="submit" aria-label="<?php esc_attr_e( 'Send' ); ?>"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 4l6 6-1.4 1.4L13 7.8V20h-2V7.8l-3.6 3.6L6 10z"/></svg></button>
+				</form>
+				<p class="untangling-mkt-help-fine"><?php esc_html_e( 'You’re chatting with an AI assistant. Responses may be inaccurate.' ); ?> <a href="#"><?php esc_html_e( 'Learn more' ); ?> ↗</a></p>
+			</div>
 		</div>
 	</div>
+	<script>
+	window.untanglingHelpData = <?php echo wp_json_encode( $data ); ?>;
+	<?php echo untangling_help_panel_js(); ?>
+	</script>
 	<?php
+}
+
+// The assistant itself. Exposes window.untanglingHelp so any surface — the
+// Marketplace "Need help?" link, the Help & Learn CTA, a React card — can
+// open the panel, optionally with a question already in flight.
+function untangling_help_panel_js() {
+	return <<<'JS'
+( function () {
+	var help = document.querySelector( '.untangling-mkt-help' );
+	if ( ! help || help.dataset.untanglingWired ) {
+		return;
+	}
+	help.dataset.untanglingWired = '1';
+
+	var data = window.untanglingHelpData || {};
+	var answers = data.answers || [];
+	var steps = data.steps || [ 'Thinking' ];
+	var intro = help.querySelector( '.untangling-mkt-help-intro' );
+	var thread = help.querySelector( '.untangling-mkt-help-thread' );
+	var scroller = help.querySelector( '.untangling-mkt-help-scroll' );
+	var form = help.querySelector( '.untangling-mkt-ask' );
+	var input = form.querySelector( 'input' );
+	var send = form.querySelector( 'button' );
+	// One flag for the whole animation budget: reduced motion skips the
+	// thinking beats and the word-by-word reveal, answering at once.
+	var calm = window.matchMedia && window.matchMedia( '( prefers-reduced-motion: reduce )' ).matches;
+	var busy = false;
+
+	function toEnd() {
+		scroller.scrollTop = scroller.scrollHeight;
+	}
+
+	function node( tag, className, text ) {
+		var element = document.createElement( tag );
+		if ( className ) {
+			element.className = className;
+		}
+		if ( text ) {
+			element.textContent = text;
+		}
+		return element;
+	}
+
+	function avatar() {
+		var span = node( 'span', 'untangling-mkt-avatar' );
+		span.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>';
+		return span;
+	}
+
+	// First keyword hit wins, so the answer list is ordered by how specific
+	// each topic is. Everything unmatched gets the fallback.
+	function match( question ) {
+		var text = question.toLowerCase();
+		for ( var i = 0; i < answers.length; i++ ) {
+			var keys = answers[ i ].keys || [];
+			for ( var j = 0; j < keys.length; j++ ) {
+				if ( -1 !== text.indexOf( keys[ j ] ) ) {
+					return answers[ i ];
+				}
+			}
+		}
+		return data.fallback || { text: '', links: [] };
+	}
+
+	function addQuestion( text ) {
+		var row = node( 'div', 'untangling-mkt-msg is-user' );
+		row.appendChild( node( 'p', 'untangling-mkt-bubble', text ) );
+		thread.appendChild( row );
+		toEnd();
+	}
+
+	function addThinking() {
+		var row = node( 'div', 'untangling-mkt-msg is-bot is-thinking' );
+		row.appendChild( avatar() );
+		var body = node( 'div', 'untangling-mkt-msg-body' );
+		var dots = node( 'span', 'untangling-mkt-dots' );
+		dots.innerHTML = '<i></i><i></i><i></i>';
+		body.appendChild( dots );
+		body.appendChild( node( 'span', 'untangling-mkt-step', steps[ 0 ] ) );
+		row.appendChild( body );
+		thread.appendChild( row );
+		toEnd();
+		return row;
+	}
+
+	// Reveal on a wall-clock budget rather than one word per tick: a per-tick
+	// reveal stretched to ten seconds whenever the browser throttled the
+	// timer. Progress is measured against elapsed time, so a coarse tick just
+	// reveals a bigger chunk and the answer still lands in REVEAL_MS.
+	// (setInterval, not requestAnimationFrame — frames stop altogether in a
+	// backgrounded tab, which would leave an answer frozen mid-sentence.)
+	var REVEAL_MS = 900;
+
+	function reveal( target, text, done ) {
+		var words = text.split( ' ' );
+		if ( calm || words.length < 2 ) {
+			target.textContent = text;
+			done();
+			return;
+		}
+		var start = Date.now();
+		var tick = window.setInterval( function () {
+			var progress = Math.min( 1, ( Date.now() - start ) / REVEAL_MS );
+			target.textContent = words.slice( 0, Math.max( 1, Math.round( progress * words.length ) ) ).join( ' ' );
+			toEnd();
+			if ( progress >= 1 ) {
+				window.clearInterval( tick );
+				done();
+			}
+		}, 40 );
+	}
+
+	function addAnswer( answer, row ) {
+		row.classList.remove( 'is-thinking' );
+		var body = row.querySelector( '.untangling-mkt-msg-body' );
+		body.textContent = '';
+		var paragraph = node( 'p', 'untangling-mkt-bubble' );
+		body.appendChild( paragraph );
+		reveal( paragraph, answer.text || '', function () {
+			var links = answer.links || [];
+			if ( links.length ) {
+				var list = node( 'span', 'untangling-mkt-msg-links' );
+				links.forEach( function ( link ) {
+					var anchor = node( 'a', null, link[ 0 ] + ' ↗' );
+					anchor.href = link[ 1 ];
+					anchor.target = '_blank';
+					anchor.rel = 'noreferrer';
+					list.appendChild( anchor );
+				} );
+				body.appendChild( list );
+			}
+			if ( data.handoff ) {
+				var handoff = node( 'span', 'untangling-mkt-msg-handoff' );
+				handoff.appendChild( node( 'span', null, data.handoffLead || '' ) );
+				var contact = node( 'a', null, data.handoff[ 0 ] );
+				contact.href = data.handoff[ 1 ];
+				contact.target = '_blank';
+				contact.rel = 'noreferrer';
+				handoff.appendChild( contact );
+				body.appendChild( handoff );
+			}
+			busy = false;
+			send.disabled = false;
+			toEnd();
+		} );
+	}
+
+	function ask( text ) {
+		var question = ( text || '' ).trim();
+		if ( ! question || busy ) {
+			return;
+		}
+		busy = true;
+		send.disabled = true;
+		input.value = '';
+		if ( intro ) {
+			intro.hidden = true;
+		}
+		help.classList.add( 'is-chatting' );
+		addQuestion( question );
+		var row = addThinking();
+		var label = row.querySelector( '.untangling-mkt-step' );
+		var at = 1;
+		var beat = window.setInterval( function () {
+			if ( at >= steps.length ) {
+				window.clearInterval( beat );
+				return;
+			}
+			label.textContent = steps[ at ];
+			at += 1;
+			toEnd();
+		}, 750 );
+		window.setTimeout( function () {
+			window.clearInterval( beat );
+			addAnswer( match( question ), row );
+		}, calm ? 200 : 750 * steps.length + 250 );
+	}
+
+	function reset() {
+		thread.textContent = '';
+		help.classList.remove( 'is-chatting' );
+		if ( intro ) {
+			intro.hidden = false;
+		}
+		busy = false;
+		send.disabled = false;
+	}
+
+	window.untanglingHelp = {
+		open: function ( text ) {
+			help.hidden = false;
+			if ( text ) {
+				ask( text );
+			} else {
+				input.focus();
+			}
+		},
+		close: function () {
+			help.hidden = true;
+		},
+		ask: ask,
+		reset: reset,
+	};
+
+	form.addEventListener( 'submit', function ( event ) {
+		event.preventDefault();
+		ask( input.value );
+	} );
+	help.querySelector( '.untangling-mkt-help-back' ).addEventListener( 'click', function () {
+		if ( help.classList.contains( 'is-chatting' ) ) {
+			reset();
+		} else {
+			help.hidden = true;
+		}
+	} );
+	help.querySelector( '.untangling-mkt-help-close' ).addEventListener( 'click', function () {
+		help.hidden = true;
+	} );
+	document.addEventListener( 'keydown', function ( event ) {
+		if ( 'Escape' === event.key ) {
+			help.hidden = true;
+		}
+	} );
+} )();
+JS;
 }
 
 // Support Assistant panel styles, shared by the Marketplace and Hosting
@@ -5313,51 +5910,67 @@ function untangling_marketplace_help_panel() {
 // itself so it works outside the .untangling-mkt scope.
 function untangling_help_panel_css() {
 	return <<<'CSS'
-	.untangling-mkt-help { --mkt-gray-0: #f6f7f7; --mkt-gray-10: #c3c4c7; --mkt-gray-50: #646970; --mkt-gray-60: #50575e; --mkt-gray-80: #2c3338; --mkt-gray-100: #101517; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; position: fixed; right: 50px; bottom: 50px; width: 410px; max-width: calc( 100vw - 32px ); height: 80vh; max-height: 800px; background: #fff; border-radius: 16px; box-shadow: 0 3px 8px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.14); z-index: 999990; display: flex; flex-direction: column; overflow: hidden; }
+	.untangling-mkt-help { --mkt-gray-0: #f6f7f7; --mkt-gray-10: #c3c4c7; --mkt-gray-50: #646970; --mkt-gray-60: #50575e; --mkt-gray-80: #2c3338; --mkt-gray-100: #101517; --mkt-blue: #3858e9; --mkt-blue-tint: #ebeefc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; position: fixed; right: 50px; bottom: 50px; width: 410px; max-width: calc( 100vw - 32px ); height: 80vh; max-height: 800px; background: #fff; border-radius: 16px; box-shadow: 0 3px 8px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.14); z-index: 999990; display: flex; flex-direction: column; overflow: hidden; }
 	.untangling-mkt-help[hidden] { display: none; }
 	.untangling-mkt-help header { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--mkt-gray-0); flex-shrink: 0; }
 	.untangling-mkt-help header .title { font-size: 16px; font-weight: 500; color: var(--mkt-gray-100); margin-left: 4px; }
 	.untangling-mkt-help header .spacer { flex: 1; }
 	.untangling-mkt-help header button { background: none; border: 0; padding: 8px; cursor: pointer; color: var(--mkt-gray-100); display: inline-flex; }
-	.untangling-mkt-help-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px; }
-	.untangling-mkt-help-body h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; color: var(--mkt-gray-100); }
-	.untangling-mkt-help-body > p { font-size: 16px; margin: 0 0 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-help-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+	/* Greeting sits at the bottom of an empty panel, the way the real Help
+	   Center opens; once a conversation starts the thread grows downward. */
+	.untangling-mkt-help-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 16px; padding: 24px 24px 8px; }
+	.untangling-mkt-help.is-chatting .untangling-mkt-help-scroll { justify-content: flex-start; }
+	.untangling-mkt-help-intro[hidden] { display: none; }
+	.untangling-mkt-help-intro h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; color: var(--mkt-gray-100); }
+	.untangling-mkt-help-intro p { font-size: 16px; margin: 0; color: var(--mkt-gray-80); }
+	.untangling-mkt-help-thread { display: flex; flex-direction: column; gap: 16px; }
+	.untangling-mkt-help-thread:empty { display: none; }
+	.untangling-mkt-msg { display: flex; align-items: flex-start; gap: 8px; }
+	.untangling-mkt-msg.is-user { justify-content: flex-end; }
+	.untangling-mkt-msg.is-user .untangling-mkt-bubble { max-width: 85%; margin: 0; padding: 8px 12px; border-radius: 12px 12px 2px 12px; background: var(--mkt-blue-tint); color: var(--mkt-gray-100); font-size: 14px; line-height: 1.5; }
+	.untangling-mkt-avatar { flex: none; width: 24px; height: 24px; margin-top: 2px; border-radius: 999px; background: var(--mkt-blue-tint); color: var(--mkt-blue); display: inline-flex; align-items: center; justify-content: center; }
+	.untangling-mkt-msg-body { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+	.untangling-mkt-msg-body .untangling-mkt-bubble { margin: 0; font-size: 14px; line-height: 1.6; color: var(--mkt-gray-80); }
+	.untangling-mkt-msg.is-thinking .untangling-mkt-msg-body { flex-direction: row; align-items: center; gap: 8px; }
+	.untangling-mkt-step { font-size: 13px; color: var(--mkt-gray-50); }
+	.untangling-mkt-dots { display: inline-flex; align-items: center; gap: 4px; height: 20px; }
+	.untangling-mkt-dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--mkt-blue); animation: untangling-mkt-dot 1.2s ease-in-out infinite; }
+	.untangling-mkt-dots i:nth-child(2) { animation-delay: 0.15s; }
+	.untangling-mkt-dots i:nth-child(3) { animation-delay: 0.3s; }
+	@keyframes untangling-mkt-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+	@media ( prefers-reduced-motion: reduce ) { .untangling-mkt-dots i { animation: none; opacity: 0.6; } }
+	.untangling-mkt-msg-links { display: flex; flex-direction: column; gap: 4px; }
+	.untangling-mkt-msg-links a { font-size: 13px; color: var(--mkt-blue); text-decoration: none; }
+	.untangling-mkt-msg-links a:hover { text-decoration: underline; }
+	.untangling-mkt-msg-handoff { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--mkt-gray-0); font-size: 12px; color: var(--mkt-gray-50); }
+	.untangling-mkt-msg-handoff a { font-size: 12px; color: var(--mkt-blue); }
+	/* Composer pinned below the scroller so the input never scrolls away. */
+	.untangling-mkt-help-foot { flex: none; padding: 8px 24px 24px; background: #fff; }
 	.untangling-mkt-ask { display: flex; align-items: center; border: 1px solid var(--mkt-gray-10); border-radius: 12px; padding: 8px 8px 8px 16px; gap: 8px; }
-	.untangling-mkt-ask input { border: 0; outline: 0; flex: 1; font-size: 14px; color: var(--mkt-gray-100); background: none; }
+	.untangling-mkt-ask:focus-within { border-color: var(--mkt-blue); box-shadow: 0 0 0 1px var(--mkt-blue); }
+	/* :focus included so wp-admin's own input focus ring does not draw a
+	   second box inside the composer's rounded one. */
+	.untangling-mkt-ask input,
+	.untangling-mkt-ask input:focus { border: 0; outline: 0; box-shadow: none; flex: 1; font-size: 14px; color: var(--mkt-gray-100); background: none; }
 	.untangling-mkt-ask button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--mkt-gray-0); color: var(--mkt-gray-60); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+	.untangling-mkt-ask button:hover:not(:disabled) { background: var(--mkt-blue); color: #fff; }
+	.untangling-mkt-ask button:disabled { cursor: default; opacity: 0.5; }
 	.untangling-mkt-help-fine { font-size: 12px; color: var(--mkt-gray-50); text-align: center; margin: 12px 0 0; }
 	.untangling-mkt-help-fine a { color: var(--mkt-gray-50); }
 CSS;
 }
 
 // The Hosting page and the My Site drawer get the same Support Assistant
-// panel — an "Ask AI" / contact button opens it (closed by ✕ or Escape,
-// same as the Marketplace).
+// panel as the Marketplace, behavior included — the Help & Learn CTA on both
+// pages hands its question to window.untanglingHelp.open().
 add_action( 'admin_footer', function () {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 	if ( ! $screen || ! in_array( $screen->id, array( 'toplevel_page_untangling-hosting', 'toplevel_page_untangling-mysite' ), true ) ) {
 		return;
 	}
-	untangling_marketplace_help_panel();
 	echo '<style>' . untangling_help_panel_css() . '</style>';
-	?>
-	<script>
-	( function () {
-		var help = document.querySelector( '.untangling-mkt-help' );
-		if ( ! help ) {
-			return;
-		}
-		help.querySelector( '.untangling-mkt-help-close' ).addEventListener( 'click', function () {
-			help.hidden = true;
-		} );
-		document.addEventListener( 'keydown', function ( event ) {
-			if ( 'Escape' === event.key ) {
-				help.hidden = true;
-			}
-		} );
-	} )();
-	</script>
-	<?php
+	untangling_marketplace_help_panel();
 } );
 
 // Values traced from production: step-container-v2 (top bar, Recoleta
@@ -5798,26 +6411,23 @@ function untangling_marketplace_js() {
 			apply();
 		} );
 
-		// Help Center mimic.
+		// Help Center mimic — close, Escape, and the conversation itself are
+		// wired by untangling_help_panel_js(); this only opens it.
 		var help = document.querySelector( '.untangling-mkt-help' );
 		var helpToggle = document.querySelector( '.untangling-mkt-help-toggle' );
 		if ( help && helpToggle ) {
 			helpToggle.addEventListener( 'click', function () {
-				help.hidden = ! help.hidden;
+				if ( help.hidden ) {
+					window.untanglingHelp.open();
+				} else {
+					window.untanglingHelp.close();
+				}
 			} );
 			document.querySelectorAll( '[data-open-help]' ).forEach( function ( link ) {
 				link.addEventListener( 'click', function ( event ) {
 					event.preventDefault();
-					help.hidden = false;
+					window.untanglingHelp.open();
 				} );
-			} );
-			help.querySelector( '.untangling-mkt-help-close' ).addEventListener( 'click', function () {
-				help.hidden = true;
-			} );
-			document.addEventListener( 'keydown', function ( event ) {
-				if ( 'Escape' === event.key ) {
-					help.hidden = true;
-				}
 			} );
 		}
 
@@ -5828,7 +6438,7 @@ function untangling_marketplace_js() {
 
 /* -------------------------------------------------------------------------
  * 3d. Global Prototype controls — the fab/panel shows on every wp-admin
- * screen, carrying the site-wide toggles (menu variant, site type,
+ * screen, carrying the site-wide toggles (site state, site type,
  * marketplace version) plus demo reset and copy-link. The WordPress.com
  * page keeps its richer React panel (plan card + my-site layout live there),
  * so it is skipped here.
@@ -5843,16 +6453,17 @@ add_action( 'admin_footer', function () {
 		return;
 	}
 	$is_mkt   = $screen && 'toplevel_page_untangling-marketplace' === $screen->id;
-	$variant  = untangling_get_variant();
 	$type     = untangling_get_site_type();
 	$mode     = untangling_get_marketplace_mode();
 	$plan     = untangling_get_plan();
 	$override = (bool) get_option( 'untangling_plan_override' );
 	$ms_plan_override = (bool) get_option( 'untangling_ms_plan_override' );
-	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' );
+	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' );
 
-	$seg = function ( $label, $key, $options, $current ) {
-		echo '<label>' . esc_html( $label ) . '</label><div class="untangling-gproto-seg" data-key="' . esc_attr( $key ) . '">';
+	// $extra: 'is-grid' wraps more than three options into a 2×2 block —
+	// four segments do not fit across a 280px panel.
+	$seg = function ( $label, $key, $options, $current, $extra = '' ) {
+		echo '<label>' . esc_html( $label ) . '</label><div class="untangling-gproto-seg' . ( $extra ? ' ' . esc_attr( $extra ) : '' ) . '" data-key="' . esc_attr( $key ) . '">';
 		foreach ( $options as $value => $text ) {
 			echo '<button type="button" data-value="' . esc_attr( $value ) . '"' . ( $value === $current ? ' class="is-active"' : '' ) . '>' . esc_html( $text ) . '</button>';
 		}
@@ -5876,6 +6487,8 @@ add_action( 'admin_footer', function () {
 	.untangling-gproto-seg { display: flex; border: 1px solid #c3c4c7; border-radius: 4px; overflow: hidden; }
 	.untangling-gproto-seg button { flex: 1; border: 0; background: #fff; padding: 9px 0; cursor: pointer; font-size: 13px; color: #2c3338; }
 	.untangling-gproto-seg button.is-active { background: #2c3338; color: #fff; font-weight: 500; }
+	.untangling-gproto-seg.is-grid { flex-wrap: wrap; }
+	.untangling-gproto-seg.is-grid button { flex: 1 0 50%; box-shadow: inset -1px -1px 0 0 #dcdcde; }
 	.untangling-gproto-hint { font-size: 12px; line-height: 1.4; color: #757575; margin: 8px 0 0; }
 	.untangling-gproto-reset { display: block; margin-top: 14px; background: none; border: 0; padding: 0; color: #b32d2e; text-decoration: underline; cursor: pointer; font-size: 13px; }
 	.untangling-gproto-copy { display: block; margin-top: 14px; background: none; border: 0; padding: 0; color: #3858e9; text-decoration: underline; cursor: pointer; font-size: 13px; }
@@ -5891,21 +6504,31 @@ add_action( 'admin_footer', function () {
 			</div>
 			<div class="untangling-gproto-body">
 				<?php
-				$variant_hints = array(
-					'submenu' => __( 'Hosting page above Dashboard, with a submenu.' ),
-					'plain'   => __( 'Hosting page above Dashboard, no submenu.' ),
-					'drawer'  => __( 'My Site below Dashboard — sidebar sections, no tabs. Its demo state is independent of the other variants.' ),
-				);
-				$seg( __( 'Menu variant' ), 'untangling_variant', array( 'submenu' => __( 'Submenu' ), 'plain' => __( 'Plain' ), 'drawer' => __( 'My Site' ) ), $variant );
-				echo '<p class="untangling-gproto-hint">' . esc_html( $variant_hints[ $variant ] ) . '</p>';
-				if ( 'drawer' === $variant ) {
-					$ms_state = untangling_ms_get_state();
-					$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state );
-					echo '<p class="untangling-gproto-hint">' . esc_html( 'new' === $ms_state
-						? __( 'Setup unfinished: Next steps leads with the launchpad.' )
-						: __( 'Setup behind you: Next steps shows growth and vitals.' ) ) . '</p>';
-				}
+				$ms_state = untangling_ms_get_state();
+				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state );
+				echo '<p class="untangling-gproto-hint">' . esc_html( 'new' === $ms_state
+					? __( 'Setup unfinished: Next steps leads with the launchpad.' )
+					: __( 'Setup behind you: Next steps shows growth and vitals.' ) ) . '</p>';
 				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type );
+				echo '<p class="untangling-gproto-hint">' . esc_html__( 'Simple = Free plan · Atomic = Business plan in My Site.' ) . '</p>';
+				// Placement of the free-domain nudge. The choice persists on
+				// Atomic too, so flipping Site type back brings it straight
+				// back — it just has nothing to sell in the meantime.
+				$upsell       = untangling_get_upsell_placement();
+				$upsell_hints = array(
+					'none'      => __( 'No free-domain nudge anywhere in wp-admin.' ),
+					'menu-top'  => __( 'Above the menu — today’s position, redrawn for the dark column.' ),
+					'menu-foot' => __( 'Below the menu, out of the navigation’s way.' ),
+					'omnibar'   => __( 'A pill in the admin bar: no sidebar cost, on every screen.' ),
+				);
+				$seg( __( 'Free-domain upsell' ), 'untangling_upsell', array(
+					'none'      => __( 'None' ),
+					'menu-top'  => __( 'Menu top' ),
+					'menu-foot' => __( 'Menu foot' ),
+					'omnibar'   => __( 'Omnibar' ),
+				), $upsell, 'is-grid' );
+				echo '<p class="untangling-gproto-hint">' . esc_html( $upsell_hints[ $upsell ]
+					. ( 'simple' === $type || 'none' === $upsell ? '' : ' ' . __( 'Hidden here: Atomic is already on Business.' ) ) ) . '</p>';
 				// One line about the selected mode only — the segments reload the
 				// page, so the hint re-renders with each choice.
 				$mode_hints = array(
@@ -5966,19 +6589,6 @@ add_action( 'admin_footer', function () {
 				}
 				var key = button.closest( '.untangling-gproto-seg' ).dataset.key;
 				var value = button.dataset.value;
-				// Variant switches swap which top-level page exists — leaving the
-				// page you are on for the sidebar means landing on its counterpart.
-				if ( 'untangling_variant' === key ) {
-					var onMysite = /[?&]page=untangling-mysite/.test( window.location.search );
-					if ( 'drawer' === value && ! onMysite ) {
-						window.location.href = <?php echo wp_json_encode( admin_url( 'admin.php?page=untangling-mysite' ) ); ?> + '&untangling_variant=drawer';
-						return;
-					}
-					if ( 'drawer' !== value && onMysite ) {
-						window.location.href = <?php echo wp_json_encode( admin_url( 'admin.php?page=untangling-hosting' ) ); ?> + '&untangling_variant=' + value;
-						return;
-					}
-				}
 				// Leaving Fullscreen while browsing its catalog lands on the
 				// equivalent in-admin home: the Add Plugins Marketplace tab,
 				// or (Tabs) the Add Themes Marketplace tab.
@@ -6154,6 +6764,143 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 }, 99999 );
 
 /* -------------------------------------------------------------------------
+ * 4b. Free-domain upsell — one nudge, three homes to compare.
+ *
+ * The version that ships today is a white card stacked above the menu: in a
+ * 160px dark column it reads as a foreign object, pushes the whole navigation
+ * down, and wraps its button. Each placement here answers that differently.
+ *   menu-top   keep the position, lose the white sheet — a dark card that
+ *              belongs to the sidebar, one line of copy, full-width button.
+ *   menu-foot  same card, moved below the menu so it costs the navigation
+ *              nothing; it is the first thing under the last menu item.
+ *   omnibar    drop the card — a pill in the admin bar, always visible on
+ *              every screen and zero pixels of sidebar.
+ * Simple only (untangling_get_active_upsell); Atomic is Business already.
+ * ---------------------------------------------------------------------- */
+
+function untangling_upsell_diamond_svg() {
+	return '<svg class="untangling-nudge-gem" viewBox="4.4 5.4 15.2 13.2" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
+}
+
+// Both sidebar placements print here. The core `adminmenu` action fires
+// *inside* the menu's <ul>, after the last item — so the card ships as an
+// <li> (valid there, and already in the right spot for menu-foot). menu-top
+// lifts the card out to just above the <ul> and drops the empty slot; both
+// nodes are already in the sidebar, so nothing flashes across the page.
+add_action( 'adminmenu', function () {
+	$placement = untangling_get_active_upsell();
+	if ( 'menu-top' !== $placement && 'menu-foot' !== $placement ) {
+		return;
+	}
+	?>
+	<li id="untangling-nudge-slot">
+		<div class="untangling-nudge is-<?php echo esc_attr( $placement ); ?>">
+			<p class="untangling-nudge-text"><?php esc_html_e( 'Free domain with an annual plan' ); ?></p>
+			<?php // The diamond rides the action, as it does on every other upgrade CTA here. ?>
+			<a class="untangling-nudge-cta" href="<?php echo esc_url( untangling_upsell_url( $placement ) ); ?>">
+				<?php echo untangling_upsell_diamond_svg(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+				<?php esc_html_e( 'Upgrade' ); ?>
+			</a>
+		</div>
+	</li>
+	<?php
+	// Both placements lift the card out of the <ul> and into #adminmenuwrap —
+	// above the list for menu-top, below it for menu-foot. Left inside, core's
+	// `#adminmenu a` rules out-specify the button's own styles and squash it,
+	// so the two placements would not be the same card.
+	?>
+	<script>
+	( function () {
+		var slot = document.getElementById( 'untangling-nudge-slot' );
+		var nudge = slot && slot.firstElementChild;
+		var menu = document.getElementById( 'adminmenu' );
+		if ( ! nudge || ! menu || ! menu.parentNode ) {
+			return;
+		}
+		var before = nudge.classList.contains( 'is-menu-top' ) ? menu : menu.nextSibling;
+		menu.parentNode.insertBefore( nudge, before );
+		slot.parentNode.removeChild( slot );
+	} )();
+	</script>
+	<?php
+} );
+
+// The omnibar placement: a pill directly after the site name, so the offer
+// sits with the site it applies to rather than out among the global icons.
+// "Free domain" is all the room there is — the full promise rides in the
+// tooltip and on the pricing page it opens.
+add_action( 'admin_bar_menu', function ( $bar ) {
+	if ( 'omnibar' !== untangling_get_active_upsell() ) {
+		return;
+	}
+	// Root-group nodes render in insertion order, and by now the omnibar mock
+	// (999) has already ordered site → updates → comments → +New. Landing
+	// directly after the site name means lifting what follows it, adding the
+	// pill, then putting them back in the same order.
+	$trailing = array();
+	foreach ( array( 'updates', 'untangling-updates', 'comments', 'new-content' ) as $id ) {
+		$node = $bar->get_node( $id );
+		if ( $node ) {
+			$trailing[] = (array) $node;
+			$bar->remove_node( $id );
+		}
+	}
+	$bar->add_node( array(
+		'id'    => 'untangling-domain-nudge',
+		'title' => '<span class="untangling-nudge-pill" data-tip="' . esc_attr__( 'Free domain with an annual plan' ) . '">'
+			. untangling_upsell_diamond_svg() . esc_html__( 'Free domain' ) . '</span>',
+		'href'  => untangling_upsell_url( 'omnibar' ),
+	) );
+	foreach ( $trailing as $node ) {
+		$bar->add_node( $node );
+	}
+}, 1000 );
+
+add_action( 'admin_enqueue_scripts', function () {
+	if ( 'none' === untangling_get_active_upsell() ) {
+		return;
+	}
+	wp_add_inline_style( 'common', '
+	/* Sidebar card. Dark-on-dark so it reads as part of the menu, not an ad
+	   dropped on top of it. 160px is the whole budget: the copy gets two
+	   lines at 12px, the button the full width, and nothing wraps. */
+	.untangling-nudge { margin: 8px; padding: 12px; border-radius: 4px; background: #2c3338; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); box-sizing: border-box; }
+	.untangling-nudge-text { display: block; margin: 0 0 10px; color: #f0f0f1; font-size: 12px; line-height: 1.4; font-weight: 500; }
+	.untangling-nudge-gem { width: 13px; height: 12px; fill: currentColor; flex: none; }
+	.untangling-nudge-cta { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 3px; background: #3858e9; color: #fff !important; font-size: 12px; font-weight: 500; line-height: 1.5; text-decoration: none; }
+	.untangling-nudge-cta:hover, .untangling-nudge-cta:focus { background: #1d35b4; color: #fff !important; }
+	#adminmenu #untangling-nudge-slot { margin: 0; }
+	/* Both placements are the same card, down to the margins — the only thing
+	   the variations compare is where it sits. */
+	/* Folded sidebar (36px) has no room for either card. `auto-fold` is on the
+	   body at every width, so it only counts inside the fold breakpoint. */
+	.folded .untangling-nudge { display: none; }
+	@media screen and ( max-width: 960px ) { .auto-fold .untangling-nudge { display: none; } }
+
+	/* Omnibar pill. Sized to the masterbar row (32px) and kept quiet: the
+	   admin bar is chrome, so it borrows the blue for the gem and the border
+	   rather than filling solid like a page-level CTA would. */
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 8px; overflow: visible; }
+	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; background: rgba(56,88,233,0.22); box-shadow: inset 0 0 0 1px rgba(120,150,255,0.45); color: #dcdcde; font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
+	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 13px; height: 12px; fill: #8ba4ff; margin-inline-end: 6px; transition: fill .12s linear; }
+	/* Hover lifts the same pill instead of flooding it solid — the rest of the
+	   admin bar brightens on hover, it does not invert, and a solid blue block
+	   in a dark chrome row reads as a page CTA that wandered up here. */
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .ab-item { background: transparent; }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill,
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill { background: rgba(56,88,233,0.42); box-shadow: inset 0 0 0 1px rgba(150,175,255,0.8); color: #fff; }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill .untangling-nudge-gem { fill: #b8c8ff; }
+	/* Tooltip: the native title attribute waits about a second and paints an
+	   OS box. Same instant data-tip pattern the pricing page uses, restyled
+	   for the bar and anchored under the pill. */
+	#wpadminbar .untangling-nudge-pill::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 0; width: max-content; max-width: 260px; padding: 4px 8px; border-radius: 2px; background: #1e1e1e; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: #f0f0f1; font-size: 12px; font-weight: 400; line-height: 1.4; white-space: normal; opacity: 0; pointer-events: none; }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill::after,
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill::after { opacity: 1; }
+	@media screen and ( max-width: 782px ) { #wpadminbar #wp-admin-bar-untangling-domain-nudge { display: none; } }
+	' );
+}, 11 );
+
+/* -------------------------------------------------------------------------
  * Styles
  * ---------------------------------------------------------------------- */
 
@@ -6311,6 +7058,15 @@ function untangling_ms_data() {
 	$meta    = untangling_get_plan_meta( $plan );
 	$free    = 'Free' === $plan;
 
+	// A purchased storage add-on stretches the meter and retires the
+	// space-pressure note.
+	$storage_addon = (int) get_option( 'untangling_ms_storage_addon', 0 );
+	if ( $storage_addon ) {
+		$meta['storage'][1] += $storage_addon;
+		$meta['storage'][2]  = sprintf( __( 'Includes the +%d GB add-on.' ), $storage_addon );
+		$meta['storage'][3]  = false;
+	}
+
 	// Signals: the seeded content the Next steps pool grounds its "why" in.
 	$comments       = get_comments( array( 'number' => 1, 'status' => 'approve' ) );
 	$signal_comment = null;
@@ -6332,7 +7088,7 @@ function untangling_ms_data() {
 
 	// Needs attention: empty by design unless something is genuinely wrong.
 	$attention = array();
-	if ( ! empty( $meta['storage'][2] ) && false !== stripos( $meta['storage'][2], 'almost full' ) ) {
+	if ( ! empty( $meta['storage'][3] ) ) {
 		$attention[] = array(
 			'title'  => __( 'Storage is almost full' ),
 			'text'   => sprintf( __( 'You’ve used %1$s GB of %2$s GB. New uploads may fail soon.' ), $meta['storage'][0], $meta['storage'][1] ),
@@ -6426,8 +7182,15 @@ function untangling_ms_data() {
 		'domainUpsell' => untangling_get_domain_upsell(),
 		'visibility'   => untangling_get_visibility(),
 		'siteType'     => untangling_get_site_type(),
+		// Store-flavored content follows WooCommerce presence, not the plan —
+		// a store on the Business plan with Woo installed is the real-world case.
+		'hasWoo'       => class_exists( 'WooCommerce' ),
+		'aboutEditUrl' => ( $about = get_page_by_path( 'about' ) ) ? admin_url( 'post.php?post=' . $about->ID . '&action=edit' ) : admin_url( 'edit.php?post_type=page' ),
 		'plansUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms' ) ),
 		'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'ctx' => 'ms' ) ),
+		'storageAddon'    => $storage_addon,
+		'storagePricing'  => untangling_storage_addon_pricing(),
+		'storageAddonUrl' => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'storage', 'ctx' => 'ms' ) ),
 		'signals'      => array(
 			'comment'    => $signal_comment,
 			'lastPost'   => $signal_post,
@@ -6516,7 +7279,10 @@ function untangling_ms_app_js() {
 	var data = window.untanglingMsData || {};
 	var msd = data.msd || '#';
 	var isFree = 'Free' === data.plan;
-	var isCommerce = 'Commerce' === data.plan;
+	// Top of the plan ladder: nothing left to upgrade to.
+	var isTopTier = 'Commerce' === data.plan;
+	// Store-flavored content follows WooCommerce presence, not the plan name.
+	var isCommerce = !! data.hasWoo;
 	var meta = data.planMeta || { features: [], storage: [ 0, 1, null ] };
 
 	/* ---- icons: @wordpress/icons paths, inlined (wp.icons is not exposed) ---- */
@@ -6568,6 +7334,39 @@ function untangling_ms_app_js() {
 		return icon( UPSELL_GLYPH, '4.4 5.4 15.2 13.2', 14 );
 	}
 
+	// The Jetpack mark — same geometry and green as Calypso's
+	// client/dashboard/sites/site-fields/jetpack-logo.tsx (16px beside a label
+	// is that file's own usage). Two-tone, so it can't go through icon().
+	// Only features that are genuinely Jetpack products carry it: Backup
+	// (VaultPress, rewind__* activity), Scan (/alerts, cloud.jetpack.com/scan)
+	// and the activity log (wpcom/v2 /sites/:id/activity). The Atomic hosting
+	// features do not: hosting/metrics, hosting/error-logs + hosting/logs,
+	// hosting/edge-cache, staging-site, hosting/sftp + ssh.
+	function jetpackLogo( size ) {
+		return el( 'svg', {
+			xmlns: 'http://www.w3.org/2000/svg',
+			className: 'ms-jp-logo',
+			viewBox: '0 0 32 32',
+			width: size || 16,
+			height: size || 16,
+			'aria-hidden': true,
+		},
+			el( 'path', { fill: '#069e08', d: 'M16,0C7.2,0,0,7.2,0,16s7.2,16,16,16s16-7.2,16-16S24.8,0,16,0z' } ),
+			el( 'polygon', { fill: '#ffffff', points: '15,19 7,19 15,3 ' } ),
+			el( 'polygon', { fill: '#ffffff', points: '17,29 17,13 25,13 ' } )
+		);
+	}
+
+	// The credit line: mark plus the words, always the same three words wherever
+	// it lands. tag lets it sit inside the card links (span — a <p> in an <a>
+	// would be legal but the cards are spans throughout).
+	function jetpackCredit( className, tag ) {
+		return el( tag || 'p', { className: 'ms-jp-credit' + ( className ? ' ' + className : '' ) },
+			jetpackLogo( 14 ),
+			el( 'span', null, 'Powered by Jetpack' )
+		);
+	}
+
 	/* ---- shared shell: same width and heading treatment on every page ----
 	   The heading mirrors the tailored launchpad's: 32px sans title + grey
 	   subline, actions right-aligned on the title row. Pages that carry their
@@ -6603,6 +7402,28 @@ function untangling_ms_app_js() {
 		return el( 'a', { className: 'ms-extlink', href: href },
 			label,
 			icon( PATHS.external, '0 0 24 24', 16 )
+		);
+	}
+
+	// The MSD's HostingFeatureGatedWithCallout upsell, in the ms idiom — but a
+	// row, not a centered empty state: icon chip, title + one-line description,
+	// CTA on the right. The old layout stacked four blocks of centered text in
+	// a full-width card, so three gated cards read as three broken pages. The
+	// plan name lives in the CTA ("Upgrade to Business") instead of a separate
+	// availability sentence repeated in every card.
+	// props.inline renders the bordered in-card variant (Free activity log).
+	function UpsellCallout( props ) {
+		return el( 'div', { className: 'ms-upsell' + ( props.inline ? ' is-inline' : '' ) },
+			el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS[ props.icon || 'plugin' ], '0 0 24 24', 24 ) ),
+			el( 'span', { className: 'ms-upsell-main' },
+				el( 'h3', { className: 'ms-upsell-title' }, props.title ),
+				el( 'p', { className: 'ms-upsell-desc' }, props.desc )
+			),
+			// Secondary on purpose. These only ever render on Free, where a page can
+			// carry three or four of them at once — as primaries they outshouted
+			// the page's one real primary action and each other. The diamond and
+			// the blue label still read as an upgrade.
+			el( Button, { variant: 'secondary', icon: upsellDiamond(), iconSize: 14, href: data.plansUrl, __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
 		);
 	}
 
@@ -6955,7 +7776,7 @@ function untangling_ms_app_js() {
 			id: 'bestseller',
 			title: 'Put your bestseller to work',
 			why: '“' + ( sig.topProduct || 'Your top product' ) + '” got 214 views this month — more than anything else in the store. Feature it on your homepage, or give it a Blaze boost.',
-			cta: 'Promote it', href: msd + '/advertising',
+			cta: 'Promote it', href: 'https://wordpress.com/advertising/',
 		},
 		{
 			id: 'product-seo',
@@ -6979,7 +7800,7 @@ function untangling_ms_app_js() {
 			id: 'social',
 			title: 'Share new products automatically',
 			why: 'Connect your social accounts once and every new product reaches them as soon as it goes live.',
-			cta: 'Connect accounts', href: msd + '/marketing',
+			cta: 'Connect accounts', href: 'https://wordpress.com/support/publicize/',
 		},
 		{
 			id: 'repeat',
@@ -7010,25 +7831,25 @@ function untangling_ms_app_js() {
 			id: 'blaze',
 			title: 'Give your top post a push',
 			why: '“' + ( sig.lastPost ? sig.lastPost.title : 'Your top post' ) + '” got 214 views — your best this month. Blaze can put it in front of new readers for a few dollars.',
-			cta: 'Promote with Blaze', href: msd + '/advertising',
+			cta: 'Promote with Blaze', href: 'https://wordpress.com/advertising/',
 		},
 		{
 			id: 'about',
 			title: 'Introduce yourself on your About page',
 			why: 'About pages are among the most-visited on any site. A short introduction tells new readers who’s behind ' + data.siteName + '.',
-			cta: 'Edit About page', href: data.adminUrl + 'edit.php?post_type=page',
+			cta: 'Edit About page', href: data.aboutEditUrl,
 		},
 		{
 			id: 'social',
 			title: 'Share new posts automatically',
 			why: 'Connect your social accounts once and every new post reaches them the moment you publish.',
-			cta: 'Connect accounts', href: msd + '/marketing',
+			cta: 'Connect accounts', href: 'https://wordpress.com/support/publicize/',
 		},
 		{
 			id: 'tags',
 			title: 'Help readers find related posts',
 			why: 'Tags connect your posts to each other and to Reader topics, where new readers browse for sites like yours.',
-			cta: 'Add tags', href: data.adminUrl + 'edit.php',
+			cta: 'Add tags', href: data.adminUrl + 'edit-tags.php?taxonomy=post_tag',
 		},
 	] ).filter( Boolean );
 
@@ -7036,15 +7857,16 @@ function untangling_ms_app_js() {
 	// that earns it. Titles stay short enough to share a line with their
 	// badge; descriptions run ~10 words so the cards read as one set.
 	var GROW_ITEMS = isCommerce ? [
-		{ icon: 'email', title: 'Start a newsletter', desc: 'Email every new product and post straight to your customers.', href: msd, badge: 'Included' },
-		{ icon: 'performance', title: 'Recover abandoned carts', desc: '3 carts were left behind this week — a reminder wins some back.', href: data.adminUrl },
-		{ icon: 'seen', title: 'Get products on Google', desc: 'Free listings put your catalog in front of active shoppers.', href: 'https://wordpress.com/support/', external: true, badge: 'Guide' },
-		{ icon: 'post', title: 'Show delivery times', desc: 'Unclear shipping is the top reason carts get abandoned.', href: 'https://wordpress.com/support/', external: true, badge: 'Guide' },
+		{ icon: 'email', title: 'Start a newsletter', desc: 'Email every new product and post straight to your customers.', href: 'https://wordpress.com/support/newsletter/', external: true, badge: 'Included' },
+		{ icon: 'performance', title: 'Recover abandoned carts', desc: '3 carts were left behind this week — a reminder wins some back.', href: data.adminUrl + 'admin.php?page=wc-admin&path=%2Fmarketing' },
+		{ icon: 'seen', title: 'Get products on Google', desc: 'Free listings put your catalog in front of active shoppers.', href: 'https://woocommerce.com/document/google-for-woocommerce/', external: true, badge: 'Guide' },
+		{ icon: 'post', title: 'Show delivery times', desc: 'Unclear shipping is the top reason carts get abandoned.', href: 'https://woocommerce.com/document/setting-up-shipping-zones/', external: true, badge: 'Guide' },
 	] : [
 		isFree
 			? { icon: 'globe', title: 'Claim your domain', desc: data.domainUpsell + ' is available — trust for the readers you’re gaining.', href: data.plansUrl, upsell: true }
-			: { icon: 'performance', title: 'Set up payments', desc: 'Accept one-time or recurring payments from your readers.', href: msd },
-		{ icon: 'email', title: 'Start a newsletter', desc: 'Your 12 subscribers already want to hear from you, by email.', href: isFree ? data.plansUrl : msd, badge: isFree ? '' : 'Included', upsell: isFree },
+			: { icon: 'performance', title: 'Set up payments', desc: 'Accept one-time or recurring payments from your readers.', href: 'https://wordpress.com/support/wordpress-editor/blocks/payments/accept-payments/', external: true },
+		// Newsletters are included on every plan, Free included — no gate.
+		{ icon: 'email', title: 'Start a newsletter', desc: 'Your 12 subscribers already want to hear from you, by email.', href: 'https://wordpress.com/support/newsletter/', external: true, badge: 'Included' },
 		{ icon: 'seen', title: 'Get found on Google', desc: 'Search descriptions help new readers find you — quick to add.', href: 'https://wordpress.com/support/seo/', external: true, badge: 'Guide' },
 		{ icon: 'post', title: 'Add alt text to photos', desc: 'Alt text helps screen readers and search engines see your galleries.', href: 'https://wordpress.com/support/accessibility/', external: true, badge: 'Guide' },
 	];
@@ -7059,7 +7881,7 @@ function untangling_ms_app_js() {
 
 	function stepBadge( step ) {
 		if ( step.upsell ) {
-			return el( 'span', { className: 'ms-grow-badge' }, upsellDiamond(), 'Premium' );
+			return el( 'span', { className: 'ms-grow-badge' }, upsellDiamond(), 'Upgrade' );
 		}
 		if ( step.badge ) {
 			return el( 'span', { className: 'ms-grow-badge is-included' }, step.badge );
@@ -7273,13 +8095,21 @@ function untangling_ms_app_js() {
 
 	/* ---- Hosting ---- */
 
+	// props.muted marks a gated card, and follows MSD's overview-card upsell
+	// intent (components/overview-card + hosting-feature-gated-with-overview-
+	// card): the label row itself becomes the CTA — upsell diamond + blue
+	// "Upgrade to unlock" + chevron — while the heading keeps the promise and
+	// the description the benefit. The label slot swaps meaning between
+	// states there too: BACKUPS / "Backed up 2 hours ago" when it's live.
 	function OvCard( props ) {
 		var tag = props.href ? 'a' : 'div';
-		return el( tag, { className: 'ms-ovcard' + ( props.muted ? ' is-muted' : '' ), href: props.href },
+		return el( tag, { className: 'ms-ovcard' + ( props.muted ? ' is-upsell' : '' ), href: props.href },
 			el( 'span', { className: 'ms-ovcard-label' },
-				icon( PATHS[ props.icon ], '0 0 24 24', 20 ),
-				el( 'span', null, props.label ),
-				props.href && el( 'span', { className: 'ms-ovcard-linkicon' }, icon( PATHS.external, '0 0 24 24', 16 ) )
+				props.muted ? upsellDiamond() : icon( PATHS[ props.icon ], '0 0 24 24', 20 ),
+				el( 'span', null, props.muted ? 'Upgrade to unlock' : props.label ),
+				props.href && el( 'span', { className: 'ms-ovcard-linkicon' },
+					props.muted ? icon( PATHS.chevron, '0 0 24 24', 20 ) : icon( PATHS.external, '0 0 24 24', 16 )
+				)
 			),
 			el( 'span', { className: 'ms-ovcard-heading' }, props.heading ),
 			el( 'span', { className: 'ms-ovcard-desc' }, props.desc )
@@ -7312,6 +8142,21 @@ function untangling_ms_app_js() {
 		var rangeState = useState( '24h' );
 		var range = rangeState[ 0 ], setRange = rangeState[ 1 ];
 		var series = perfSeries( range );
+		// Real product: the whole Performance page is plan-gated
+		// (HostingFeatures.PERFORMANCE) — Free sites get the upsell callout.
+		if ( isFree ) {
+			return el( Card, { className: 'ms-span2' },
+				el( CardBody, null,
+					cardTitle( 'Performance' ),
+					el( UpsellCallout, {
+						icon: 'performance',
+						title: 'Track speed and traffic',
+						desc: 'Requests per minute and average response time, over any range.',
+						cta: 'Upgrade to Business',
+					} )
+				)
+			);
+		}
 		return el( Card, { className: 'ms-span2' },
 			el( CardBody, null,
 				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
@@ -7351,6 +8196,8 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// The Download logs mimic lived here (CSV of the visible tab). Dropped with
+	// the button — the card foot is the credit line now.
 	function LogsCard() {
 		var kindState = useState( 'activity' );
 		var kind = kindState[ 0 ], setKind = kindState[ 1 ];
@@ -7372,6 +8219,21 @@ function untangling_ms_app_js() {
 						],
 					} )
 				),
+				// Real product: PHP + web-server logs are Business/Commerce only;
+				// the activity log stays on Free, capped at the 20 newest events
+				// with an inline upsell below it (our seed is 6 rows, under the cap).
+				// One gate, one purchase — so the icon, title, CTA and shape stay
+				// put across both tabs and only the promise follows the tab you
+				// clicked. Listing both logs on both tabs told the visitor the
+				// tabs were interchangeable, which is the opposite of the pitch.
+				( 'php' === kind || 'server' === kind ) && isFree && el( UpsellCallout, {
+					icon: 'code',
+					title: 'See what your server is doing',
+					desc: 'php' === kind
+						? 'Fatal errors, warnings, and notices — with severity, file, and timestamp.'
+						: 'Every request that hits your site — with status codes and response times.',
+					cta: 'Upgrade to Business',
+				} ),
 				'activity' === kind && el( 'table', { className: 'ms-logs' },
 					el( 'thead', null, el( 'tr', null,
 						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
@@ -7394,7 +8256,13 @@ function untangling_ms_app_js() {
 						);
 					} ) )
 				),
-				'php' === kind && el( 'table', { className: 'ms-logs' },
+				'activity' === kind && isFree && el( UpsellCallout, {
+					inline: true,
+					icon: 'stats',
+					title: 'Get 30 days of activity history',
+					desc: 'Free plans keep the last 20 events. Paid plans add filters and date ranges.',
+				} ),
+				'php' === kind && ! isFree && el( 'table', { className: 'ms-logs' },
 					el( 'thead', null, el( 'tr', null,
 						el( 'th', { className: 'ms-logs-sev' }, 'Severity' ),
 						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
@@ -7408,7 +8276,7 @@ function untangling_ms_app_js() {
 						);
 					} ) )
 				),
-				'server' === kind && el( 'table', { className: 'ms-logs' },
+				'server' === kind && ! isFree && el( 'table', { className: 'ms-logs' },
 					el( 'thead', null, el( 'tr', null,
 						el( 'th', { className: 'ms-logs-status' }, 'Status' ),
 						el( 'th', { className: 'ms-logs-time' }, 'Date & time (UTC)' ),
@@ -7424,9 +8292,16 @@ function untangling_ms_app_js() {
 						);
 					} ) )
 				),
-				el( 'div', { className: 'ms-logs-foot' },
-					el( Button, { variant: 'secondary', size: 'compact', href: '#', onClick: function ( e ) { e.preventDefault(); } }, 'Download logs' ),
-					el( 'span', { className: 'ms-logs-note' }, 'Keeping the last 7 days' )
+				// One centered footer line. The credit and the retention note are
+				// both fine print about the table above, so they share a row with a
+				// middot instead of fighting over the two corners. The credit shows
+				// on Activity only — the PHP and web-server tabs come off the Atomic
+				// host, not Jetpack — and the retention note is paid-only, so either
+				// half can carry the row alone.
+				( 'activity' === kind || ! isFree ) && el( 'div', { className: 'ms-logs-foot is-centered' },
+					'activity' === kind && jetpackCredit( 'ms-logs-credit', 'span' ),
+					'activity' === kind && ! isFree && el( 'span', { className: 'ms-logs-sep', 'aria-hidden': true }, '·' ),
+					! isFree && el( 'span', { className: 'ms-logs-note' }, 'Showing the last 7 days — logs are kept for 30 days' )
 				)
 			)
 		);
@@ -7435,18 +8310,48 @@ function untangling_ms_app_js() {
 	// Caching — the layer every developer reaches for when a change won’t
 	// show up. Statuses mirror the MSD caching settings; Clear is a mimic.
 	var CACHE_ROWS = [
-		{ title: 'Edge cache', desc: 'Pages cached and served from the closest data center.', state: 'Active', intent: 'success' },
+		{ title: 'Global edge cache', desc: 'Pages cached and served from the closest data center.', state: 'Active', intent: 'success' },
 		{ title: 'Object cache', desc: 'Repeated database queries answered from memory.', state: 'Active', intent: 'success' },
-		{ title: 'Defensive mode', desc: 'Extra caching during traffic spikes. Turns on by itself.', state: 'Off', intent: 'default' },
+		{ title: 'Defensive mode', desc: 'Extra caching during traffic spikes. Turn it on for a set time.', state: 'Off', intent: 'default' },
+	];
+
+	// Free has no caching controls, but "managed for you" on its own left a
+	// full-width card holding one sentence. Same rows as the paid card, minus
+	// Defensive mode (Business-only) and minus the buttons — so the card shows
+	// what is running instead of only saying that something is.
+	var FREE_CACHE_ROWS = [
+		{ title: 'Global edge cache', desc: 'Pages served from the data center closest to each visitor.', state: 'Automatic', intent: 'success' },
+		{ title: 'Cache clearing', desc: 'Cleared for you whenever you publish or update.', state: 'Automatic', intent: 'success' },
 	];
 
 	function CacheCard() {
 		var clearedState = useState( false );
 		var cleared = clearedState[ 0 ], setCleared = clearedState[ 1 ];
+		// Real product: caching is managed on Simple/Free — no controls, just
+		// the settings-caching page's managed-for-you line.
+		if ( isFree ) {
+			return el( Card, { className: 'ms-span2' },
+				el( CardBody, null,
+					cardTitle( 'Caching' ),
+					cardDesc( 'Managed for you — nothing to configure.' ),
+					el( 'div', { className: 'ms-cache-list' },
+						FREE_CACHE_ROWS.map( function ( row, i ) {
+							return el( 'div', { key: i, className: 'ms-cache-row' },
+								el( 'span', { className: 'ms-grow-main' },
+									el( 'span', { className: 'ms-grow-title' }, row.title ),
+									el( 'span', { className: 'ms-grow-desc' }, row.desc )
+								),
+								el( Badge, { intent: row.intent }, row.state )
+							);
+						} )
+					)
+				)
+			);
+		}
 		return el( Card, { className: 'ms-span2' },
 			el( CardBody, null,
 				cardTitle( 'Caching' ),
-				cardDesc( 'Two layers keep the site fast. Clear them when a change won’t show up.' ),
+				cardDesc( 'Edge and object caches keep the site fast. Clear them when a change won’t show up.' ),
 				el( 'div', { className: 'ms-cache-list' },
 					CACHE_ROWS.map( function ( row, i ) {
 						return el( 'div', { key: i, className: 'ms-cache-row' },
@@ -7466,21 +8371,40 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// Each row deep-links its real Hosting Dashboard page
+	// (/sites/:site/settings/…); Server settings covers two pages, so it
+	// lands on the settings hub.
 	var ADVANCED_ROWS = [
-		{ icon: 'key', title: 'SFTP/SSH credentials', desc: 'Direct file access for developers.' },
-		{ icon: 'storage', title: 'Database', desc: 'Browse tables with phpMyAdmin.' },
-		{ icon: 'code', title: 'PHP version', desc: 'Running PHP 8.3 — managed for you.' },
-		{ icon: 'globe', title: 'Server settings', desc: 'Primary data center and static file 404s.' },
+		{ icon: 'key', title: 'SFTP/SSH credentials', desc: 'Direct file access for developers.', route: '/settings/sftp-ssh' },
+		{ icon: 'storage', title: 'Database', desc: 'Browse tables with phpMyAdmin.', route: '/settings/database' },
+		{ icon: 'code', title: 'PHP version', desc: 'Running PHP 8.3 — managed for you.', route: '/settings/php' },
+		{ icon: 'globe', title: 'Server settings', desc: 'Primary data center and static file 404s.', route: '/settings' },
 	];
 
 	function AdvancedCard() {
+		// Real product: SFTP/SSH, phpMyAdmin, PHP version and server settings
+		// all sit behind the Business plan — Free gets the generic hosting
+		// upsell from the settings pages.
+		if ( isFree ) {
+			return el( Card, { className: 'ms-span2' },
+				el( CardBody, null,
+					cardTitle( 'Advanced' ),
+					el( UpsellCallout, {
+						icon: 'code',
+						title: 'Get server-level access',
+						desc: 'SFTP/SSH, database, PHP version, and server settings.',
+						cta: 'Upgrade to Business',
+					} )
+				)
+			);
+		}
 		return el( Card, { className: 'ms-span2' },
 			el( CardBody, null,
 				cardTitle( 'Advanced' ),
 				cardDesc( 'Genuinely hosting-level things. These open the Hosting Dashboard.' ),
 				el( 'div', { className: 'ms-advanced-grid' },
 					ADVANCED_ROWS.map( function ( row, i ) {
-						return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug },
+						return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug + ( row.route || '' ) },
 							el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ row.icon ] ) ),
 							el( 'span', { className: 'ms-grow-main' },
 								el( 'span', { className: 'ms-grow-title' }, row.title ),
@@ -7495,22 +8419,24 @@ function untangling_ms_app_js() {
 	}
 
 	function HostingPage() {
+		// Free mirrors the MSD overview's "Upgrade to unlock" cards (real copy
+		// from overview-backup-card / overview-scan-card); staging has no Free
+		// surface at all in the real product, so the row drops to two cards.
 		var stateCards = isFree ? [
-			{ icon: 'cloud', label: 'Backups', heading: 'Not included yet', desc: 'Daily backups and one-click restores come with any paid plan.', muted: true },
-			{ icon: 'shield', label: 'Security', heading: 'Basic protection on', desc: 'Brute-force protection is active. Malware scans come with a paid plan.', muted: true },
-			{ icon: 'layout', label: 'Staging', heading: 'Not available', desc: 'Test changes on a private copy — included with the Business plan.', muted: true },
+			{ icon: 'cloud', label: 'Backups', heading: 'Back up your site', desc: 'Get back online quickly with one-click restores.', muted: true, href: data.plansUrl },
+			{ icon: 'shield', label: 'Security', heading: 'Scan for security threats', desc: 'We guard your site. You run your business.', muted: true, href: data.plansUrl },
 		] : [
-			{ icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', href: msd + '/sites/' + data.siteSlug },
-			{ icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', href: msd + '/sites/' + data.siteSlug },
+			{ icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', href: msd + '/sites/' + data.siteSlug + '/backups' },
+			{ icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', href: msd + '/sites/' + data.siteSlug + '/scan' },
 			{ icon: 'layout', label: 'Staging', heading: 'No staging site yet', desc: 'Test changes on a private copy before they go live.', href: msd + '/sites/' + data.siteSlug },
 		];
 		return el( Shell, {
 			title: 'Hosting',
 			description: 'Your site’s engine room. The Hosting Dashboard keeps the multi-site view — and the recovery path if this site is ever down.',
-			actions: el( Button, { variant: 'secondary', href: msd + '/overview', __next40pxDefaultSize: true, icon: icon( PATHS.external, '0 0 24 24', 20 ), iconPosition: 'right' }, 'Hosting Dashboard' ),
+			actions: el( Button, { variant: 'primary', href: msd + '/overview', __next40pxDefaultSize: true, icon: icon( PATHS.external, '0 0 24 24', 20 ), iconPosition: 'right' }, 'Hosting Dashboard' ),
 		},
 			el( 'div', { className: 'ms-grid' },
-				el( 'div', { className: 'ms-span2 ms-ovcard-row' },
+				el( 'div', { className: 'ms-span2 ms-ovcard-row' + ( isFree ? ' is-two' : '' ) },
 					stateCards.map( function ( card, i ) {
 						return el( OvCard, Object.assign( { key: i }, card ) );
 					} )
@@ -7534,12 +8460,14 @@ function untangling_ms_app_js() {
 		{ label: '1 GB storage', tip: 'Room for your images, documents, and other media.' },
 		{ label: 'Dozens of free themes', tip: 'Choose from dozens of professionally designed free themes.' },
 		{ label: 'Free .wordpress.com address', tip: 'Your site address ends in .wordpress.com, like ' + ( data.siteSlug || 'yoursite' ) + '.wordpress.com.' },
+		{ label: 'WordPress.com ads displayed', tip: 'Free sites display WordPress.com ads to visitors.' },
 		{ label: 'Community support', tip: 'Get help from support guides and the community forums.' },
 	];
 	var COMPARE_PREMIUM = [
 		{ label: '13 GB storage', tip: 'Upload more images, videos, audio, and documents to your website.' },
 		{ label: 'All premium themes', tip: 'Install any premium theme from the WordPress.com marketplace.' },
 		{ label: 'Free domain for one year', tip: 'Get a custom domain – like ' + data.domainUpsell + ' – free for the first year.' },
+		{ label: 'Ad-free experience', tip: 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' },
 		{ label: 'Fast support from our expert team', tip: 'Fast email support from our expert team of Happiness Engineers.' },
 	];
 
@@ -7599,14 +8527,27 @@ function untangling_ms_app_js() {
 						),
 						cardDesc( meta.renew )
 					),
-					el( Button, { variant: 'primary', href: data.plansUrl, __next40pxDefaultSize: true }, 'Compare plans' )
+					// Two jobs, two buttons: Upgrade opens the same pricing step
+					// Compare plans used to, and Manage hands the plan itself over
+					// to the Hosting Dashboard. Nothing to upgrade to on the top
+					// tier, so Manage takes the primary there.
+					el( HStack, { justify: 'flex-end', spacing: 2, expanded: false },
+						! isTopTier && el( Button, { variant: 'primary', href: data.plansUrl, __next40pxDefaultSize: true }, 'Upgrade' ),
+						el( Button, {
+							variant: isTopTier ? 'primary' : 'secondary',
+							href: msd + '/sites/' + data.siteSlug + '/plans',
+							__next40pxDefaultSize: true,
+							icon: icon( PATHS.external, '0 0 24 24', 20 ),
+							iconPosition: 'right',
+						}, 'Manage' )
+					)
 				),
 				el( CardDivider ),
 				el( 'ul', { className: 'ms-plan-features' },
 					( meta.features || [] ).map( function ( feature, i ) {
 						return el( 'li', { key: i },
 							el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
-							feature
+							el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
 						);
 					} )
 				)
@@ -7614,14 +8555,22 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// Two lines, two jobs: the numbers stay neutral, and storage[2] carries the
+	// state (caution when the bar is in warning territory, otherwise a plain
+	// note — a purchased add-on reuses the same slot).
 	function StorageMeter() {
 		var storage = meta.storage || [ 0, 1, null ];
 		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
+		var isTight = pct > 80;
 		return el( 'div', { className: 'ms-storage' },
 			el( 'div', { className: 'ms-storage-bar' },
-				el( 'div', { className: 'ms-storage-fill' + ( pct > 80 ? ' is-warning' : '' ), style: { width: pct + '%' } } )
+				el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
 			),
-			el( 'p', { className: 'ms-storage-note' }, storage[ 0 ] + ' GB used of ' + storage[ 1 ] + ' GB' + ( storage[ 2 ] ? ' — ' + storage[ 2 ] : '' ) )
+			el( 'p', { className: 'ms-storage-used' }, storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used' ),
+			// storage[2] carries a caution when space is tight and a plain note
+			// once an add-on is bought. The amber bar already says "almost
+			// full", so only the neutral note is worth a line of its own.
+			storage[ 2 ] && ! isTight && el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] )
 		);
 	}
 
@@ -7632,7 +8581,7 @@ function untangling_ms_app_js() {
 		var custom = /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain;
 		var rows = isFree ? [
 			{ domain: sub, badge: [ 'default', 'Primary' ], note: 'Free forever' },
-			{ domain: data.domainUpsell, badge: [ 'info', 'Available' ], note: 'Free for a year with any paid plan', href: data.plansUrl },
+			{ domain: data.domainUpsell, badge: [ 'success', 'Available' ], note: 'Free for a year with any paid plan', href: data.plansUrl },
 		] : [
 			{ domain: custom, badge: [ 'success', 'Primary' ], note: 'Renews with your plan' },
 			{ domain: sub, badge: [ 'default', 'Redirects' ], note: 'Free forever' },
@@ -7656,35 +8605,71 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// Most sites don't have a mailbox with us, so the card leads with the offer
+	// rather than a filled-in "Active" row — that state was the rare one, and it
+	// left nothing to do on the card. No mailbox means nothing to manage either,
+	// so the Manage link gives way to the CTA. Free has no custom domain to hang
+	// an address on and points at a domain first; paid plans can buy one now.
 	function EmailCardMs() {
+		var addr = 'hello@' + ( /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain );
 		return el( Card, null,
 			el( CardBody, null,
-				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
-					el( 'h2', { className: 'ms-card-title' }, 'Email' ),
-					extLink( msd + '/emails', 'Manage' )
-				),
-				isFree
-					? el( Fragment, null,
-						cardDesc( 'No mailboxes yet. A custom address like hello@' + data.domainUpsell + ' starts with a domain.' ),
-						el( Button, { variant: 'secondary', size: 'compact', href: data.plansUrl }, 'Get started' )
-					)
-					: el( 'ul', { className: 'ms-domains' },
-						el( 'li', { className: 'ms-domain-row' },
-							el( 'span', { className: 'ms-domain-name' }, 'hello@' + ( /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain ) ),
-							el( Badge, { intent: 'success' }, 'Active' ),
-							el( 'span', { className: 'ms-domain-note' }, 'Professional Email' )
+				cardTitle( 'Email' ),
+				el( 'div', { className: 'ms-upsell is-stacked' },
+					el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS.email, '0 0 24 24', 24 ) ),
+					el( 'span', { className: 'ms-upsell-main' },
+						el( 'h3', { className: 'ms-upsell-title' }, isFree ? 'Get an address at your own domain' : 'Send from ' + addr ),
+						// One line, one idea: the domain is what buys the address. The
+						// old line spent 70 characters on "A custom address like … starts
+						// with a domain", which wrapped to a stub last line once the card
+						// centered, and said the cause after the effect.
+						el( 'p', { className: 'ms-upsell-desc' }, isFree
+							? 'A domain gets you ' + addr + '.'
+							: 'One mailbox, on the domain you already own.'
 						)
-					)
+					),
+					el( Button, {
+						variant: 'secondary',
+						__next40pxDefaultSize: true,
+						href: isFree ? data.plansUrl : msd + '/emails',
+					}, isFree ? 'Add a domain' : 'Add email' )
+				)
 			)
 		);
 	}
 
+	// Storage tiers mirror the Add-ons page dropdown; Buy lands on the
+	// checkout mimic with addon=storage so the purchase stretches the meter.
 	function StorageCardMs() {
+		var SelectControl = C.SelectControl;
+		var gbState = useState( '50' );
+		var gb = gbState[ 0 ], setGb = gbState[ 1 ];
+		var pricing = data.storagePricing || {};
+		// The option text ("+50 GB — $50.00/month") already says what the field
+		// does, so the label is screen-reader only and the billing cadence sits
+		// once under the row instead of repeating in all seven options.
+		var options = Object.keys( pricing ).map( function ( tier ) {
+			return { value: tier, label: '+' + tier + ' GB — $' + Number( pricing[ tier ] ).toFixed( 2 ) + '/month' };
+		} );
 		return el( Card, null,
 			el( CardBody, null,
 				cardTitle( 'Storage' ),
 				el( StorageMeter ),
-				cardDesc( 'Photos, videos, themes, and plugins all share this space.' )
+				el( 'div', { className: 'ms-storage-buy' },
+					el( 'div', { className: 'ms-storage-buy-row' },
+						SelectControl && el( SelectControl, {
+							label: 'Storage add-on size',
+							hideLabelFromVision: true,
+							value: gb,
+							options: options,
+							onChange: setGb,
+							__nextHasNoMarginBottom: true,
+							__next40pxDefaultSize: true,
+						} ),
+						el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.storageAddonUrl + '&gb=' + gb }, 'Add storage' )
+					),
+					el( 'p', { className: 'ms-storage-fineprint' }, 'Billed yearly. Applies to this site only.' )
+				)
 			)
 		);
 	}
@@ -7706,51 +8691,18 @@ function untangling_ms_app_js() {
 							el( Badge, { intent: 'success' }, 'Active' ),
 							el( 'span', { className: 'ms-domain-note' }, meta.renew )
 						),
+						// The custom domain is its own billing line in the real
+						// product (free the first year, renews with the plan after).
+						el( 'li', { className: 'ms-domain-row' },
+							el( 'span', { className: 'ms-domain-name' }, /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain ),
+							el( Badge, { intent: 'default' }, 'Domain' ),
+							el( 'span', { className: 'ms-domain-note' }, meta.renew )
+						),
 						el( 'li', { className: 'ms-domain-row' },
 							el( 'span', { className: 'ms-domain-name' }, 'Visa ending in 4242' ),
 							el( 'span', { className: 'ms-domain-note' }, 'Payment method' )
 						)
 					)
-			)
-		);
-	}
-
-	var ADDON_TILES = ( function () {
-		var tiles = [];
-		if ( isFree ) {
-			tiles.push( { icon: 'globe', title: 'A domain of your own', desc: data.domainUpsell + ' is free for a year with any paid plan.' } );
-			tiles.push( { icon: 'pencil', title: 'Premium themes', desc: 'Designs with more range, included from Premium up.' } );
-		} else {
-			tiles.push( { icon: 'performance', title: 'Site speed tools', desc: 'Boost keeps scores high without tuning.' } );
-		}
-		tiles.push( { icon: 'email', title: 'Professional Email', desc: 'hello@' + ( isFree ? data.domainUpsell : data.domain ) + ', 3 months free.' } );
-		tiles.push( { icon: 'storage', title: 'More storage', desc: 'Add 50 GB as your library grows.' } );
-		if ( ! isFree && ! isCommerce ) {
-			tiles.push( { icon: 'plugin', title: 'Plugins', desc: 'Thousands of ways to extend your site.' } );
-		}
-		if ( isCommerce ) {
-			tiles.push( { icon: 'megaphone', title: 'Blaze ads', desc: 'Put your products in front of new buyers.' } );
-		}
-		return tiles.slice( 0, 4 );
-	} )();
-
-	function AddonsCardMs() {
-		return el( Card, { className: 'ms-span2' },
-			el( CardBody, null,
-				cardTitle( 'Add to your site' ),
-				cardDesc( 'Picked for a ' + ( isCommerce ? 'store' : 'site' ) + ' on the ' + data.plan + ' plan.' ),
-				el( 'div', { className: 'ms-grow-grid' },
-					ADDON_TILES.map( function ( tile, i ) {
-						return el( 'a', { key: i, className: 'ms-grow-item', href: data.plansUrl },
-							el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ tile.icon ] ) ),
-							el( 'span', { className: 'ms-grow-main' },
-								el( 'span', { className: 'ms-grow-title' }, tile.title ),
-								el( 'span', { className: 'ms-grow-desc' }, tile.desc )
-							),
-							el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
-						);
-					} )
-				)
 			)
 		);
 	}
@@ -7762,11 +8714,12 @@ function untangling_ms_app_js() {
 		},
 			el( 'div', { className: 'ms-grid' },
 				el( PlanCardMs ),
+				// Storage sits beside Domains: both are "what this site has
+				// right now". Email and Billing make the second row.
 				el( DomainsCardMs ),
-				el( EmailCardMs ),
 				el( StorageCardMs ),
-				el( BillingCardMs ),
-				el( AddonsCardMs )
+				el( EmailCardMs ),
+				el( BillingCardMs )
 			)
 		);
 	}
@@ -7826,19 +8779,77 @@ function untangling_ms_app_js() {
 	];
 
 	var LEARN_SUPPORT = [
-		[ 'comment', 'Contact us', 'Get answers from our AI assistant, with access to 24/7 expert human support on paid plans.', 'https://wordpress.com/help/contact/' ],
+		// Support ladder is plan-aware: community-first on Free, 24/7 priority
+		// support on Business.
+		[ 'comment', 'Contact us', isFree
+			? 'Get answers from our AI assistant. 24/7 expert human support comes with paid plans.'
+			: 'Get answers from our AI assistant, backed by 24/7 priority support from our expert team.', 'https://wordpress.com/help/contact/' ],
 		[ 'login', 'Ask a question in our forum', 'Browse questions and get answers from other experienced users.', 'https://wordpress.com/forums/' ],
 	];
 
-	function openAssistant() {
-		var panel = document.querySelector( '.untangling-mkt-help' );
-		if ( panel ) {
-			panel.hidden = false;
-			var input = panel.querySelector( 'input' );
-			if ( input ) {
-				input.focus();
+	// Help & Learn hero: the same working prompt box as the hosting tab. The
+	// question goes to the Support Assistant panel in the admin footer, which
+	// posts it, runs the thinking states, and answers. Copy and suggestions
+	// come from untangling_help_panel_data() so both surfaces stay in sync.
+	function AskCard() {
+		var help = window.untanglingHelpData || {};
+		var draftState = useState( '' );
+		var draft = draftState[ 0 ], setDraft = draftState[ 1 ];
+
+		function ask( question ) {
+			var text = ( question || '' ).trim();
+			if ( ! text || ! window.untanglingHelp ) {
+				return;
 			}
+			setDraft( '' );
+			window.untanglingHelp.open( text );
 		}
+
+		return el( Card, null,
+			el( CardBody, null,
+				el( 'div', { className: 'untangling-ask-head' },
+					el( 'span', { className: 'untangling-ask-mark', 'aria-hidden': true },
+						icon( 'M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z', '0 0 24 24', 20 )
+					),
+					el( 'div', null,
+						cardTitle( help.heading || 'Ask about your ' + ( isCommerce ? 'store' : 'site' ) ),
+						cardDesc( help.lede || '' )
+					)
+				),
+				el( 'form', {
+					className: 'untangling-ask-form',
+					onSubmit: function ( event ) {
+						event.preventDefault();
+						ask( draft );
+					},
+				},
+					el( 'input', {
+						type: 'text',
+						className: 'untangling-ask-input',
+						value: draft,
+						placeholder: help.placeholder || '',
+						'aria-label': help.heading || 'Ask about your site',
+						autoComplete: 'off',
+						onChange: function ( event ) {
+							setDraft( event.target.value );
+						},
+					} ),
+					el( Button, { variant: 'primary', type: 'submit', disabled: ! draft.trim() }, help.cta || 'Ask' )
+				),
+				el( 'div', { className: 'untangling-chip-row untangling-ask-chips' },
+					( help.suggestions || [] ).map( function ( suggestion ) {
+						return el( Button, {
+							key: suggestion,
+							variant: 'secondary',
+							size: 'small',
+							onClick: function () {
+								ask( suggestion );
+							},
+						}, suggestion );
+					} )
+				)
+			)
+		);
 	}
 
 	function learnHead( heading, linkLabel, href ) {
@@ -7908,17 +8919,7 @@ function untangling_ms_app_js() {
 			description: 'Answers first, humans when you need them. Same Help Center as the ? up top — just easier to find.',
 		},
 			el( 'div', { className: 'untangling-app ms-learn' },
-				el( Card, null,
-					el( CardBody, null,
-						el( 'div', { className: 'ms-learn-hero' },
-							el( 'div', null,
-								cardTitle( 'Need a hand?' ),
-								cardDesc( 'Ask the AI assistant anything about your ' + ( isCommerce ? 'store' : 'site' ) + '.' )
-							),
-							el( Button, { variant: 'secondary', onClick: openAssistant }, 'Ask AI' )
-						)
-					)
-				),
+				el( AskCard ),
 				el( 'section', { className: 'untangling-learn-section' },
 					learnHead( 'Video tutorials', 'Visit our YouTube channel', 'https://www.youtube.com/@wordpressdotcom' ),
 					el( 'div', { className: 'untangling-media-grid' },
@@ -8206,11 +9207,49 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 
 /* Hosting overview cards — the MSD OverviewCard atom. */
 .untangling-ms .ms-ovcard-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.untangling-ms .ms-ovcard-row.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1100px) {
-	.untangling-ms .ms-ovcard-row { grid-template-columns: 1fr; }
+	.untangling-ms .ms-ovcard-row, .untangling-ms .ms-ovcard-row.is-two { grid-template-columns: 1fr; }
+}
+
+/* Upsell callout — the HostingFeatureGatedWithCallout look: centered icon,
+   title, muted copy, availability line, primary CTA. is-inline is the
+   bordered in-card variant (Free plan activity log). */
+/* Gated-feature row: icon chip, text, CTA — one line of card height instead of
+   a centered 200px empty state. */
+.untangling-ms .ms-upsell { display: flex; align-items: center; gap: 16px; padding: 20px 0 8px; }
+.untangling-ms .ms-upsell-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: color-mix(in srgb, #3858e9 8%, #fff); }
+.untangling-ms .ms-upsell-icon svg { fill: #3858e9; }
+.untangling-ms .ms-upsell-main { flex: 1 1 auto; min-width: 0; }
+.untangling-ms .ms-upsell-title { margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-upsell-desc { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: #757575; }
+.untangling-ms .ms-upsell .components-button { flex: none; }
+.untangling-ms .ms-upsell.is-inline { padding: 16px; margin-top: 16px; border: 1px solid #e0e0e0; border-radius: 8px; }
+/* Same chip and text styles, stacked — for the half-width cards where a row
+   would squeeze the copy into three wrapped lines. Centered on the card's own
+   axis: stacked and left-aligned, the chip, the copy and the button each ended
+   on the same left edge with a ragged right, so the card read as an unfinished
+   column rather than an offer. */
+.untangling-ms .ms-upsell.is-stacked { flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 16px 0 4px; }
+.untangling-ms .ms-upsell.is-stacked .ms-upsell-main { flex: 0 1 auto; }
+/* Centered text is where a one-word last line shows. balance on the title;
+   pretty on the description, because balance was happy to break the example
+   address at its hyphen (hello@slow- / mornings.com), which reads as two things.
+   Both are ignored by anything that doesn't support them. */
+.untangling-ms .ms-upsell.is-stacked .ms-upsell-title { text-wrap: balance; }
+.untangling-ms .ms-upsell.is-stacked .ms-upsell-desc { text-wrap: pretty; }
+@media (max-width: 600px) {
+	.untangling-ms .ms-upsell { flex-wrap: wrap; gap: 12px; }
+	.untangling-ms .ms-upsell-main { flex-basis: 100%; }
 }
 .untangling-ms .ms-ovcard { display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px #e0e0e0; text-decoration: none; transition: box-shadow .15s ease, background .15s ease; }
-.untangling-ms a.ms-ovcard:hover { box-shadow: 0 0 0 1px color-mix(in srgb, #3858e9 40%, transparent); background: color-mix(in srgb, #3858e9 2%, transparent); }
+/* Hover copies the MSD's .dashboard-overview-card__link:hover verbatim: a 2%
+   tint, a 12% ring, and the admin theme color taken by every line of text and
+   both icons — the label, the status, the description, the eyebrow icon and the
+   link chevron. Ours ringed at 40% and lit the heading alone, so the card
+   looked bordered rather than hovered. The theme var (not a hardcoded blue)
+   because the MSD follows the user's admin color scheme. */
+.untangling-ms a.ms-ovcard:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 12%, transparent); background: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 2%, transparent); }
 .untangling-ms .ms-ovcard-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: .02em; text-transform: uppercase; color: #757575; }
 .untangling-ms .ms-ovcard-label svg { fill: #757575; }
 .untangling-ms .ms-ovcard-linkicon { margin-left: auto; display: flex; }
@@ -8221,8 +9260,30 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    leans on weight instead. Desc is a sentence: md floor, never sm. */
 .untangling-ms .ms-ovcard-heading { font-size: var(--wpds-typography-font-size-lg); line-height: var(--wpds-typography-line-height-sm); font-weight: var(--wpds-typography-font-weight-emphasis); color: #1e1e1e; }
 .untangling-ms .ms-ovcard-desc { font-size: var(--wpds-typography-font-size-md); line-height: 18px; color: #757575; }
-.untangling-ms .ms-ovcard.is-muted .ms-ovcard-heading { color: #757575; }
-.untangling-ms a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
+/* Gated variant, following MSD's upsell intent: the ground stays white and the
+   eyebrow alone carries the offer, in the admin theme color. The old treatment
+   (tinted card + gray plan badge + second CTA line) stated the gate three times
+   and the badge sat gray-on-gray. */
+.untangling-ms .ms-ovcard.is-upsell .ms-ovcard-label { color: var(--wp-admin-theme-color, #3858e9); }
+.untangling-ms .ms-ovcard.is-upsell .ms-ovcard-label svg { fill: currentColor; }
+.untangling-ms .ms-ovcard.is-upsell .ms-ovcard-linkicon svg { fill: #949494; }
+/* The diamond is cropped to its glyph, so it needs the shared inline sizing
+   rather than the 24-viewBox box the feature icons sit in. */
+.untangling-ms .ms-ovcard.is-upsell .ms-ovcard-label > svg { width: 16px; height: 14px; }
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-label,
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-heading,
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-desc { color: var(--wp-admin-theme-color, #3858e9); }
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-label svg,
+.untangling-ms a.ms-ovcard:hover .ms-ovcard-linkicon svg { fill: var(--wp-admin-theme-color, #3858e9); }
+
+/* Jetpack credit — the activity log's card foot, and nowhere else. Sentence case
+   at fine-print scale: uppercase put it at the same weight as the table column
+   headers and it read as a section label. The two-tone mark needs its fills
+   pinned to the paths themselves — a direct rule beats an inherited one, so the
+   green survives any container that repaints the svgs inside it. */
+.untangling-ms .ms-jp-logo path { fill: #069e08; }
+.untangling-ms .ms-jp-logo polygon { fill: #fff; }
+.untangling-ms .ms-jp-credit { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: #757575; }
 
 /* Logs table — the DataViews table look: hairline rows, muted mono details. */
 .untangling-ms .ms-logs { width: 100%; border-collapse: collapse; margin-top: 8px; }
@@ -8234,6 +9295,11 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-logs-time { width: 170px; white-space: nowrap; color: #757575; }
 .untangling-ms .ms-logs-empty { margin: 24px 0; font-size: 13px; color: #757575; }
 .untangling-ms .ms-logs-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+/* Fine-print row: centered as one unit, wrapping to two centered lines on narrow
+   screens rather than letting the middot dangle. */
+.untangling-ms .ms-logs-foot.is-centered { justify-content: center; flex-wrap: wrap; gap: 8px; text-align: center; }
+.untangling-ms .ms-logs-sep { font-size: 12px; color: #949494; }
+.untangling-ms .ms-logs-credit { color: #949494; }
 .untangling-ms .ms-logs-note { font-size: 12px; color: #949494; }
 
 /* Activity view — MSD activity-log row: gray icon tile, bold event title with
@@ -8283,6 +9349,10 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 	.untangling-ms .ms-plan-features { grid-template-columns: 1fr; }
 }
 .untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1e1e1e; }
+/* The shared tooltip centers on the cursor; in this two-column grid that
+   pushes the 300px bubble past the card's left edge, so anchor it to the
+   start of the label instead. */
+.untangling-ms .ms-plan-features .untangling-feature-tip::after { left: 0; transform: none; }
 .untangling-ms .ms-plan-check { display: flex; }
 .untangling-ms .ms-plan-check svg { fill: #00a32a; }
 /* Plan upgrade — Free vs Premium compare, ported from the WP.com page V5 card.
@@ -8316,7 +9386,14 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-storage-bar { height: 8px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
 .untangling-ms .ms-storage-fill { height: 100%; border-radius: 4px; background: #3858e9; transition: width .4s ease; }
 .untangling-ms .ms-storage-fill.is-warning { background: #d47608; }
-.untangling-ms .ms-storage-note { margin: 8px 0 0; font-size: 13px; color: #757575; }
+.untangling-ms .ms-storage-used { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-storage-note { margin: 2px 0 0; font-size: 13px; color: #757575; }
+.untangling-ms .ms-storage-buy { margin-top: 16px; }
+/* Select stretches, button keeps its intrinsic width; both are 40px tall so
+   they sit on one baseline, and they stack on narrow cards. */
+.untangling-ms .ms-storage-buy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.untangling-ms .ms-storage-buy-row .components-base-control { flex: 1 1 200px; }
+.untangling-ms .ms-storage-fineprint { margin: 8px 0 0; font-size: 12px; color: #757575; }
 .untangling-ms .ms-domains { list-style: none; margin: 8px 0 0; padding: 0; }
 .untangling-ms .ms-domain-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap; }
 .untangling-ms .ms-domain-row:last-child { border-bottom: none; }
@@ -8326,11 +9403,10 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-domain-note a:hover { text-decoration: underline; }
 
 /* Help & Learn — the hosting tab's learn layout inside the My Site shell.
-   Media/topic/support card styles come from untangling_app_css(); the page
-   only adds the wrapper rhythm, the hero row, and the ms-style headings. */
+   Media/topic/support/ask-card styles come from untangling_app_css(); the page
+   only adds the wrapper rhythm and the ms-style headings. */
 .untangling-ms .ms-learn { display: flex; flex-direction: column; gap: 32px; }
-.untangling-ms .ms-learn-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.untangling-ms .ms-learn-hero .ms-card-desc { margin: 4px 0 0; }
+.untangling-ms .ms-learn .untangling-ask-head .ms-card-desc { margin: 4px 0 0; }
 .untangling-ms .ms-learn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .untangling-ms .ms-learn-head .ms-next-h2 { margin: 0; }
 .untangling-ms .untangling-topic-icon svg,
