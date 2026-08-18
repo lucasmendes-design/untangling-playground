@@ -365,9 +365,12 @@ function untangling_get_plan_meta( $for_plan = null ) {
 		),
 		'Business' => array(
 			'renew'    => 'Renews March 14, 2027',
-			// 3rd storage entry: deliberate "needs attention" flag — drives the
-			// My Site AttentionCard (storage almost full) for this plan.
-			'storage'  => array( 41.8, 50, 'Almost full. New uploads may fail.', true ),
+			// The 4th entry is the "needs attention" flag that drove the My Site
+			// AttentionCard (storage almost full). Dropped on 2026-08-18: a
+			// storage alarm is not a next step, and Atomic (Business) opened on
+			// a red banner before the page had said anything else. The note on
+			// the storage meter still carries the pressure where storage lives.
+			'storage'  => array( 41.8, 50, 'Almost full. New uploads may fail.' ),
 		),
 		'Commerce' => array(
 			'renew'    => 'Renews March 14, 2027',
