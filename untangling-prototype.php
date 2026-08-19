@@ -9934,7 +9934,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .untangling-ms .ms-title,
 .untangling-ms .ms-tl-title { margin: 0; font-size: 32px; line-height: 1.2; font-weight: 500; color: #1e1e1e; }
-.untangling-ms .ms-desc { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: #757575; max-width: 68ch; }
+.untangling-ms .ms-desc { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: #757575; max-width: 68ch; text-wrap: balance; }
 .untangling-ms .ms-content { display: flex; flex-direction: column; gap: 24px; flex: 1; }
 /* Grow chain so the "Tailored with AI" line (margin-top: auto) sits at the
    bottom of the viewport when the content is short, after it when tall. */
