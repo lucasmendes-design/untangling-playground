@@ -615,13 +615,14 @@ function untangling_is_simple() {
 /**
  * Marketplace variant. 'fullscreen' (V1): themes AND plugins live in the
  * chromeless fullscreen Marketplace, linked from the sidebar and the WP.com
- * banners. 'split' (V2): plugins keep the core-unified Marketplace tab in
- * Add Plugins; themes get the in-admin Themes screen Atomic sites ship —
- * Appearance → Themes renders the showcase in the content area (section 3f).
- * 'tabs' (V3): fully in-admin — Add Themes gets a Marketplace tab like Add
- * Plugins, the Theme Showcase sidebar entry disappears, and both banners
- * upsell plans. The fullscreen page keeps serving the pricing/checkout and
- * theme-details steps only.
+ * banners. 'split' (V2): the production-Atomic experience — plugins keep the
+ * core-unified Marketplace tab in Add Plugins; Appearance → Themes stays
+ * core's installed-themes screen and Appearance → Theme Showcase renders the
+ * catalog in the content area, with theme details in the admin chrome too
+ * (section 3f). 'tabs' (V3): fully in-admin — Add Themes gets a Marketplace
+ * tab like Add Plugins, the Theme Showcase sidebar entry disappears, and both
+ * banners upsell plans. The fullscreen page keeps serving the
+ * pricing/checkout steps (and V2's plugin details) only.
  * Switch with ?untangling_marketplace=fullscreen|split|tabs (persisted), or
  * from the Prototype controls.
  */
@@ -657,7 +658,7 @@ function untangling_get_plan_filter() {
 }
 
 /**
- * Free-domain upsell placement — three comparable homes for the same nudge,
+ * Upsell placement — three comparable homes for the same nudge,
  * switched from Prototype controls:
  *   'menu-top'  the classic spot, above the menu, redesigned for a 160px
  *               dark column instead of the white card that ships today;
@@ -683,12 +684,38 @@ function untangling_get_upsell_placement() {
  * chosen placement still persists while you are on Atomic; it just goes quiet.
  */
 function untangling_get_active_upsell() {
-	return untangling_is_simple() ? untangling_get_upsell_placement() : 'none';
+	return untangling_get_upsell_placement();
 }
 
-// Where every placement sends you: the plan-only pricing step, entered with a
-// ref so untangling_plan_pricing() can bold the row this nudge promised.
+// One nudge component, two offers: what it sells follows the site type.
+// Simple has nothing attached yet, so it sells the annual plan (free domain);
+// Atomic is already on Business, so it sells the two-year renewal instead.
+// Same card, same button, same pill — only the words and the landing change.
+function untangling_upsell_offer() {
+	if ( untangling_is_simple() ) {
+		return array(
+			'text' => __( 'Free domain with an annual plan' ),
+			'cta'  => __( 'Upgrade' ),
+			'gem'  => true,
+			'pill' => __( 'Free domain' ),
+		);
+	}
+	return array(
+		'text' => __( 'Renew your plan for 2 years and save 20%' ),
+		'cta'  => __( 'Save now' ),
+		'gem'  => false,
+		'pill' => __( 'Save 20%' ),
+	);
+}
+
+// Where every placement sends you. Simple: the plan-only pricing step, entered
+// with a ref so untangling_plan_pricing() can bold the row this nudge promised.
+// Atomic: Plan & products, where the plan and billing actually live — the
+// prototype has no renewal checkout to mimic.
 function untangling_upsell_url( $placement ) {
+	if ( ! untangling_is_simple() ) {
+		return admin_url( 'admin.php?page=untangling-mysite&ms=plan' );
+	}
 	return untangling_marketplace_url( 'themes', array(
 		'ustep' => 'pricing',
 		'ref'   => 'domain-upsell',
@@ -1021,10 +1048,10 @@ add_action( 'admin_menu', function () {
 
 // Marketplace entry points. The page itself registers as a (hidden) top-level
 // page so it lives at admin.php?page=untangling-marketplace; the sidebar items
-// are plain deep links. Appearance → Theme Showcase and Plugins → Marketplace
-// are V1 only: V2 (split) replaces the Appearance → Themes screen itself with
-// the in-admin showcase (section 3f), and V3 (tabs) gives themes an in-admin
-// Marketplace tab instead.
+// are plain deep links. This fullscreen Theme Showcase and Plugins →
+// Marketplace are V1 only: V2 (split) has its own Theme Showcase submenu
+// pointing at the in-admin showcase (section 3f), and V3 (tabs) gives themes
+// an in-admin Marketplace tab instead.
 add_action( 'admin_menu', function () {
 	add_menu_page( __( 'Marketplace' ), __( 'Marketplace' ), 'manage_options', 'untangling-marketplace', 'untangling_render_marketplace_page' );
 	remove_menu_page( 'untangling-marketplace' );
@@ -2593,7 +2620,7 @@ function untangling_app_js() {
 	// used to live in a five-line help paragraph.
 	var MARKETPLACE_HELP = {
 		fullscreen: 'Themes + plugins in the chromeless Marketplace.',
-		split: 'Plugins keep the Add Plugins tab; themes use the in-admin Themes screen.',
+		split: 'Production Atomic: core Themes screen + Appearance → Theme Showcase; plugins keep the Add Plugins tab.',
 		tabs: 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.',
 	};
 	var PLAN_FILTER_HELP = {
@@ -3991,6 +4018,12 @@ function untangling_themes_banner() {
 	if ( $is_tabs && 'themes.php' === $GLOBALS['pagenow'] ) {
 		return;
 	}
+	// V2: production Atomic keeps the installed-themes screen banner-free — the
+	// Theme Showcase submenu is the discovery entry. Add Themes keeps the
+	// banner, whose CTA already points back at the in-admin showcase.
+	if ( 'split' === untangling_get_marketplace_mode() && 'themes.php' === $GLOBALS['pagenow'] ) {
+		return;
+	}
 	$heading   = $is_tabs ? __( 'Unlock thousands of themes' ) : __( 'Beautiful themes for every idea' );
 	$blurb     = $is_tabs ? __( 'Upgrade to any annual plan and get a free domain for the first year.' ) : __( 'Dive deep into the world of WordPress.com themes. Discover the responsive and stunning designs waiting to bring your site to life.' );
 	$cta_label = $is_tabs ? __( 'See all plans' ) : __( 'Explore themes' );
@@ -5137,6 +5170,10 @@ function untangling_marketplace_topbar( $mkt, $step, $mode ) {
  */
 function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 	$rank        = untangling_plan_rank( $plan );
+	// In split the fullscreen browse never renders (admin_init redirect), so
+	// these cards only ever serve the in-admin screen there: details stay in
+	// the admin chrome and gated CTAs carry the upsell diamond, as on Atomic.
+	$is_split    = 'split' === untangling_get_marketplace_mode();
 	// Activating is a mimic handled on admin_init, so it can return to
 	// whichever surface rendered these cards.
 	$return_url  = $return_url ? $return_url : untangling_marketplace_url( 'themes' );
@@ -5169,12 +5206,16 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 			: untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
 		?>
 		<article class="untangling-mkt-theme-card<?php echo $is_active ? ' is-current' : ''; ?>" data-name="<?php echo esc_attr( strtolower( $name . ' ' . $slug ) ); ?>" data-subject="<?php echo esc_attr( $subject ); ?>" data-recommended="<?php echo $recommended ? '1' : ''; ?>" data-mine="<?php echo $is_active ? '1' : ''; ?>" data-tier="<?php echo esc_attr( $tier ); ?>">
-			<?php $details_url = untangling_marketplace_url( 'themes', array( 'ustep' => 'details', 'slug' => $slug ) ); ?>
+			<?php
+			$details_url = $is_split
+				? untangling_themes_screen_url( array( 'ustep' => 'details', 'slug' => $slug ) )
+				: untangling_marketplace_url( 'themes', array( 'ustep' => 'details', 'slug' => $slug ) );
+			?>
 			<div class="untangling-mkt-shot">
 				<img src="<?php echo esc_url( $shot ); ?>" alt="" decoding="async">
 				<div class="untangling-mkt-shot-overlay">
 					<?php if ( ! $is_active ) : ?>
-						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
+						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( ! $included && $is_split ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
 					<?php endif; ?>
 					<a class="untangling-mkt-shot-cta is-ghost" href="<?php echo esc_url( $details_url ); ?>"><?php esc_html_e( 'Theme details' ); ?></a>
 				</div>
@@ -5353,7 +5394,7 @@ function untangling_marketplace_browse( $mkt, $mode, $plan ) {
 // Theme details — mimics production wordpress.com/theme/{slug}: breadcrumb,
 // tier pill, Recoleta title + author, Preview/Activate actions, description,
 // feature tags, support card, large screenshot on the right.
-function untangling_marketplace_details_step( $plan ) {
+function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 	$slug = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
 	$row  = null;
 	foreach ( untangling_marketplace_themes() as $t ) {
@@ -5372,39 +5413,62 @@ function untangling_marketplace_details_step( $plan ) {
 	$included  = untangling_plan_rank( $plan ) >= untangling_plan_rank( $tier_plan );
 	$is_active = $slug === get_option( 'untangling_mkt_active_theme', '' );
 
-	if ( 'free' === $tier ) {
+	if ( $in_admin ) {
+		// Production Atomic details: short pill, no ★.
+		if ( 'free' === $tier ) {
+			$pill = __( 'Free' );
+		} elseif ( $included ) {
+			$pill = __( 'Included with your plan' );
+		} elseif ( $price ) {
+			$pill = sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan );
+		} else {
+			$pill = sprintf( __( 'Available on %s' ), $tier_plan );
+		}
+	} elseif ( 'free' === $tier ) {
 		$pill = __( 'Free theme' );
 	} elseif ( $price ) {
 		$pill = sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan );
 	} else {
 		$pill = sprintf( __( 'Available on %s' ), $tier_plan );
 	}
-	$cta_url = $included
-		? add_query_arg( 'untangling_activate_theme', $slug, untangling_marketplace_url( 'themes' ) )
+	$browse_url = $in_admin ? untangling_themes_screen_url() : untangling_marketplace_url( 'themes' );
+	$cta_url    = $included
+		? add_query_arg( 'untangling_activate_theme', $slug, $browse_url )
 		: untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
 	?>
 	<nav class="untangling-mkt-crumbs">
-		<a href="<?php echo esc_url( untangling_marketplace_url( 'themes' ) ); ?>"><?php esc_html_e( 'Themes' ); ?></a>
+		<a href="<?php echo esc_url( $browse_url ); ?>"><?php esc_html_e( 'Themes' ); ?></a>
 		<span aria-hidden="true">›</span>
 		<span class="is-current"><?php echo esc_html( sprintf( __( '%s Theme' ), $name ) ); ?></span>
 	</nav>
 	<div class="untangling-mkt-detail">
 		<div class="untangling-mkt-detail-info">
-			<span class="untangling-mkt-detail-tierpill">★ <?php echo esc_html( $pill ); ?></span>
+			<span class="untangling-mkt-detail-tierpill"><?php echo ( $in_admin ? '' : '★ ' ) . esc_html( $pill ); ?></span>
 			<div class="untangling-mkt-detail-head">
 				<div>
 					<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $name ); ?></h1>
 					<p class="untangling-mkt-detail-by"><?php echo esc_html( sprintf( __( 'by %s' ), $author ) ); ?></p>
 				</div>
 				<div class="untangling-mkt-detail-actions">
-					<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( $demo ); ?>" target="_blank" rel="noreferrer"><?php esc_html_e( 'Preview' ); ?></a>
+					<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( $demo ); ?>" target="_blank" rel="noreferrer"><?php esc_html_e( 'Preview' ); ?><?php if ( $in_admin ) : ?> <svg class="untangling-mkt-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><?php endif; ?></a>
 					<?php if ( $is_active ) : ?>
 						<span class="untangling-mkt-button is-disabled">✓ <?php esc_html_e( 'Active' ); ?></span>
 					<?php else : ?>
-						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
+						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $in_admin && ! $included ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
+			<?php if ( $in_admin ) : ?>
+			<div class="untangling-mkt-detail-styles">
+				<h2><?php esc_html_e( 'Styles' ); ?></h2>
+				<p><?php esc_html_e( 'You can change your style at any time.' ); ?></p>
+				<div class="untangling-mkt-style-chips">
+					<button type="button" class="untangling-mkt-style-chip is-selected" style="background: #fff; color: #1e1e1e;" aria-label="<?php esc_attr_e( 'Default style' ); ?>"><span class="untangling-mkt-style-aa">Aa</span><span class="untangling-mkt-style-dots"><i style="background: #757575;"></i><i style="background: #1e1e1e;"></i></span></button>
+					<button type="button" class="untangling-mkt-style-chip" style="background: #2f2f2f; color: #fff;" aria-label="<?php esc_attr_e( 'Dark style' ); ?>"><span class="untangling-mkt-style-aa">Aa</span><span class="untangling-mkt-style-dots"><i style="background: #a7a7a7;"></i><i style="background: #fff;"></i></span></button>
+					<button type="button" class="untangling-mkt-style-chip" style="background: #efe8dc; color: #1e1e1e;" aria-label="<?php esc_attr_e( 'Muted style' ); ?>"><span class="untangling-mkt-style-aa">Aa</span><span class="untangling-mkt-style-dots"><i style="background: #8a8378;"></i><i style="background: #1e1e1e;"></i></span></button>
+				</div>
+			</div>
+			<?php endif; ?>
 			<div class="untangling-mkt-detail-desc"><p><?php echo esc_html( $desc ); ?></p></div>
 			<h2><?php esc_html_e( 'Features' ); ?></h2>
 			<div class="untangling-mkt-detail-feats">
@@ -6905,36 +6969,33 @@ function untangling_marketplace_js() {
 }
 
 /* -------------------------------------------------------------------------
- * 3f. Split (V2): the in-admin Themes screen. V2 no longer sends Appearance →
- * Themes to the chromeless fullscreen showcase — it renders the same catalog
- * in the wp-admin content area, mirroring the WordPress.com themes screen
- * Atomic sites already ship: page heading + "Install new theme", a search
- * field with the tier select, the category pills, and the three-column grid
- * with plan badges. Cards, gating and badges come from
- * untangling_theme_grid_cards(); filtering reuses untangling_marketplace_js().
- * themes.php redirects here so Appearance → Themes *is* the showcase, as on
- * Atomic. The fullscreen page stays behind it for details/pricing/checkout.
+ * 3f. Split (V2): the production-Atomic themes experience. Appearance →
+ * Themes stays core's installed-themes screen (banner-free), and a separate
+ * Appearance → Theme Showcase item renders the catalog in the wp-admin
+ * content area, mirroring the WordPress.com themes screen Atomic sites
+ * already ship: page heading + "Install new theme", a search field with the
+ * tier select, the category tabs, and the three-column grid with plan
+ * badges. Cards, gating and badges come from untangling_theme_grid_cards();
+ * filtering reuses untangling_marketplace_js(). Theme details render on this
+ * same page inside the admin chrome (ustep=details); the fullscreen shell
+ * only serves pricing/checkout/done (and plugin details).
  * ---------------------------------------------------------------------- */
 
 add_action( 'admin_menu', function () {
 	if ( 'split' !== untangling_get_marketplace_mode() ) {
 		return;
 	}
-	// First item under Appearance, in core's own slot: the in-admin showcase
-	// replaces core's Themes screen rather than sitting next to it.
-	add_submenu_page( 'themes.php', __( 'Themes' ), __( 'Themes' ), 'switch_themes', 'untangling-themes', 'untangling_render_themes_screen', 0 );
-	remove_submenu_page( 'themes.php', 'themes.php' );
+	// Production Atomic submenu order is Themes · Editor · Theme Showcase, so
+	// core's own Themes item stays and the showcase sits after the Editor.
+	add_submenu_page( 'themes.php', __( 'Themes' ), __( 'Theme Showcase' ), 'switch_themes', 'untangling-themes', 'untangling_render_themes_screen', 2 );
 }, 12 );
 
-// Appearance's parent link still points at themes.php, and so do core's own
-// "Themes" links, so the redirect is what actually makes the showcase the
-// themes screen. `?untangling_core=1` still reaches core's browser for
-// side-by-side comparison.
-// V2 (split) browses themes in-admin, so the fullscreen shell only serves the
-// details/pricing/checkout steps — same as V3. Old fullscreen browse links
-// (persisted URLs, a mid-flow version switch) land on the showcase instead of
-// a dead step. Headers are still open on admin_init; the page callback runs
-// after admin-header.php, too late to redirect.
+// V2 (split) browses themes in-admin and renders theme details there too, so
+// the fullscreen shell only serves pricing/checkout/done (and plugin
+// details). Old fullscreen browse/details links (persisted URLs, a mid-flow
+// version switch) land on the in-admin equivalents instead of a dead step.
+// Headers are still open on admin_init; the page callback runs after
+// admin-header.php, too late to redirect.
 add_action( 'admin_init', function () {
 	if ( 'split' !== untangling_get_marketplace_mode() ) {
 		return;
@@ -6942,22 +7003,22 @@ add_action( 'admin_init', function () {
 	if ( empty( $_GET['page'] ) || 'untangling-marketplace' !== $_GET['page'] ) {
 		return;
 	}
-	if ( isset( $_GET['ustep'] ) && in_array( $_GET['ustep'], array( 'details', 'pricing', 'checkout', 'done' ), true ) ) {
+	$step = isset( $_GET['ustep'] ) ? $_GET['ustep'] : '';
+	if ( in_array( $step, array( 'pricing', 'checkout', 'done' ), true ) ) {
 		return;
+	}
+	if ( 'details' === $step ) {
+		// Plugin details keep the fullscreen shell; theme details moved into
+		// the admin chrome, so old fullscreen theme-details links follow.
+		if ( isset( $_GET['type'] ) && 'plugin' === $_GET['type'] ) {
+			return;
+		}
+		if ( ! empty( $_GET['slug'] ) ) {
+			wp_safe_redirect( untangling_themes_screen_url( array( 'ustep' => 'details', 'slug' => sanitize_key( wp_unslash( $_GET['slug'] ) ) ) ) );
+			exit;
+		}
 	}
 	wp_safe_redirect( untangling_themes_screen_url() );
-	exit;
-} );
-
-add_action( 'load-themes.php', function () {
-	if ( 'split' !== untangling_get_marketplace_mode() ) {
-		return;
-	}
-	// themes.php?page=… is a submenu page (this one included) — never loop.
-	if ( ! empty( $_GET['page'] ) || ! empty( $_GET['untangling_core'] ) ) {
-		return;
-	}
-	wp_safe_redirect( admin_url( 'themes.php?page=untangling-themes' ) );
 	exit;
 } );
 
@@ -6966,19 +7027,30 @@ function untangling_themes_screen_url( $args = array() ) {
 }
 
 function untangling_render_themes_screen() {
-	$plan = untangling_get_plan();
+	$plan       = untangling_get_plan();
+	$is_details = isset( $_GET['ustep'] ) && 'details' === $_GET['ustep'];
 	untangling_marketplace_styles( false );
 	?>
 	<style>
+	/* Production Theme Showcase sits on a white canvas, not the admin gray —
+	   #wpwrap included, or its gray peeks out between content and footer. */
+	body, #wpwrap, #wpcontent, #wpfooter { background: #fff; }
+	.untangling-themes-screen { padding: 12px 24px 64px; }
 	/* The catalog styles assume the fullscreen shell — undo the parts that
 	   only make sense there and let the grid use the admin content width. */
 	.untangling-themes-screen .untangling-mkt { min-height: 0; display: block; }
 	.untangling-themes-screen .untangling-mkt-filterbar { max-width: none; margin: 0 0 32px; }
-	.untangling-themes-screen .untangling-mkt-pillnav.is-prev { background: linear-gradient( to right, #f0f0f1 40%, rgba( 240, 240, 241, 0 ) ); }
-	.untangling-themes-screen .untangling-mkt-pillnav.is-next { background: linear-gradient( to left, #f0f0f1 40%, rgba( 240, 240, 241, 0 ) ); }
-	.untangling-themes-screen .untangling-mkt-pills button { background: #fff; }
+	.untangling-themes-screen .untangling-mkt-pillnav.is-prev { background: linear-gradient( to right, #fff 40%, rgba( 255, 255, 255, 0 ) ); }
+	.untangling-themes-screen .untangling-mkt-pillnav.is-next { background: linear-gradient( to left, #fff 40%, rgba( 255, 255, 255, 0 ) ); }
+	/* Production category tabs: resting = plain text, active = black pill. */
+	.untangling-themes-screen .untangling-mkt-pills button { height: 36px; padding: 0 14px; border-radius: 9999px; background: transparent; }
 	.untangling-themes-screen .untangling-mkt-pills button:hover { background: var(--mkt-gray-5); }
-	.untangling-themes-screen .untangling-mkt-pills button.is-active { background: var(--mkt-gray-80); color: #fff; }
+	.untangling-themes-screen .untangling-mkt-pills button.is-active { background: var(--mkt-gray-100); color: #fff; }
+	/* Production cards: hairline border instead of the fullscreen drop shadow;
+	   the active theme keeps its blue ring, and its badge is blue-filled. */
+	.untangling-themes-screen .untangling-mkt-shot { box-shadow: none; border: 1px solid rgba( 0, 0, 0, 0.12 ); }
+	.untangling-themes-screen .untangling-mkt-theme-card.is-current .untangling-mkt-shot { border-color: transparent; box-shadow: 0 0 0 2px var(--mkt-blue); }
+	.untangling-themes-screen .untangling-mkt-badge.is-activebadge { background: var(--mkt-blue); color: #fff; }
 	/* Three columns like the production screen; the auto-fill default would
 	   run to four or five at admin content widths. */
 	.untangling-themes-screen .untangling-mkt-theme-grid { grid-template-columns: repeat( 3, minmax( 0, 1fr ) ); gap: 48px 32px; }
@@ -6987,23 +7059,70 @@ function untangling_render_themes_screen() {
 
 	/* Page head — core's .wrap h1 metrics with the production subtitle and a
 	   secondary Install new theme action on the right. */
-	.untangling-themes-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin: 8px 0 24px; }
-	.untangling-themes-screen .untangling-themes-head h1 { font-size: 23px; font-weight: 400; line-height: 1.3; margin: 0; padding: 0; color: var(--mkt-gray-100); }
+	.untangling-themes-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin: 16px 0 28px; }
+	.untangling-themes-screen .untangling-themes-head h1 { font-size: 24px; font-weight: 400; line-height: 1.3; margin: 0; padding: 0; color: var(--mkt-gray-100); }
 	.untangling-themes-head p { margin: 4px 0 0; font-size: 14px; color: var(--mkt-gray-60); }
-	.untangling-themes-head a.untangling-themes-install { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; box-sizing: border-box; flex-shrink: 0; background: #fff; color: var(--mkt-gray-100); border: 1px solid var(--mkt-gray-10); border-radius: 4px; font-size: 13px; font-weight: 500; text-decoration: none; }
+	.untangling-themes-head a.untangling-themes-install { display: inline-flex; align-items: center; height: 44px; padding: 0 20px; box-sizing: border-box; flex-shrink: 0; background: #fff; color: var(--mkt-gray-100); border: 1px solid var(--mkt-gray-10); border-radius: 4px; font-size: 14px; font-weight: 500; text-decoration: none; }
 	.untangling-themes-head a.untangling-themes-install:hover { border-color: var(--mkt-gray-50); color: var(--mkt-gray-100); }
 
 	/* Search + tier select share one row above the pills (the fullscreen
-	   showcase stacks them differently — hero search, then filter bar). */
+	   showcase stacks them differently — hero search, then filter bar).
+	   Production keeps the pair left-aligned: search capped at ~600px with
+	   the plain single-row select right beside it. */
 	.untangling-themes-controls { display: flex; align-items: stretch; gap: 16px; margin: 0 0 24px; }
-	.untangling-themes-screen .untangling-themes-controls .untangling-mkt-search { flex: 1; max-width: none; margin: 0; }
+	.untangling-themes-screen .untangling-themes-controls .untangling-mkt-search { flex: 0 1 600px; max-width: 600px; margin: 0; }
 	.untangling-themes-screen .untangling-themes-controls .untangling-mkt-search input { height: 48px; font-size: 14px; }
-	.untangling-themes-screen .untangling-themes-controls .untangling-mkt-view { min-width: 200px; }
+	.untangling-themes-screen .untangling-themes-controls .untangling-mkt-view { min-width: 280px; flex-direction: row; align-items: center; padding: 0 12px; }
+	#wpcontent .untangling-themes-screen .untangling-mkt-view select { font-weight: 400; flex: 1; }
 	@media ( max-width: 782px ) {
 		.untangling-themes-head { flex-direction: column; }
 		.untangling-themes-controls { flex-direction: column; }
 	}
+
+	/* Theme details inside the admin chrome (ustep=details). */
+	.untangling-themes-screen.is-details .untangling-mkt-crumbs { margin: 8px 0 24px; }
+	.untangling-themes-screen.is-details .untangling-mkt-detail-shot { top: 64px; }
+	.untangling-mkt-caret { margin-left: 4px; }
+	.untangling-mkt-detail-styles { margin: 28px 0 4px; }
+	.untangling-mkt-detail-styles h2 { margin: 0 0 2px; }
+	.untangling-mkt-detail-styles > p { margin: 0 0 12px; font-size: 14px; color: var(--mkt-gray-60); }
+	.untangling-mkt-style-chips { display: flex; gap: 12px; }
+	.untangling-mkt-style-chip { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 88px; height: 60px; border: 1px solid var(--mkt-gray-10); border-radius: 6px; cursor: pointer; }
+	.untangling-mkt-style-chip.is-selected { border-color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px var(--mkt-gray-100); }
+	.untangling-mkt-style-aa { font-family: Georgia, serif; font-size: 22px; line-height: 1; }
+	.untangling-mkt-style-dots { display: flex; flex-direction: column; gap: 5px; }
+	.untangling-mkt-style-dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
 	</style>
+	<?php
+	if ( $is_details ) {
+		// Production Atomic renders theme details inside the admin chrome —
+		// same markup as the fullscreen details step, in-admin variant.
+		?>
+		<div class="wrap untangling-themes-screen is-details">
+			<div class="untangling-mkt">
+				<?php untangling_marketplace_details_step( $plan, true ); ?>
+			</div>
+		</div>
+		<script>
+		( function () {
+			var chips = document.querySelectorAll( '.untangling-mkt-style-chip' );
+			chips.forEach( function ( chip ) {
+				chip.addEventListener( 'click', function () {
+					chips.forEach( function ( c ) { c.classList.remove( 'is-selected' ); } );
+					chip.classList.add( 'is-selected' );
+				} );
+			} );
+			// No Help Center shell in-admin — keep the support link from
+			// jumping to # (visual placeholder, like the styles above).
+			document.querySelectorAll( '[data-open-help]' ).forEach( function ( link ) {
+				link.addEventListener( 'click', function ( event ) { event.preventDefault(); } );
+			} );
+		} )();
+		</script>
+		<?php
+		return;
+	}
+	?>
 	<div class="wrap untangling-themes-screen">
 		<div class="untangling-mkt">
 			<div class="untangling-mkt-catalog is-themes is-active" data-catalog="themes">
@@ -7022,8 +7141,7 @@ function untangling_render_themes_screen() {
 						<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M13 5a6 6 0 1 1-6 6 6 6 0 0 1 6-6zm-4.5 10.5L4 20"/></svg>
 						<input type="search" placeholder="<?php esc_attr_e( 'Search themes…' ); ?>" aria-label="<?php esc_attr_e( 'Search themes' ); ?>">
 					</div>
-					<label class="untangling-mkt-view">
-						<span><?php esc_html_e( 'View' ); ?></span>
+					<label class="untangling-mkt-view" aria-label="<?php esc_attr_e( 'Filter themes by tier' ); ?>">
 						<select data-tier-filter>
 							<option value="all"><?php esc_html_e( 'All' ); ?></option>
 							<option value="free"><?php esc_html_e( 'Free' ); ?></option>
@@ -7197,30 +7315,30 @@ add_action( 'admin_footer', function () {
 				$group( __( 'wp-admin' ) );
 				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type, __( 'Simple = Free plan · Atomic = Business plan in My Site.' )
 					. ( 'simple' === $type ? ' ' . __( 'Hosting design is fixed to Outcomes here.' ) : '' ) );
-				// Placement of the free-domain nudge. The choice persists on
-				// Atomic too, so flipping Site type back brings it straight
-				// back — it just has nothing to sell in the meantime.
+				// Placement of the upsell nudge. What it sells follows the
+				// site type: the free domain on Simple, the two-year renewal
+				// on Atomic — same card, same placements.
 				$upsell       = untangling_get_upsell_placement();
 				$upsell_hints = array(
-					'none'      => __( 'No free-domain nudge anywhere in wp-admin.' ),
+					'none'      => __( 'No upsell nudge anywhere in wp-admin.' ),
 					'menu-top'  => __( 'Above the menu — today’s position, redrawn for the dark column.' ),
 					'menu-foot' => __( 'Below the menu, out of the navigation’s way.' ),
 					'omnibar'   => __( 'A pill in the admin bar: no sidebar cost, on every screen.' ),
 				);
-				$seg( __( 'Free-domain upsell' ), 'untangling_upsell', array(
+				$seg( __( 'Upsell' ), 'untangling_upsell', array(
 					'none'      => __( 'None' ),
 					'menu-top'  => __( 'Menu top' ),
 					'menu-foot' => __( 'Menu foot' ),
 					'omnibar'   => __( 'Omnibar' ),
 				), $upsell, $upsell_hints[ $upsell ]
-					. ( 'simple' === $type || 'none' === $upsell ? '' : ' ' . __( 'Hidden here: Atomic is already on Business.' ) ), 'is-grid' );
+					. ( 'none' === $upsell ? '' : ' ' . ( 'simple' === $type ? __( 'Selling the free domain here.' ) : __( 'Selling the 2-year renewal here.' ) ) ), 'is-grid' );
 
 				$group( __( 'Plugins and Themes' ) );
 				// One line about the selected mode only — the segments reload the
 				// page, so the hint re-renders with each choice.
 				$mode_hints = array(
 					'fullscreen' => __( 'Themes + plugins in the chromeless Marketplace.' ),
-					'split'      => __( 'Plugins keep the Add Plugins tab; themes use the in-admin Themes screen.' ),
+					'split'      => __( 'Production Atomic: core Themes screen + Appearance → Theme Showcase; plugins keep the Add Plugins tab.' ),
 					'tabs'       => __( 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.' ),
 				);
 				$seg( __( 'Version' ), 'untangling_marketplace', array( 'fullscreen' => __( 'Fullscreen' ), 'split' => __( 'Split' ), 'tabs' => __( 'Tabs' ) ), $mode, $mode_hints[ $mode ] );
@@ -7322,6 +7440,12 @@ add_action( 'admin_footer', function () {
 				}
 				var key = button.closest( '.untangling-gproto-seg' ).dataset.key;
 				var value = button.dataset.value;
+				// Leaving Split while on its in-admin showcase/details page
+				// lands on core Themes — the page only registers in Split.
+				if ( 'untangling_marketplace' === key && 'split' !== value && -1 !== window.location.search.indexOf( 'page=untangling-themes' ) ) {
+					window.location.href = <?php echo wp_json_encode( admin_url( 'themes.php' ) ); ?> + '?untangling_marketplace=' + value;
+					return;
+				}
 				// Leaving Fullscreen while browsing its catalog lands on the
 				// equivalent in-admin home: the Add Plugins Marketplace tab,
 				// or (Tabs) the Add Themes Marketplace tab.
@@ -7497,7 +7621,7 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 }, 99999 );
 
 /* -------------------------------------------------------------------------
- * 4b. Free-domain upsell — one nudge, three homes to compare.
+ * 4b. Upsell — one nudge, three homes to compare.
  *
  * The version that ships today is a white card stacked above the menu: in a
  * 160px dark column it reads as a foreign object, pushes the whole navigation
@@ -7508,7 +7632,9 @@ add_action( 'admin_bar_menu', function ( $bar ) {
  *              nothing; it is the first thing under the last menu item.
  *   omnibar    drop the card — a pill in the admin bar, always visible on
  *              every screen and zero pixels of sidebar.
- * Simple only (untangling_get_active_upsell); Atomic is Business already.
+ * The offer follows the site type (untangling_upsell_offer): Simple sells
+ * the annual plan (free domain), Atomic the two-year renewal — same card,
+ * same button, different words.
  * ---------------------------------------------------------------------- */
 
 function untangling_upsell_diamond_svg() {
@@ -7525,14 +7651,15 @@ add_action( 'adminmenu', function () {
 	if ( 'menu-top' !== $placement && 'menu-foot' !== $placement ) {
 		return;
 	}
+	$offer = untangling_upsell_offer();
 	?>
 	<li id="untangling-nudge-slot">
 		<div class="untangling-nudge is-<?php echo esc_attr( $placement ); ?>">
-			<p class="untangling-nudge-text"><?php esc_html_e( 'Free domain with an annual plan' ); ?></p>
-			<?php // The diamond rides the action, as it does on every other upgrade CTA here. ?>
+			<p class="untangling-nudge-text"><?php echo esc_html( $offer['text'] ); ?></p>
+			<?php // The diamond rides the upgrade action only — the renewal mock carries none. ?>
 			<a class="untangling-nudge-cta" href="<?php echo esc_url( untangling_upsell_url( $placement ) ); ?>">
-				<?php echo untangling_upsell_diamond_svg(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
-				<?php esc_html_e( 'Upgrade' ); ?>
+				<?php echo $offer['gem'] ? untangling_upsell_diamond_svg() : ''; // phpcs:ignore WordPress.Security.EscapeOutput ?>
+				<?php echo esc_html( $offer['cta'] ); ?>
 			</a>
 		</div>
 	</li>
@@ -7578,10 +7705,11 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 			$bar->remove_node( $id );
 		}
 	}
+	$offer = untangling_upsell_offer();
 	$bar->add_node( array(
 		'id'    => 'untangling-domain-nudge',
-		'title' => '<span class="untangling-nudge-pill" data-tip="' . esc_attr__( 'Free domain with an annual plan' ) . '">'
-			. untangling_upsell_diamond_svg() . esc_html__( 'Free domain' ) . '</span>',
+		'title' => '<span class="untangling-nudge-pill" data-tip="' . esc_attr( $offer['text'] ) . '">'
+			. ( $offer['gem'] ? untangling_upsell_diamond_svg() : '' ) . esc_html( $offer['pill'] ) . '</span>',
 		'href'  => untangling_upsell_url( 'omnibar' ),
 	) );
 	foreach ( $trailing as $node ) {
