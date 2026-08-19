@@ -3687,7 +3687,7 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 		if ( $included ) {
 			echo '<li><a class="install-now button" href="#">' . esc_html__( 'Install Now' ) . '</a></li>';
 		} else {
-			echo '<li><a class="button button-primary untangling-upgrade" href="' . esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'type' => 'plugin', 'slug' => $slug ) ) ) . '">' . esc_html__( 'Upgrade and Activate' ) . '</a></li>';
+			echo '<li><a class="button button-primary untangling-upgrade" href="' . esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'type' => 'plugin', 'slug' => $slug ) ) ) . '">' . untangling_upsell_diamond() . esc_html__( 'Upgrade and Activate' ) . '</a></li>';
 		}
 		echo '<li><a href="' . esc_url( $details ) . '" target="_blank" rel="noreferrer">' . esc_html__( 'More Details' ) . '</a></li>';
 		echo '</ul></div>';
@@ -5229,11 +5229,11 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 				<div class="untangling-mkt-shot-overlay">
 					<?php if ( ! $is_active ) : ?>
 						<?php
-						// Split: shorter label — with the diamond, "Unlock this
-						// theme" overruns the 180px button and wraps to two lines.
-						$unlock_label = $is_split ? __( 'Unlock theme' ) : __( 'Unlock this theme' );
+						// "Unlock theme", not "Unlock this theme" — with the
+						// diamond, the longer label overruns the 180px button
+						// and wraps to two lines.
 						?>
-						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( ! $included && $is_split ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : $unlock_label ); ?></a>
+						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock theme' ) ); ?></a>
 					<?php endif; ?>
 					<a class="untangling-mkt-shot-cta is-ghost" href="<?php echo esc_url( $details_url ); ?>"><?php esc_html_e( 'Theme details' ); ?></a>
 				</div>
@@ -5472,7 +5472,7 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 					<?php if ( $is_active ) : ?>
 						<span class="untangling-mkt-button is-disabled">✓ <?php esc_html_e( 'Active' ); ?></span>
 					<?php else : ?>
-						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $in_admin && ! $included ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : ( $in_admin ? __( 'Unlock theme' ) : __( 'Unlock this theme' ) ) ); ?></a>
+						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock theme' ) ); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -5682,7 +5682,7 @@ function untangling_marketplace_plugin_details_step( $plan ) {
 			<?php elseif ( $included ) : ?>
 				<a class="untangling-mkt-button is-primary is-block" href="<?php echo esc_url( $cta_url ); ?>"><?php esc_html_e( 'Install and activate' ); ?></a>
 			<?php else : ?>
-				<a class="untangling-mkt-button is-primary is-block" href="<?php echo esc_url( $cta_url ); ?>"><?php echo $price ? esc_html__( 'Purchase and activate' ) : esc_html__( 'Upgrade and activate' ); ?></a>
+				<a class="untangling-mkt-button is-primary is-block" href="<?php echo esc_url( $cta_url ); ?>"><?php echo untangling_upsell_diamond() . ( $price ? esc_html__( 'Purchase and activate' ) : esc_html__( 'Upgrade and activate' ) ); ?></a>
 			<?php endif; ?>
 			<hr>
 			<h3><?php echo $price ? esc_html__( 'Included with your purchase' ) : esc_html__( 'Included with this plugin' ); ?></h3>
