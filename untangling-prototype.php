@@ -7852,12 +7852,25 @@ add_action( 'admin_enqueue_scripts', function () {
 		.untangling-marketplace { margin-top: 0; }
 		/* One layout for every Add Plugins tab: the marketplace grid, with
 		   titles clamped to 2 lines and descriptions to 3 so a single long
-		   card cannot stretch its whole row into white space. */
-		.plugin-install-php #the-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-		.plugin-install-php .plugin-card { float: none; width: auto; margin: 0; display: flex; flex-direction: column; }
+		   card cannot stretch its whole row into white space.
+		   `.wrap #the-list` (not bare #the-list): newer cores make #the-list
+		   its own flex container with the same `.plugin-install-php #the-list`
+		   specificity, and loading after us they won — cards shrink-wrapped
+		   and wrapped unevenly (seen on Playground). The extra class outranks
+		   core on every version, so the grid always decides the layout. */
+		.plugin-install-php .wrap #the-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+		.plugin-install-php .wrap .plugin-card { float: none; width: auto; max-width: none; margin: 0; display: flex; flex-direction: column; box-sizing: border-box; }
 		.plugin-install-php .plugin-card-top { flex: 1; }
-		@media ( min-width: 1900px ) { .plugin-install-php #the-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-		@media ( max-width: 800px ) { .plugin-install-php #the-list { grid-template-columns: 1fr; } }
+		/* Belt and braces for the same reason: core versions that moved the
+		   icon/name rules elsewhere left these cards with giant in-flow
+		   icons. Mirror the classic core layout so the cards never depend on
+		   which stylesheet a given build ships. */
+		.plugin-install-php .wrap .plugin-card .plugin-card-top { position: relative; }
+		.plugin-install-php .wrap .plugin-card .plugin-icon { position: absolute; top: 20px; left: 20px; width: 128px; height: 128px; }
+		.plugin-install-php .wrap .plugin-card .name,
+		.plugin-install-php .wrap .plugin-card .desc > p { margin-left: 148px; }
+		@media ( min-width: 1900px ) { .plugin-install-php .wrap #the-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+		@media ( max-width: 800px ) { .plugin-install-php .wrap #the-list { grid-template-columns: 1fr; } }
 		.plugin-install-php .plugin-card .name h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 		.plugin-install-php .plugin-card .column-description p:first-of-type { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 		.untangling-plugins-upsell { display: flex; align-items: center; gap: 20px; padding: 16px 20px; border-left-color: #2271b1; }
