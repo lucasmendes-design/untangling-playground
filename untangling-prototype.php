@@ -700,9 +700,11 @@ function untangling_upsell_offer() {
 			'pill' => __( 'Free domain' ),
 		);
 	}
+	// Benefit first so the number never ends the sentence (no "20%" orphan on
+	// the narrow card); the NBSP keeps "two years" together on the last line.
 	return array(
-		'text' => __( 'Renew your plan for 2 years and save 20%' ),
-		'cta'  => __( 'Save now' ),
+		'text' => __( 'Save 20% when you renew for two years' ),
+		'cta'  => __( 'Renew now' ),
 		'gem'  => false,
 		'pill' => __( 'Save 20%' ),
 	);
@@ -7726,7 +7728,7 @@ add_action( 'admin_enqueue_scripts', function () {
 	   dropped on top of it. 160px is the whole budget: the copy gets two
 	   lines at 12px, the button the full width, and nothing wraps. */
 	.untangling-nudge { margin: 8px; padding: 12px; border-radius: 4px; background: #2c3338; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); box-sizing: border-box; }
-	.untangling-nudge-text { display: block; margin: 0 0 10px; color: #f0f0f1; font-size: 12px; line-height: 1.4; font-weight: 500; }
+	.untangling-nudge-text { display: block; margin: 0 0 10px; color: #f0f0f1; font-size: 12px; line-height: 1.4; font-weight: 500; text-wrap: balance; }
 	.untangling-nudge-gem { width: 13px; height: 12px; fill: currentColor; flex: none; }
 	.untangling-nudge-cta { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 3px; background: #3858e9; color: #fff !important; font-size: 12px; font-weight: 500; line-height: 1.5; text-decoration: none; }
 	.untangling-nudge-cta:hover, .untangling-nudge-cta:focus { background: #1d35b4; color: #fff !important; }
