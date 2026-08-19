@@ -218,7 +218,7 @@ function untangling_current_admin_url() {
 	return home_url( $uri );
 }
 
-function untangling_domain_search_url() {
+function untangling_domain_search_url( $pricing_args = array( 'ctx' => 'ms' ) ) {
 	return add_query_arg(
 		array(
 			'dashboard' => 'dotcom',
@@ -226,7 +226,9 @@ function untangling_domain_search_url() {
 			// owns pricing and checkout, so the Calypso flow is used for the
 			// domain search alone — one pricing page and one checkout across
 			// the whole prototype, whichever entry point started the flow.
-			'untangling_pricing' => rawurlencode( untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms' ) ) ),
+			// $pricing_args picks the plan namespace: the My Site drawer passes
+			// ctx=ms (default), the sidebar upsell prices the shared demo plan.
+			'untangling_pricing' => rawurlencode( untangling_marketplace_url( 'themes', array_merge( array( 'ustep' => 'pricing' ), $pricing_args ) ) ),
 			// Back should return to the screen the visitor actually left, not a
 			// fixed landing — the Email card sits on the Plan section, so a
 			// hardcoded page= dropped them a section away on the way back.
@@ -710,19 +712,28 @@ function untangling_upsell_offer() {
 	);
 }
 
-// Where every placement sends you. Simple: the plan-only pricing step, entered
-// with a ref so untangling_plan_pricing() can bold the row this nudge promised.
-// Atomic: Plan & products, where the plan and billing actually live — the
-// prototype has no renewal checkout to mimic.
+// Where every placement sends you — each offer enters at the step its promise
+// starts at. Simple sells a free domain, and a domain starts with picking a
+// name: enter the real Calypso domain search, which hands the chosen name to
+// the shared pricing step and on into the shared checkout. Atomic sells the
+// two-year renewal of the plan already owned — there is nothing to choose, so
+// it goes straight to checkout with the 20% discount itemized in the cart.
 function untangling_upsell_url( $placement ) {
 	if ( ! untangling_is_simple() ) {
-		return admin_url( 'admin.php?page=untangling-mysite&ms=plan' );
+		$plan = untangling_get_plan();
+		return untangling_marketplace_url( 'themes', array(
+			'ustep' => 'checkout',
+			'flow'  => 'renew',
+			// Renewing Free is not a thing — if the demo plan was reset under
+			// an Atomic site type, sell the Premium renewal instead.
+			'plan'  => 'Free' === $plan ? 'Premium' : $plan,
+			'from'  => $placement,
+			'back'  => rawurlencode( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : admin_url() ),
+		) );
 	}
-	return untangling_marketplace_url( 'themes', array(
-		'ustep' => 'pricing',
-		'ref'   => 'domain-upsell',
-		'back'  => rawurlencode( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : admin_url() ),
-		'from'  => $placement,
+	return untangling_domain_search_url( array(
+		'ref'  => 'domain-upsell',
+		'from' => $placement,
 	) );
 }
 
@@ -5217,7 +5228,12 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 				<img src="<?php echo esc_url( $shot ); ?>" alt="" decoding="async">
 				<div class="untangling-mkt-shot-overlay">
 					<?php if ( ! $is_active ) : ?>
-						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( ! $included && $is_split ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
+						<?php
+						// Split: shorter label — with the diamond, "Unlock this
+						// theme" overruns the 180px button and wraps to two lines.
+						$unlock_label = $is_split ? __( 'Unlock theme' ) : __( 'Unlock this theme' );
+						?>
+						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( ! $included && $is_split ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : $unlock_label ); ?></a>
 					<?php endif; ?>
 					<a class="untangling-mkt-shot-cta is-ghost" href="<?php echo esc_url( $details_url ); ?>"><?php esc_html_e( 'Theme details' ); ?></a>
 				</div>
@@ -5456,7 +5472,7 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 					<?php if ( $is_active ) : ?>
 						<span class="untangling-mkt-button is-disabled">✓ <?php esc_html_e( 'Active' ); ?></span>
 					<?php else : ?>
-						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $in_admin && ! $included ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock this theme' ) ); ?></a>
+						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $in_admin && ! $included ? untangling_upsell_diamond() : '' ) . esc_html( $included ? __( 'Activate' ) : ( $in_admin ? __( 'Unlock theme' ) : __( 'Unlock this theme' ) ) ); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -5870,9 +5886,18 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	$storage_pricing = untangling_storage_addon_pricing();
 	$addon_gb        = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] && isset( $storage_pricing[ (int) $_GET['gb'] ] ) ) ? (int) $_GET['gb'] : 0;
 
+	// Two-year renewal checkout (flow=renew, the Atomic sidebar nudge): the
+	// plan already owned, 24 months up front, 20% off — itemized in the cart.
+	$is_renew       = ! $item && ! $addon_gb && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
+	$renew_discount = 0;
+
 	$plan_price = $addon_gb ? $storage_pricing[ $addon_gb ] : $pricing[ $new_plan ][0];
+	if ( $is_renew ) {
+		$plan_price     = $pricing[ $new_plan ][0] * 24;
+		$renew_discount = round( $plan_price * 0.2, 2 );
+	}
 	$item_price = $item && $item['price'] ? (float) $item['price'] : 0;
-	$total      = $plan_price + $item_price;
+	$total      = $plan_price + $item_price - $renew_discount;
 	$user       = wp_get_current_user();
 	$is_ms      = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// ctx=ms = the My Site drawer's flow: persist into its namespaced plan key.
@@ -5882,6 +5907,9 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 			$done_args['untangling_ms_add_storage'] = $addon_gb;
 			$done_args['ctx']                       = 'ms';
 		}
+	} elseif ( $is_renew ) {
+		// A renewal changes nothing about the plan — no override to persist.
+		$done_args = array( 'ustep' => 'done', 'flow' => 'renew', 'plan' => $new_plan );
 	} else {
 		$done_args = $is_ms
 			? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
@@ -5944,11 +5972,19 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 			<div class="untangling-mkt-sumrow">
 				<?php if ( $addon_gb ) : ?>
 					<span class="who"><span><?php echo esc_html( sprintf( __( 'Storage add-on +%d GB' ), $addon_gb ) ); ?><small><?php esc_html_e( 'Per month, billed yearly' ); ?></small></span></span>
+				<?php elseif ( $is_renew ) : ?>
+					<span class="who"><span><?php echo esc_html( sprintf( __( 'WordPress.com %s — renewal' ), $new_plan ) ); ?><small><?php esc_html_e( 'Two years, billed once' ); ?></small></span></span>
 				<?php else : ?>
 					<span class="who"><span><?php echo esc_html( sprintf( __( 'WordPress.com %s' ), $new_plan ) ); ?><small><?php esc_html_e( 'Billed monthly' ); ?></small></span></span>
 				<?php endif; ?>
 				<span><?php echo esc_html( 'US$' . number_format_i18n( $plan_price, 2 ) ); ?></span>
 			</div>
+			<?php if ( $is_renew ) : ?>
+				<div class="untangling-mkt-sumrow">
+					<span class="who"><span><?php esc_html_e( 'Two-year renewal discount' ); ?><small><?php esc_html_e( '20% off, applied to this order' ); ?></small></span></span>
+					<span class="untangling-mkt-sumfree"><?php echo esc_html( '−US$' . number_format_i18n( $renew_discount, 2 ) ); ?></span>
+				</div>
+			<?php endif; ?>
 			<?php if ( $item ) : ?>
 				<div class="untangling-mkt-sumrow">
 					<span class="who">
@@ -5986,6 +6022,7 @@ function untangling_marketplace_done_step( $type ) {
 	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
 	$plan  = $is_ms ? untangling_ms_get_plan() : untangling_get_plan();
 	$addon_gb = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] ) ? (int) $_GET['gb'] : 0;
+	$is_renew = ! $item && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
 	$mkt   = 'plugin' === $type ? 'plugins' : 'themes';
 	$install_name = '';
 	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
@@ -6000,6 +6037,8 @@ function untangling_marketplace_done_step( $type ) {
 		<p>
 			<?php if ( $addon_gb ) : ?>
 				<?php echo esc_html( sprintf( __( '%1$d GB of extra storage is now active on %2$s.' ), $addon_gb, get_bloginfo( 'name' ) ) ); ?>
+			<?php elseif ( $is_renew ) : ?>
+				<?php echo esc_html( sprintf( __( 'The %1$s plan is renewed for two more years on %2$s, with the 20%% discount applied.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
 			<?php else : ?>
 				<?php echo esc_html( sprintf( __( 'The %1$s plan is now active on %2$s.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
 				<?php $claim = untangling_claim_domain(); ?>
@@ -6020,6 +6059,8 @@ function untangling_marketplace_done_step( $type ) {
 			<?php elseif ( $item ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( untangling_marketplace_url( $mkt ) ); ?>"><?php esc_html_e( 'Back to Marketplace' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
+			<?php elseif ( $is_renew ) : ?>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', admin_url() ) ); ?>"><?php esc_html_e( 'Back to WP Admin' ); ?></a>
 			<?php elseif ( $is_ms ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ); ?>"><?php esc_html_e( 'Back to My Site' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
@@ -7048,6 +7089,9 @@ function untangling_render_themes_screen() {
 	.untangling-themes-screen .untangling-mkt-pills button { height: 36px; padding: 0 14px; border-radius: 9999px; background: transparent; }
 	.untangling-themes-screen .untangling-mkt-pills button:hover { background: var(--mkt-gray-5); }
 	.untangling-themes-screen .untangling-mkt-pills button.is-active { background: var(--mkt-gray-100); color: #fff; }
+	/* Hover CTAs: one line, diamond and label centered together — both
+	   buttons share the same 180px width from the shared styles. */
+	.untangling-themes-screen .untangling-mkt-shot-cta { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 	/* Production cards: hairline border instead of the fullscreen drop shadow;
 	   the active theme keeps its blue ring, and its badge is blue-filled. */
 	.untangling-themes-screen .untangling-mkt-shot { box-shadow: none; border: 1px solid rgba( 0, 0, 0, 0.12 ); }
