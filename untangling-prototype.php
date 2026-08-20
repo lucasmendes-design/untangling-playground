@@ -7598,7 +7598,7 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	$bar->add_node( array( 'id' => 'untangling-site-dashboard', 'parent' => 'site-name', 'title' => __( 'Dashboard' ), 'href' => admin_url() ) );
 	$bar->add_node( array( 'id' => 'untangling-site-mysite', 'parent' => 'site-name', 'title' => __( 'My Site' ), 'href' => admin_url( 'admin.php?page=untangling-mysite' ) ) );
 	$bar->add_node( array( 'id' => 'untangling-site-stats', 'parent' => 'site-name', 'title' => __( 'Stats' ), 'href' => $msd . '/stats' ) );
-	$bar->add_node( array( 'id' => 'untangling-site-plan', 'parent' => 'site-name', 'title' => __( 'Plan' ) . '<span class="untangling-chip">' . esc_html( untangling_get_plan() ) . '</span>', 'href' => $msd . '/plans' ) );
+	$bar->add_node( array( 'id' => 'untangling-site-plan', 'parent' => 'site-name', 'title' => __( 'Plan' ) . '<span class="untangling-chip">' . esc_html( untangling_get_plan() ) . '</span>', 'href' => admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ) );
 
 	// Reorder to match the Omnibar: site → updates → comments → +New.
 	// The core ⌘K command palette node is hidden (the Omnibar has no button
