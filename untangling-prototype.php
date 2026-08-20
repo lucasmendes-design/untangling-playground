@@ -27,16 +27,14 @@ function untangling_is_locked_demo() {
 	return defined( 'UNTANGLING_LOCKED_DEMO' ) && UNTANGLING_LOCKED_DEMO;
 }
 
-// Playground ships an older WP image, so core's "WordPress x.y is available!
-// Please update now." nag shows on every screen. Visitors can't update a
-// throwaway demo instance anyway — hide core update notices in standalone.
-if ( untangling_is_standalone() ) {
-	add_filter( 'pre_site_transient_update_core', '__return_null' );
-	add_action( 'admin_menu', function () {
-		remove_action( 'admin_notices', 'update_nag', 3 );
-		remove_action( 'network_admin_notices', 'update_nag', 3 );
-	} );
-}
+// Playground and Studio both ship an older WP image, so core's "WordPress x.y
+// is available! Please update now." nag shows on every screen. Nobody can
+// update these demo instances — hide core update notices everywhere.
+add_filter( 'pre_site_transient_update_core', '__return_null' );
+add_action( 'admin_menu', function () {
+	remove_action( 'admin_notices', 'update_nag', 3 );
+	remove_action( 'network_admin_notices', 'update_nag', 3 );
+} );
 
 function untangling_standalone_link_guard() {
 	if ( ! untangling_is_standalone() ) {
@@ -550,6 +548,31 @@ add_filter( 'rest_pre_serve_request', function ( $served ) {
 	return $served;
 }, 20 );
 
+// The MSD omnibar mirrors this site's admin-bar upsell pill; serve it the same
+// offer the bar renders so the two surfaces never disagree. The upsell URL
+// builders read REQUEST_URI for their back link — inside REST that would be
+// /wp-json/…, so point it at the My Site page for the duration of the call.
+add_action( 'rest_api_init', function () {
+	register_rest_route( 'untangling/v1', '/upsell', array(
+		'methods'             => 'GET',
+		'permission_callback' => '__return_true',
+		'callback'            => function () {
+			$offer                  = untangling_upsell_offer();
+			$request_uri            = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
+			$_SERVER['REQUEST_URI'] = '/wp-admin/admin.php?page=untangling-mysite';
+			$href                   = untangling_upsell_url( 'omnibar' );
+			$_SERVER['REQUEST_URI'] = $request_uri;
+			return array(
+				'active' => 'omnibar' === untangling_get_active_upsell(),
+				'pill'   => $offer['pill'],
+				'text'   => $offer['text'],
+				'gem'    => $offer['gem'],
+				'href'   => $href,
+			);
+		},
+	) );
+} );
+
 // Local demo only: the MSD → WP Admin jump must not hit a login wall.
 // Guarded to localhost so this never does anything on a real host.
 add_action( 'init', function () {
@@ -988,6 +1011,10 @@ add_action( 'admin_menu', function () {
 		// old page stays registered but hidden so persisted links keep working.
 		add_menu_page( __( 'Hosting' ), __( 'Hosting' ), 'manage_options', 'untangling-hosting', 'untangling_render_hosting_page', 'dashicons-cloud', 1 );
 		remove_menu_page( 'untangling-hosting' );
+
+		// The way back up: same "← My sites" the MSD sidebar answers with, first
+		// thing in the menu. A URL slug renders as a direct link.
+		add_menu_page( __( 'My sites' ), __( 'My sites' ), 'manage_options', UNTANGLING_MSD_URL . '/sites', '', 'dashicons-arrow-left-alt', 0 );
 
 		// My Site, directly below Dashboard (index.php holds position 2; a
 		// colliding position lands just after the item it collides with). The
@@ -7568,6 +7595,8 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	$bar->add_node( array( 'id' => 'untangling-about', 'parent' => 'untangling-logo-secondary', 'title' => __( 'About WordPress' ), 'href' => admin_url( 'about.php' ) ) );
 	$bar->add_node( array( 'id' => 'untangling-get-involved', 'parent' => 'untangling-logo-secondary', 'title' => __( 'Get Involved' ), 'href' => admin_url( 'contribute.php' ) ) );
 
+	$bar->add_node( array( 'id' => 'untangling-site-dashboard', 'parent' => 'site-name', 'title' => __( 'Dashboard' ), 'href' => admin_url() ) );
+	$bar->add_node( array( 'id' => 'untangling-site-mysite', 'parent' => 'site-name', 'title' => __( 'My Site' ), 'href' => admin_url( 'admin.php?page=untangling-mysite' ) ) );
 	$bar->add_node( array( 'id' => 'untangling-site-stats', 'parent' => 'site-name', 'title' => __( 'Stats' ), 'href' => $msd . '/stats' ) );
 	$bar->add_node( array( 'id' => 'untangling-site-plan', 'parent' => 'site-name', 'title' => __( 'Plan' ) . '<span class="untangling-chip">' . esc_html( untangling_get_plan() ) . '</span>', 'href' => $msd . '/plans' ) );
 
