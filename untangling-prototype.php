@@ -7855,6 +7855,11 @@ function untangling_upsell_print_tip_listener() {
 		if ( ! tip ) {
 			return;
 		}
+		/* Position once, where the cursor enters the pill, then freeze. Crossing
+		   the pill's children re-fires mouseover; ignore those or the bubble jumps. */
+		if ( event.relatedTarget && tip.contains( event.relatedTarget ) ) {
+			return;
+		}
 		/* Clamp: half the 260px bubble plus an 8px gutter, so it never leaves the viewport. */
 		var x = Math.max( 138, Math.min( event.clientX, window.innerWidth - 138 ) );
 		tip.style.setProperty( '--untangling-tip-x', ( x - tip.getBoundingClientRect().left ) + 'px' );
