@@ -1012,10 +1012,6 @@ add_action( 'admin_menu', function () {
 		add_menu_page( __( 'Hosting' ), __( 'Hosting' ), 'manage_options', 'untangling-hosting', 'untangling_render_hosting_page', 'dashicons-cloud', 1 );
 		remove_menu_page( 'untangling-hosting' );
 
-		// The way back up: same "← My sites" the MSD sidebar answers with, first
-		// thing in the menu. A URL slug renders as a direct link.
-		add_menu_page( __( 'My sites' ), __( 'My sites' ), 'manage_options', UNTANGLING_MSD_URL . '/sites', '', 'dashicons-arrow-left-alt', 0 );
-
 		// My Site, directly below Dashboard (index.php holds position 2; a
 		// colliding position lands just after the item it collides with). The
 		// icon is the W mark — @wordpress/icons `wordpress`, the same glyph the
