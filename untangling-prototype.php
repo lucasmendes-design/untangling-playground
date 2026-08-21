@@ -7788,6 +7788,93 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	}
 }, 1000 );
 
+// The pill ships its CSS apart from the sidebar card: the card only exists
+// inside wp-admin, the pill renders anywhere the admin bar does — wp-admin,
+// the editor, and the logged-in front end. One palette block up top; every
+// rule below reads from it.
+function untangling_upsell_omnibar_css() {
+	return '
+	/* Omnibar pill. Sized to the masterbar row (32px) and kept quiet: the
+	   admin bar is chrome, so it borrows the blue for the gem and the border
+	   rather than filling solid like a page-level CTA would. */
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge {
+		--nudge-pill-bg: rgba(56,88,233,0.22);
+		--nudge-pill-bg-hover: rgba(56,88,233,0.42);
+		--nudge-pill-ring: rgba(120,150,255,0.45);
+		--nudge-pill-ring-hover: rgba(150,175,255,0.8);
+		--nudge-pill-text: #dcdcde;
+		--nudge-pill-text-hover: #fff;
+		--nudge-gem: #8ba4ff;
+		--nudge-gem-hover: #b8c8ff;
+		--nudge-tip-bg: #1e1e1e;
+		--nudge-tip-text: #f0f0f1;
+	}
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 8px; overflow: visible; }
+	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
+	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 13px; height: 12px; fill: var(--nudge-gem); margin-inline-end: 6px; transition: fill .12s linear; }
+	/* Hover lifts the same pill instead of flooding it solid — the rest of the
+	   admin bar brightens on hover, it does not invert, and a solid blue block
+	   in a dark chrome row reads as a page CTA that wandered up here. */
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .ab-item { background: transparent; }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill,
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill { background: var(--nudge-pill-bg-hover); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring-hover); color: var(--nudge-pill-text-hover); }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill .untangling-nudge-gem { fill: var(--nudge-gem-hover); }
+	/* Tooltip: the native title attribute waits about a second and paints an
+	   OS box. Same instant data-tip pattern the pricing page uses, centred on
+	   the cursor (--untangling-tip-x, set by the delegated listener below) and
+	   falling back to the middle of the pill before the first mouseover. */
+	#wpadminbar .untangling-nudge-pill::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: var(--untangling-tip-x, 50%); transform: translateX(-50%); width: max-content; max-width: 260px; padding: 4px 8px; border-radius: 2px; background: var(--nudge-tip-bg); box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: var(--nudge-tip-text); font-size: 12px; font-weight: 400; line-height: 1.4; white-space: normal; opacity: 0; pointer-events: none; }
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill::after,
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill::after { opacity: 1; }
+	/* Mobile keeps the full pill. Core hides every top-level bar item that is
+	   not on its whitelist, so the node needs its display back explicitly, and
+	   the 46px row wants flex-centring — core\'s 3.28 line-height would float
+	   the pill — plus its own metrics back from the 14px mobile bump. */
+	@media screen and ( max-width: 782px ) {
+		#wpadminbar li#wp-admin-bar-untangling-domain-nudge { display: block; }
+		#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { display: flex; align-items: center; height: 46px; padding: 0 8px; }
+		#wpadminbar .untangling-nudge-pill { font-size: 12px; line-height: 24px; }
+		/* The site name gives way before the offer does — core clips it flat,
+		   an ellipsis at least says there is more. */
+		#wpadminbar #wp-admin-bar-site-name > .ab-item { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	}
+	';
+}
+
+// The pricing tips centre their bubble on the cursor with a delegated
+// listener, but those live in page bundles that never load out here. One
+// global copy, printed wherever the bar can carry the pill.
+function untangling_upsell_print_tip_listener() {
+	if ( 'omnibar' !== untangling_get_active_upsell() || ! is_admin_bar_showing() ) {
+		return;
+	}
+	?>
+	<script>
+	document.addEventListener( 'mouseover', function ( event ) {
+		var tip = event.target && event.target.closest && event.target.closest( '.untangling-nudge-pill' );
+		if ( ! tip ) {
+			return;
+		}
+		/* Clamp: half the 260px bubble plus an 8px gutter, so it never leaves the viewport. */
+		var x = Math.max( 138, Math.min( event.clientX, window.innerWidth - 138 ) );
+		tip.style.setProperty( '--untangling-tip-x', ( x - tip.getBoundingClientRect().left ) + 'px' );
+	} );
+	</script>
+	<?php
+}
+add_action( 'admin_footer', 'untangling_upsell_print_tip_listener' );
+add_action( 'wp_footer', 'untangling_upsell_print_tip_listener' );
+
+// The admin bar also renders on the logged-in front end, where `common`
+// never loads — hang the pill CSS on core's `admin-bar` handle there or the
+// chip paints as bare text.
+add_action( 'wp_enqueue_scripts', function () {
+	if ( 'none' === untangling_get_active_upsell() || ! is_admin_bar_showing() ) {
+		return;
+	}
+	wp_add_inline_style( 'admin-bar', untangling_upsell_omnibar_css() );
+}, 11 );
+
 add_action( 'admin_enqueue_scripts', function () {
 	if ( 'none' === untangling_get_active_upsell() ) {
 		return;
@@ -7808,28 +7895,7 @@ add_action( 'admin_enqueue_scripts', function () {
 	   body at every width, so it only counts inside the fold breakpoint. */
 	.folded .untangling-nudge { display: none; }
 	@media screen and ( max-width: 960px ) { .auto-fold .untangling-nudge { display: none; } }
-
-	/* Omnibar pill. Sized to the masterbar row (32px) and kept quiet: the
-	   admin bar is chrome, so it borrows the blue for the gem and the border
-	   rather than filling solid like a page-level CTA would. */
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 8px; overflow: visible; }
-	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; background: rgba(56,88,233,0.22); box-shadow: inset 0 0 0 1px rgba(120,150,255,0.45); color: #dcdcde; font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
-	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 13px; height: 12px; fill: #8ba4ff; margin-inline-end: 6px; transition: fill .12s linear; }
-	/* Hover lifts the same pill instead of flooding it solid — the rest of the
-	   admin bar brightens on hover, it does not invert, and a solid blue block
-	   in a dark chrome row reads as a page CTA that wandered up here. */
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .ab-item { background: transparent; }
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill,
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill { background: rgba(56,88,233,0.42); box-shadow: inset 0 0 0 1px rgba(150,175,255,0.8); color: #fff; }
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill .untangling-nudge-gem { fill: #b8c8ff; }
-	/* Tooltip: the native title attribute waits about a second and paints an
-	   OS box. Same instant data-tip pattern the pricing page uses, restyled
-	   for the bar and anchored under the pill. */
-	#wpadminbar .untangling-nudge-pill::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 0; width: max-content; max-width: 260px; padding: 4px 8px; border-radius: 2px; background: #1e1e1e; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: #f0f0f1; font-size: 12px; font-weight: 400; line-height: 1.4; white-space: normal; opacity: 0; pointer-events: none; }
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item:focus-visible .untangling-nudge-pill::after,
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge:hover .untangling-nudge-pill::after { opacity: 1; }
-	@media screen and ( max-width: 782px ) { #wpadminbar #wp-admin-bar-untangling-domain-nudge { display: none; } }
-	' );
+	' . untangling_upsell_omnibar_css() );
 }, 11 );
 
 /* -------------------------------------------------------------------------
