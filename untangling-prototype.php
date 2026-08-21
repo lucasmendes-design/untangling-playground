@@ -9534,7 +9534,7 @@ function untangling_ms_app_js() {
 				),
 				body,
 				el( 'div', { className: 'ms-missing-foot' },
-					el( Button, { variant: 'primary', href: plansUrlFor( 'hosting' ), __next40pxDefaultSize: true }, 'See what’s included' )
+					el( Button, { variant: 'primary', href: plansUrlFor( 'hosting' ), __next40pxDefaultSize: true }, 'See plans' )
 				)
 			)
 		);
