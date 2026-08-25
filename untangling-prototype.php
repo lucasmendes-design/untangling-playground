@@ -7760,26 +7760,17 @@ add_action( 'adminmenu', function () {
 	<?php
 } );
 
-// The omnibar placement: a pill directly after the site name, so the offer
-// sits with the site it applies to rather than out among the global icons.
-// "Free domain" is all the room there is — the full promise rides in the
+// The omnibar placement: a pill after the action icons (updates, comments,
+// +New), keeping the site's actions together and the offer at the end of the
+// row. "Free domain" is all the room there is — the full promise rides in the
 // tooltip and on the pricing page it opens.
 add_action( 'admin_bar_menu', function ( $bar ) {
 	if ( 'omnibar' !== untangling_get_active_upsell() ) {
 		return;
 	}
 	// Root-group nodes render in insertion order, and by now the omnibar mock
-	// (999) has already ordered site → updates → comments → +New. Landing
-	// directly after the site name means lifting what follows it, adding the
-	// pill, then putting them back in the same order.
-	$trailing = array();
-	foreach ( array( 'updates', 'untangling-updates', 'comments', 'new-content' ) as $id ) {
-		$node = $bar->get_node( $id );
-		if ( $node ) {
-			$trailing[] = (array) $node;
-			$bar->remove_node( $id );
-		}
-	}
+	// (999) has already ordered site → updates → comments → +New, so adding
+	// the pill here lands it after them.
 	$offer = untangling_upsell_offer();
 	$bar->add_node( array(
 		'id'    => 'untangling-domain-nudge',
@@ -7787,9 +7778,6 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 			. ( $offer['gem'] ? untangling_upsell_diamond_svg( true ) : '' ) . esc_html( $offer['pill'] ) . '</span>',
 		'href'  => untangling_upsell_url( 'omnibar' ),
 	) );
-	foreach ( $trailing as $node ) {
-		$bar->add_node( $node );
-	}
 }, 1000 );
 
 // The pill ships its CSS apart from the sidebar card: the card only exists
@@ -7813,7 +7801,9 @@ function untangling_upsell_omnibar_css() {
 		--nudge-tip-bg: #1e1e1e;
 		--nudge-tip-text: #f0f0f1;
 	}
-	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 8px; overflow: visible; }
+	/* Flex-centre the 24px pill in the 32px row — as an inline box it would
+	   ride core\'s baseline and sit a couple of pixels high. */
+	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { display: flex; align-items: center; height: 32px; padding: 0 8px; overflow: visible; }
 	/* The upsell glyph carries ~3px of intrinsic whitespace at 16px, so the
 	   icon-side padding and gap are smaller to read as visually even. */
 	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding-block: 0; padding-inline: 4px 8px; border-radius: 4px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
