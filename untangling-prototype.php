@@ -730,7 +730,7 @@ function untangling_upsell_offer() {
 	return array(
 		'text' => __( 'Save 20% when you renew for two years' ),
 		'cta'  => __( 'Renew now' ),
-		'gem'  => false,
+		'gem'  => true,
 		'pill' => __( 'Save 20%' ),
 	);
 }
@@ -7731,7 +7731,6 @@ add_action( 'adminmenu', function () {
 	<li id="untangling-nudge-slot">
 		<div class="untangling-nudge is-<?php echo esc_attr( $placement ); ?>">
 			<p class="untangling-nudge-text"><?php echo esc_html( $offer['text'] ); ?></p>
-			<?php // The diamond rides the upgrade action only — the renewal mock carries none. ?>
 			<a class="untangling-nudge-cta" href="<?php echo esc_url( untangling_upsell_url( $placement ) ); ?>">
 				<?php echo $offer['gem'] ? untangling_upsell_diamond_svg() : ''; // phpcs:ignore WordPress.Security.EscapeOutput ?>
 				<?php echo esc_html( $offer['cta'] ); ?>
