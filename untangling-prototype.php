@@ -7708,8 +7708,12 @@ add_action( 'admin_bar_menu', function ( $bar ) {
  * same button, different words.
  * ---------------------------------------------------------------------- */
 
-function untangling_upsell_diamond_svg() {
-	return '<svg class="untangling-nudge-gem" viewBox="4.4 5.4 15.2 13.2" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
+// The sidebar card wants the glyph cropped tight; the omnibar pill renders the
+// full 24-grid frame at 16px, whose ~3px intrinsic whitespace the pill's
+// asymmetric padding counts on (matches the MSD masterbar chip).
+function untangling_upsell_diamond_svg( $full = false ) {
+	$viewbox = $full ? '0 0 24 24' : '4.4 5.4 15.2 13.2';
+	return '<svg class="untangling-nudge-gem" viewBox="' . $viewbox . '" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
 }
 
 // Both sidebar placements print here. The core `adminmenu` action fires
@@ -7780,7 +7784,7 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	$bar->add_node( array(
 		'id'    => 'untangling-domain-nudge',
 		'title' => '<span class="untangling-nudge-pill" data-tip="' . esc_attr( $offer['text'] ) . '">'
-			. ( $offer['gem'] ? untangling_upsell_diamond_svg() : '' ) . esc_html( $offer['pill'] ) . '</span>',
+			. ( $offer['gem'] ? untangling_upsell_diamond_svg( true ) : '' ) . esc_html( $offer['pill'] ) . '</span>',
 		'href'  => untangling_upsell_url( 'omnibar' ),
 	) );
 	foreach ( $trailing as $node ) {
@@ -7810,8 +7814,10 @@ function untangling_upsell_omnibar_css() {
 		--nudge-tip-text: #f0f0f1;
 	}
 	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 8px; overflow: visible; }
-	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
-	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 13px; height: 12px; fill: var(--nudge-gem); margin-inline-end: 6px; transition: fill .12s linear; }
+	/* The upsell glyph carries ~3px of intrinsic whitespace at 16px, so the
+	   icon-side padding and gap are smaller to read as visually even. */
+	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding-block: 0; padding-inline: 4px 8px; border-radius: 4px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
+	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 16px; height: 16px; fill: var(--nudge-gem); transition: fill .12s linear; }
 	/* Hover lifts the same pill instead of flooding it solid — the rest of the
 	   admin bar brightens on hover, it does not invert, and a solid blue block
 	   in a dark chrome row reads as a page CTA that wandered up here. */
