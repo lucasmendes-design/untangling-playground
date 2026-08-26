@@ -1,0 +1,73 @@
+{
+ "version": "1",
+ "tagline": "Recipes and rituals for unhurried days",
+ "posts": [
+  {
+   "title": "Sourdough, Day Three: The Float Test Lies",
+   "category": "Baking",
+   "days_ago": 1,
+   "image": "sourdough",
+   "content": [
+    "Everyone tells you to trust the float test. My starter floated beautifully on Sunday and the loaf still came out like a discus.",
+    "What actually worked: watching the dome. When the starter peaks and just begins to fall, that is the window \u2014 float test or no float test.",
+    "Recipe below makes one loaf, 75% hydration, overnight cold proof."
+   ],
+   "comments": [
+    [
+     "Ana Lucia",
+     "The discus era is real. Mine could stop a door."
+    ],
+    [
+     "tombakes",
+     "Peak-and-fall is the way. Float test is astrology for bakers."
+    ]
+   ]
+  },
+  {
+   "title": "The Pour-Over Ritual",
+   "category": "Coffee",
+   "days_ago": 7,
+   "image": "pour-over",
+   "content": [
+    "Four minutes of doing exactly one thing. That is the entire appeal.",
+    "The recipe: 20 grams of coffee, 320 grams of water at 94 degrees, a slow spiral, and no phone within reach. The last rule matters more than the water temperature."
+   ]
+  },
+  {
+   "title": "Sunday Shakshuka for People Who Sleep In",
+   "category": "Recipes",
+   "days_ago": 13,
+   "image": "shakshuka",
+   "content": [
+    "This is a 12:30pm breakfast and it knows it. One pan, six eggs, and a jar of the good peppers you have been saving.",
+    "The only real instruction: let the sauce reduce further than feels reasonable before the eggs go in. Watery shakshuka has ruined more Sundays than rain."
+   ],
+   "comments": [
+    [
+     "Deniz",
+     "Made this today. The pepper jar advice is correct."
+    ]
+   ]
+  },
+  {
+   "title": "Market Haul: What September Actually Tastes Like",
+   "category": "Seasonal",
+   "days_ago": 22,
+   "image": "market-haul",
+   "content": [
+    "The tomatoes are on their way out and the squash is moving in, and the market this week was the exact midpoint of that handover.",
+    "Came home with: the last decent tomatoes, two kinds of squash I cannot name, a bag of figs that did not survive the walk, and plans."
+   ]
+  },
+  {
+   "title": "Miso Mornings",
+   "category": "Recipes",
+   "days_ago": 31,
+   "image": "miso-soup",
+   "content": [
+    "A bowl of miso soup takes four minutes and fixes approximately everything. It has quietly replaced toast as the default breakfast here.",
+    "Keep dashi in the fridge, keep the miso by the stove, and do not boil it after the paste goes in. That is the whole technique."
+   ]
+  }
+ ]
+}

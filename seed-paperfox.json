@@ -1,0 +1,67 @@
+{
+ "version": "1",
+ "tagline": "Art prints from a small studio",
+ "woocommerce": true,
+ "posts": [
+  {
+   "title": "New: The Riso Moon Run",
+   "category": "Studio news",
+   "days_ago": 4,
+   "image": "riso-moon",
+   "content": [
+    "Fifty copies, two colors, one slightly temperamental risograph. The Riso Moon print is finally in the shop.",
+    "Each one comes out a little different \u2014 that is the riso promise and the riso threat. Numbers 1 through 50, signed."
+   ],
+   "comments": [
+    [
+     "Marta R.",
+     "Number 7 arrived today. The misregistration is perfect."
+    ]
+   ]
+  }
+ ],
+ "products": [
+  {
+   "name": "Fox Linocut Print",
+   "price": "35",
+   "image": "fox-linocut",
+   "stock": 25,
+   "description": "The studio namesake. Hand-pulled linocut on 300gsm cotton paper, A3."
+  },
+  {
+   "name": "Mountain Set (3 Prints)",
+   "price": "80",
+   "image": "mountain-set",
+   "stock": 10,
+   "description": "Three A4 prints of the same ridge at dawn, noon, and dusk. Better together."
+  },
+  {
+   "name": "Botanical No. 1",
+   "price": "28",
+   "image": "botanical-01",
+   "stock": 30,
+   "description": "Pressed-flower study, giclee print, A4. The first of a series of twelve."
+  },
+  {
+   "name": "Custom City Map Print",
+   "price": "45",
+   "image": "city-map",
+   "stock": 15,
+   "description": "Your neighborhood, our linework. Made to order from any address, A3."
+  },
+  {
+   "name": "Riso Moon (Limited Run)",
+   "price": "30",
+   "image": "riso-moon",
+   "stock": 12,
+   "description": "Two-color risograph, edition of 50, signed and numbered. Every copy slightly different."
+  },
+  {
+   "name": "Wallpaper Pack (Digital)",
+   "price": "12",
+   "image": "digital-pack",
+   "virtual": true,
+   "description": "Six desktop and phone wallpapers from the archive. Instant download."
+  }
+ ]
+}

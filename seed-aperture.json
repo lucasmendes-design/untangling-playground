@@ -1,0 +1,75 @@
+{
+ "version": "1",
+ "tagline": "A photography journal by Lucas",
+ "posts": [
+  {
+   "title": "Chasing the Golden Hour",
+   "category": "Field notes",
+   "days_ago": 2,
+   "image": "golden-hour",
+   "content": [
+    "There is a fifteen-minute window after sunrise when the light turns everything to honey. I have been getting up at 5:40 all week to catch it.",
+    "Most mornings fail. The fog does not lift, or it lifts too fast, or a truck parks exactly where the light lands. But Tuesday delivered: low sun, long shadows, and a street sweeper kicking up dust that caught the light like snow.",
+    "Settings for the curious: 50mm, f/4, ISO 200. The dust did the rest."
+   ],
+   "comments": [
+    [
+     "Marta R.",
+     "That dust shot is unreal. Straight out of camera?"
+    ],
+    [
+     "Deniz",
+     "5:40 is commitment. Respect."
+    ]
+   ]
+  },
+  {
+   "title": "Street Frames: One Roll, One Neighborhood",
+   "category": "35mm",
+   "days_ago": 9,
+   "image": "street-frames",
+   "content": [
+    "The constraint this month: a single roll of Portra 400, shot entirely within four blocks of home.",
+    "Thirty-six frames force choices a memory card never will. I passed on shots I would normally take without thinking, and the keepers feel more deliberate for it.",
+    "Twelve of the thirty-six came out. That ratio would have depressed me two years ago; now it feels honest."
+   ]
+  },
+  {
+   "title": "The Fog Series, Continued",
+   "category": "Field notes",
+   "days_ago": 16,
+   "image": "fog-series",
+   "content": [
+    "Part three of an accidental series. The harbor disappears completely about ten mornings a year, and I have decided to be there for all of them.",
+    "Fog flattens everything into layers, like a stage set. The trick is finding one dark shape to anchor the frame \u2014 a crane, a mast, a person on the pier."
+   ],
+   "comments": [
+    [
+     "Jon Ferreira",
+     "The crane one should be a print. I would buy it."
+    ]
+   ]
+  },
+  {
+   "title": "Darkroom Notes: First Prints",
+   "category": "Process",
+   "days_ago": 27,
+   "image": "darkroom-notes",
+   "content": [
+    "I finally used the community darkroom membership that has been guilt-tripping me from my wallet since January.",
+    "Printing is humbling. The negative I thought was my best of the year printed flat and lifeless; a throwaway frame of the fog series came alive with a little dodging.",
+    "Next session I want to try split-grade printing. Notes to self included below so future me has no excuses."
+   ]
+  },
+  {
+   "title": "Why the 50mm Never Leaves the Camera",
+   "category": "Gear",
+   "days_ago": 38,
+   "image": "lens-review",
+   "content": [
+    "Every few months I try to love another lens, and every few months I come back to the nifty fifty.",
+    "It is not the sharpness, though it is sharp. It is that the frame matches how I see before I raise the camera. No zooming with feet, no wide-angle drama. Just the scene, cropped by habit."
+   ]
+  }
+ ]
+}

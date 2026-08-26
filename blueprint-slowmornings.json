@@ -1,0 +1,55 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Untangling IA — Slow Mornings",
+		"author": "lucasmendes-design"
+	},
+	"preferredVersions": {
+		"php": "8.2",
+		"wp": "latest"
+	},
+	"login": true,
+	"landingPage": "/wp-admin/admin.php?page=untangling-mysite",
+	"steps": [
+		{
+			"step": "mkdir",
+			"path": "/wordpress/wp-content/mu-plugins"
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/0-untangling-config.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/config-slowmornings.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-prototype.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-prototype.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/zz-untangling-seeder.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-seeder.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-seed.json",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/seed-slowmornings.json"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'blogname', \"Slow Mornings\" ); untangling_seed_run( false );"
+		}
+	]
+}

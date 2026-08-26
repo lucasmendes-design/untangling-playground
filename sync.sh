@@ -18,6 +18,15 @@ if [ "$ACTIVE" != "$REPO_ACCOUNT" ]; then
 fi
 
 cp ~/AI/A8C/untangling-prototype/untangling-prototype.php .
+cp ~/AI/A8C/untangling-prototype/untangling-seeder.php .
+
+# Per-site seeds live canonically in the Studio sites' mu-plugins.
+cp ~/Studio/aperture-diaries/wp-content/mu-plugins/untangling-seed.json seed-aperture.json
+cp ~/Studio/cast-iron-supply-co/wp-content/mu-plugins/untangling-seed.json seed-castiron.json
+cp ~/Studio/core-coworking/wp-content/mu-plugins/untangling-seed.json seed-coworking.json
+cp ~/Studio/open-ocean/wp-content/mu-plugins/untangling-seed.json seed-openocean.json
+cp ~/Studio/paper-fox-prints/wp-content/mu-plugins/untangling-seed.json seed-paperfox.json
+cp ~/Studio/slow-mornings/wp-content/mu-plugins/untangling-seed.json seed-slowmornings.json
 
 # The demo is the plugin *plus* its blueprints and configs — syncing only the
 # plugin used to strand config edits locally while the live link kept serving

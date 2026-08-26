@@ -1,0 +1,54 @@
+{
+ "version": "1",
+ "tagline": "A calm place to get work done",
+ "posts": [
+  {
+   "title": "Community Events in August",
+   "category": "Community",
+   "days_ago": 3,
+   "image": "community",
+   "content": [
+    "Three events on the calendar this month: a lunchtime talk on freelance contracts, the monthly demo night, and Friday coffee on the terrace, weather permitting.",
+    "Demo night has outgrown the small meeting room, so we are moving it to the lounge. Five slots, five minutes each, sign-up sheet at the front desk."
+   ]
+  }
+ ],
+ "pages": [
+  {
+   "title": "Welcome to Core",
+   "front": true,
+   "content": [
+    "Core is a coworking space for people who like quiet mornings and fast wifi. Sixty desks, four meeting rooms, one very good coffee machine.",
+    "Day passes, dedicated desks, and private offices for teams of two to eight. Come for a trial day \u2014 the first one is on us."
+   ]
+  },
+  {
+   "title": "Open Desks",
+   "content": [
+    "Grab any free desk in the open area. Day pass or monthly membership, both include meeting-room credits and the aforementioned coffee.",
+    "Monthly members get a locker, 24/7 access, and priority booking for the phone booths."
+   ]
+  },
+  {
+   "title": "Private Offices",
+   "content": [
+    "Lockable offices for teams of two to eight, furnished, with your own air conditioning because that argument ruins teams.",
+    "Three offices available this quarter. Tours every weekday at noon."
+   ]
+  },
+  {
+   "title": "Meeting Rooms",
+   "content": [
+    "Four rooms, from a two-person call box to a twelve-seat boardroom. Bookable by the hour through the member portal.",
+    "All rooms have a screen, a decent camera, and a whiteboard with pens that actually work. We check weekly."
+   ]
+  },
+  {
+   "title": "Contact",
+   "content": [
+    "Rua do Nucleo 42, ground floor. Doors open 8:00 to 20:00 for visitors, always open for members.",
+    "Write to hello@corecoworking.com or just come by \u2014 the front desk is staffed all day."
+   ]
+  }
+ ]
+}

@@ -1,0 +1,62 @@
+{
+ "version": "1",
+ "tagline": "Heirloom cookware, made to last",
+ "woocommerce": true,
+ "posts": [
+  {
+   "title": "How to Season a Skillet (and How Not To)",
+   "category": "Care",
+   "days_ago": 5,
+   "image": "care-kit",
+   "content": [
+    "Thin coats. If you remember nothing else from this guide, remember thin coats.",
+    "A seasoning layer is polymerized oil, not a coating of oil. Wipe the pan until it looks like you removed everything, then bake it upside down at 230C for an hour. Repeat twice.",
+    "The sticky patches everyone complains about come from thick coats every single time."
+   ]
+  }
+ ],
+ "products": [
+  {
+   "name": "No. 10 Skillet",
+   "price": "39",
+   "image": "skillet-10",
+   "stock": 34,
+   "description": "Our bestseller. 10-inch cast iron skillet, machined smooth, pre-seasoned with flaxseed oil."
+  },
+  {
+   "name": "No. 12 Skillet",
+   "price": "49",
+   "image": "skillet-12",
+   "stock": 21,
+   "description": "The family-size 12-inch skillet. Two handles, because full is heavy."
+  },
+  {
+   "name": "5qt Dutch Oven",
+   "price": "89",
+   "image": "dutch-oven",
+   "stock": 12,
+   "description": "Braises, bakes bread, feeds eight. Lid doubles as a shallow skillet."
+  },
+  {
+   "name": "Reversible Griddle",
+   "price": "59",
+   "image": "griddle",
+   "stock": 18,
+   "description": "Flat side for pancakes, ribbed side for everything you want grill marks on. Spans two burners."
+  },
+  {
+   "name": "Care Kit",
+   "price": "19",
+   "image": "care-kit",
+   "stock": 60,
+   "description": "Seasoning oil, chainmail scrubber, and a wooden scraper. Everything a pan needs for the next century."
+  },
+  {
+   "name": "No. 6 Mini Skillet",
+   "price": "24",
+   "image": "mini-skillet",
+   "stock": 40,
+   "description": "One egg, one cookie, or one very personal frittata. 6 inches of exactly enough."
+  }
+ ]
+}

@@ -10,8 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Where the local MSD prototype lives (Calypso dashboard, `yarn start`).
-define( 'UNTANGLING_MSD_URL', 'http://my.localhost:3333' );
+// Where the MSD prototype lives (Calypso dashboard). The per-site config can
+// define it first — remote demos point it at a hosted MSD (calypso.live).
+if ( ! defined( 'UNTANGLING_MSD_URL' ) ) {
+	define( 'UNTANGLING_MSD_URL', 'http://my.localhost:3333' );
+}
 
 // Standalone demos (WordPress Playground shares) have no MSD running.
 // The per-site config defines UNTANGLING_STANDALONE; MSD-bound links then
@@ -72,6 +75,37 @@ function untangling_standalone_link_guard() {
 }
 add_action( 'admin_footer', 'untangling_standalone_link_guard' );
 add_action( 'wp_footer', 'untangling_standalone_link_guard' );
+
+// Remote demos reach the MSD through the calypso.live redirector, which needs
+// branch/env (and persona) args on every link. The per-site config defines
+// UNTANGLING_MSD_QUERY (e.g. 'branch=prototype/untangling-ia&env=dashboard');
+// links are rewritten at click time so every MSD_URL concatenation is covered.
+function untangling_msd_query_rewriter() {
+	if ( ! defined( 'UNTANGLING_MSD_QUERY' ) || ! UNTANGLING_MSD_QUERY || untangling_is_standalone() ) {
+		return;
+	}
+	?>
+	<script>
+	( function () {
+		var msd = <?php echo wp_json_encode( UNTANGLING_MSD_URL ); ?>;
+		var msdQuery = <?php echo wp_json_encode( UNTANGLING_MSD_QUERY ); ?>;
+		document.addEventListener( 'click', function ( event ) {
+			var link = event.target.closest ? event.target.closest( 'a[href]' ) : null;
+			if ( ! link || 0 !== link.href.indexOf( msd ) ) {
+				return;
+			}
+			var url = new URL( link.href );
+			new URLSearchParams( msdQuery ).forEach( function ( value, key ) {
+				url.searchParams.set( key, value );
+			} );
+			link.href = url.toString();
+		}, true );
+	} )();
+	</script>
+	<?php
+}
+add_action( 'admin_footer', 'untangling_msd_query_rewriter' );
+add_action( 'wp_footer', 'untangling_msd_query_rewriter' );
 
 /* -------------------------------------------------------------------------
  * Per-site demo identity. Each Studio site carries a tiny
@@ -228,10 +262,15 @@ function untangling_plan_flow_home_url() {
 }
 
 // MSD return URLs must survive wp_validate_redirect, which allows only the
-// site's own host. Local prototype hosts only; core compares hosts without
-// ports, so bare hostnames cover :3333.
+// site's own host. Core compares hosts without ports, so bare hostnames
+// cover :3333; the configured MSD host covers remote demos (calypso.live).
 add_filter( 'allowed_redirect_hosts', function ( $hosts ) {
-	return array_merge( $hosts, array( 'my.localhost', 'calypso.localhost' ) );
+	$extra = array( 'my.localhost', 'calypso.localhost' );
+	$msd_host = wp_parse_url( UNTANGLING_MSD_URL, PHP_URL_HOST );
+	if ( $msd_host ) {
+		$extra[] = $msd_host;
+	}
+	return array_merge( $hosts, $extra );
 } );
 
 function untangling_domain_search_url( $pricing_args = array( 'ctx' => 'ms' ) ) {
