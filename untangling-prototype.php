@@ -216,6 +216,24 @@ function untangling_current_admin_url() {
 	return home_url( $uri );
 }
 
+// Plan-only marketplace steps default their exits here: the My Site page in
+// the drawer variant (untangling-hosting is retired there), the Hosting page
+// everywhere else, where it is still the live brand anchor.
+function untangling_plan_flow_home_url() {
+	return admin_url(
+		'drawer' === untangling_get_variant()
+			? 'admin.php?page=untangling-mysite'
+			: 'admin.php?page=untangling-hosting'
+	);
+}
+
+// MSD return URLs must survive wp_validate_redirect, which allows only the
+// site's own host. Local prototype hosts only; core compares hosts without
+// ports, so bare hostnames cover :3333.
+add_filter( 'allowed_redirect_hosts', function ( $hosts ) {
+	return array_merge( $hosts, array( 'my.localhost', 'calypso.localhost' ) );
+} );
+
 function untangling_domain_search_url( $pricing_args = array( 'ctx' => 'ms' ) ) {
 	return add_query_arg(
 		array(
@@ -226,7 +244,10 @@ function untangling_domain_search_url( $pricing_args = array( 'ctx' => 'ms' ) ) 
 			// the whole prototype, whichever entry point started the flow.
 			// $pricing_args picks the plan namespace: the My Site drawer passes
 			// ctx=ms (default), the sidebar upsell prices the shared demo plan.
-			'untangling_pricing' => rawurlencode( untangling_marketplace_url( 'themes', array_merge( array( 'ustep' => 'pricing' ), $pricing_args ) ) ),
+			// The pricing page's ✕ needs its own return target — back_to below
+			// only serves the Calypso step's Back button and never reaches the
+			// prototype. Before the merge so callers can override it.
+			'untangling_pricing' => rawurlencode( untangling_marketplace_url( 'themes', array_merge( array( 'ustep' => 'pricing', 'back' => rawurlencode( untangling_current_admin_url() ) ), $pricing_args ) ) ),
 			// Back should return to the screen the visitor actually left, not a
 			// fixed landing — the Email card sits on the Plan section, so a
 			// hardcoded page= dropped them a section away on the way back.
@@ -1148,8 +1169,8 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 				'msd'          => UNTANGLING_MSD_URL,
 				// Fullscreen upgrade flow from the Marketplace, reused
 				// item-less: pricing page + straight-to-Premium checkout.
-				'plansUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing' ) ),
-				'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium' ) ),
+				'plansUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
+				'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 				'variant'      => untangling_get_variant(),
 				'siteType'     => untangling_get_site_type(),
 				'marketplace'  => untangling_get_marketplace_mode(),
@@ -5118,13 +5139,18 @@ function untangling_marketplace_topbar( $mkt, $step, $mode ) {
 	// ✕/logo return there instead of the themes/plugins screen. Entry points
 	// elsewhere (the plugins upsell hero) pass `back` so ✕ returns to the
 	// screen the visitor actually came from.
-	$plan_only = in_array( $step, array( 'pricing', 'checkout', 'done' ), true ) && empty( $_GET['slug'] );
+	$plan_only         = in_array( $step, array( 'pricing', 'checkout', 'done' ), true ) && empty( $_GET['slug'] );
+	$has_explicit_back = false;
 	if ( $plan_only ) {
-		$exit = admin_url( 'admin.php?page=untangling-hosting' );
+		$exit = untangling_plan_flow_home_url();
 		if ( ! empty( $_GET['back'] ) ) {
-			$back = wp_validate_redirect( rawurldecode( wp_unslash( $_GET['back'] ) ), '' );
+			// No rawurldecode: PHP already decoded $_GET once and every caller
+			// single-encodes; a second decode corrupts MSD URLs carrying
+			// percent-escapes of their own.
+			$back = wp_validate_redirect( wp_unslash( $_GET['back'] ), '' );
 			if ( $back ) {
-				$exit = $back;
+				$exit              = $back;
+				$has_explicit_back = true;
 			}
 		}
 	}
@@ -5173,8 +5199,12 @@ function untangling_marketplace_topbar( $mkt, $step, $mode ) {
 	// The entry referrer is remembered per tab (in-flow navigations all
 	// carry the marketplace page slug, so they never overwrite it); the
 	// link's href stays as a fallback for direct/bookmarked visits.
+	// An explicit back param is the freshest signal — when one won above,
+	// the referrer override is skipped and the stored value cleared so a
+	// stale referrer from an earlier visit cannot hijack the ✕.
 	( function () {
 		var KEY = 'untanglingMktReturn';
+		var explicitBack = <?php echo $has_explicit_back ? 'true' : 'false'; ?>;
 		var ref = document.referrer;
 		if ( ref && ref.indexOf( 'untangling-marketplace' ) === -1 ) {
 			try {
@@ -5182,6 +5212,12 @@ function untangling_marketplace_topbar( $mkt, $step, $mode ) {
 					window.sessionStorage.setItem( KEY, ref );
 				}
 			} catch ( e ) {}
+		}
+		if ( explicitBack ) {
+			try {
+				window.sessionStorage.removeItem( KEY );
+			} catch ( e ) {}
+			return;
 		}
 		var exit = document.querySelector( '.untangling-mkt-exit' );
 		if ( exit ) {
@@ -6085,10 +6121,10 @@ function untangling_marketplace_done_step( $type ) {
 			<?php elseif ( $is_renew ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', admin_url() ) ); ?>"><?php esc_html_e( 'Back to WP Admin' ); ?></a>
 			<?php elseif ( $is_ms ) : ?>
-				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ); ?>"><?php esc_html_e( 'Back to My Site' ); ?></a>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ) ); ?>"><?php esc_html_e( 'Back to My Site' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php else : ?>
-				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=untangling-hosting' ) ); ?>"><?php esc_html_e( 'Back to WordPress.com' ); ?></a>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', untangling_plan_flow_home_url() ) ); ?>"><?php esc_html_e( 'Back to WordPress.com' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php endif; ?>
 		</div>
@@ -7460,10 +7496,29 @@ add_action( 'admin_footer', function () {
 			}
 		}
 
+		// The open state is tagged with where it was set: fullscreen pages
+		// restore only a state opened on a fullscreen page, so a panel left
+		// open on a normal wp-admin screen never covers the chromeless flow —
+		// while segment-click reloads within it still reopen the panel.
+		var isMkt = wrap.classList.contains( 'is-mkt' );
+		function rememberOpen( open ) {
+			try {
+				window.localStorage.setItem( 'untangling-gproto-open', open ? ( isMkt ? 'mkt' : '1' ) : '0' );
+			} catch ( e ) {}
+		}
+		function recallOpen() {
+			try {
+				var v = window.localStorage.getItem( 'untangling-gproto-open' );
+				return isMkt ? 'mkt' === v : ( '1' === v || 'mkt' === v );
+			} catch ( e ) {
+				return false;
+			}
+		}
+
 		function show( open ) {
 			panel.hidden = ! open;
 			fab.style.visibility = open ? 'hidden' : '';
-			remember( 'open', open );
+			rememberOpen( open );
 		}
 		function toggle() {
 			show( panel.hidden );
@@ -7492,7 +7547,7 @@ add_action( 'admin_footer', function () {
 		if ( recall( 'hints' ) ) {
 			showHints( true );
 		}
-		if ( recall( 'open' ) ) {
+		if ( recallOpen() ) {
 			show( true );
 		}
 
@@ -8073,7 +8128,7 @@ function untangling_ms_data() {
 	if ( $compare['next'] ) {
 		$compare['next']['checkoutUrl'] = untangling_marketplace_url(
 			'themes',
-			array( 'ustep' => 'checkout', 'plan' => $compare['next']['name'], 'ctx' => 'ms' )
+			array( 'ustep' => 'checkout', 'plan' => $compare['next']['name'], 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) )
 		);
 	}
 	$free    = 'Free' === $plan;
@@ -8113,7 +8168,7 @@ function untangling_ms_data() {
 			'title'  => __( 'Storage is almost full' ),
 			'text'   => sprintf( __( 'You’ve used %1$s GB of %2$s GB. New uploads may fail soon.' ), $meta['storage'][0], $meta['storage'][1] ),
 			'action' => __( 'Add storage' ),
-			'href'   => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms' ) ),
+			'href'   => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 		);
 	}
 
@@ -8211,12 +8266,12 @@ function untangling_ms_data() {
 		// retired pre-drawer Hosting page, which is the one screen nobody should
 		// be able to reach. With it, ✕ returns to the section they left.
 		'plansUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
-		'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'ctx' => 'ms' ) ),
+		'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 		'domainSearchUrl' => untangling_domain_search_url(),
-		'domainClaimUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms', 'domain' => untangling_get_domain_upsell() ) ),
+		'domainClaimUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'ctx' => 'ms', 'domain' => untangling_get_domain_upsell(), 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 		'storageAddon'    => $storage_addon,
 		'storagePricing'  => untangling_storage_addon_pricing(),
-		'storageAddonUrl' => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'storage', 'ctx' => 'ms' ) ),
+		'storageAddonUrl' => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'storage', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 		'signals'      => array(
 			'comment'    => $signal_comment,
 			'lastPost'   => $signal_post,
