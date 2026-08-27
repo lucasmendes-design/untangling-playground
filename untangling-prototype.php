@@ -241,24 +241,28 @@ function untangling_get_site_slug() {
 // purchase, so picking a domain leads to "Choose how to use your domain"
 // instead of plans → checkout.
 // The wp-admin URL currently being rendered, for round-tripping through a
-// Calypso flow. Falls back to the My Site page when REQUEST_URI is unusable.
+// Calypso flow. Falls back to the variant's home when REQUEST_URI is unusable.
 function untangling_current_admin_url() {
 	$uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
 	if ( ! $uri || 0 !== strpos( $uri, '/wp-admin/' ) ) {
-		return admin_url( 'admin.php?page=untangling-mysite' );
+		return untangling_plan_flow_home_url();
 	}
 	return home_url( $uri );
 }
 
-// Plan-only marketplace steps default their exits here: the My Site page in
-// the drawer variant (untangling-hosting is retired there), the Hosting page
-// everywhere else, where it is still the live brand anchor.
+// Plan-only marketplace steps default their exits here: the core Dashboard in
+// the dashboard variant, the My Site page in the drawer variant
+// (untangling-hosting is retired in both), the Hosting page everywhere else,
+// where it is still the live brand anchor.
 function untangling_plan_flow_home_url() {
-	return admin_url(
-		'drawer' === untangling_get_variant()
-			? 'admin.php?page=untangling-mysite'
-			: 'admin.php?page=untangling-hosting'
-	);
+	switch ( untangling_get_variant() ) {
+		case 'dashboard':
+			return admin_url( 'index.php' );
+		case 'drawer':
+			return admin_url( 'admin.php?page=untangling-mysite' );
+		default:
+			return admin_url( 'admin.php?page=untangling-hosting' );
+	}
 }
 
 // MSD return URLs must survive wp_validate_redirect, which allows only the
@@ -619,7 +623,9 @@ add_action( 'rest_api_init', function () {
 		'callback'            => function () {
 			$offer                  = untangling_upsell_offer();
 			$request_uri            = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
-			$_SERVER['REQUEST_URI'] = '/wp-admin/admin.php?page=untangling-mysite';
+			$_SERVER['REQUEST_URI'] = 'dashboard' === untangling_get_variant()
+				? '/wp-admin/index.php'
+				: '/wp-admin/admin.php?page=untangling-mysite';
 			$href                   = untangling_upsell_url( 'omnibar' );
 			$_SERVER['REQUEST_URI'] = $request_uri;
 			return array(
@@ -657,17 +663,26 @@ add_action( 'init', function () {
 } );
 
 /**
- * Menu variant. Only 'drawer' remains (the My Site drawer: a My Site item
- * directly below Dashboard whose four children are sidebar submenu links, no
- * tabs — the Untangle Calypso IA shape). The 'submenu'/'plain' Hosting-page
- * variants were retired; their render paths survive only for
- * UNTANGLING_FORCE_VARIANT (Playground demo configs).
+ * Menu variant. Two live designs, switchable from the Prototype controls
+ * panel (?untangling_variant=dashboard|drawer, persisted):
+ * - 'dashboard' (default): the all-in core Dashboard — activity log, backups,
+ *   checklist etc. as index.php widgets; no My Site parent, Plan & products
+ *   as its own top-level item, hosting lives on the Dashboard as MSD
+ *   previews.
+ * - 'drawer': the My Site drawer — a My Site item directly below Dashboard
+ *   whose four children are sidebar submenu links (the Untangle Calypso IA
+ *   shape).
+ * The 'submenu'/'plain' Hosting-page variants were retired; their render
+ * paths survive only for UNTANGLING_FORCE_VARIANT (Playground demo configs).
  */
 function untangling_get_variant() {
 	if ( defined( 'UNTANGLING_FORCE_VARIANT' ) ) {
 		return UNTANGLING_FORCE_VARIANT;
 	}
-	return 'drawer';
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_variant'] ) && in_array( $_GET['untangling_variant'], array( 'dashboard', 'drawer' ), true ) ) {
+		update_option( 'untangling_variant', $_GET['untangling_variant'] );
+	}
+	return get_option( 'untangling_variant', 'dashboard' );
 }
 
 /**
@@ -1027,6 +1042,17 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_ms_storage_addon' );
 		delete_option( 'untangling_ms_hosting' );
 		delete_option( 'untangling_upsell' );
+		delete_option( 'untangling_variant' );
+		// The dashboard variant's designed first look lives partly in user
+		// meta (Screen Options hides, drag order, collapsed boxes) — a full
+		// reset restores the curated defaults there too.
+		$user_id = get_current_user_id();
+		if ( $user_id ) {
+			delete_user_meta( $user_id, 'metaboxhidden_dashboard' );
+			delete_user_meta( $user_id, 'meta-box-order_dashboard' );
+			delete_user_meta( $user_id, 'closedpostboxes_dashboard' );
+			delete_user_meta( $user_id, 'screen_layout_dashboard' );
+		}
 	}
 } );
 
@@ -1036,35 +1062,79 @@ add_action( 'admin_init', function () {
  *    entries; slug stays `untangling-hosting` so existing links keep working.
  * ---------------------------------------------------------------------- */
 
-// The pre-drawer page is retired: in the drawer variant nothing should ever
-// render it. It stays registered (below) only so old persisted links do not
-// 404 — this redirect sends them to the current My Site page instead, keeping
-// every other query arg (persisted `untangling_*` toggles) intact and mapping
-// the old Help & Learn tab onto the drawer's `ms=help` section.
+// The pre-drawer page is retired: nothing should ever render it in either
+// live variant. It stays registered (below) only so old persisted links do
+// not 404. Drawer: redirect it to the My Site page, keeping every other query
+// arg (persisted `untangling_*` toggles) intact and mapping the old Help &
+// Learn tab onto the drawer's `ms=help` section. Dashboard: the My Site page
+// itself is also retired except its Plan & products section — everything else
+// (next steps, hosting, help) lives on index.php as widgets, so those hits
+// redirect there too.
 add_action( 'admin_init', function () {
-	if ( 'drawer' !== untangling_get_variant() ) {
-		return;
-	}
-	if ( ! isset( $_GET['page'] ) || 'untangling-hosting' !== $_GET['page'] ) {
-		return;
-	}
+	$variant = untangling_get_variant();
+	$page    = isset( $_GET['page'] ) ? $_GET['page'] : '';
 
-	$args = $_GET;
-	$args['page'] = 'untangling-mysite';
+	if ( 'drawer' === $variant && 'untangling-hosting' === $page ) {
+		$args = $_GET;
+		$args['page'] = 'untangling-mysite';
 
-	if ( isset( $args['untangling_tab'] ) ) {
-		if ( 'learn-more' === $args['untangling_tab'] ) {
-			$args['ms'] = 'help';
+		if ( isset( $args['untangling_tab'] ) ) {
+			if ( 'learn-more' === $args['untangling_tab'] ) {
+				$args['ms'] = 'help';
+			}
+			unset( $args['untangling_tab'] );
 		}
-		unset( $args['untangling_tab'] );
+
+		wp_safe_redirect( admin_url( 'admin.php?' . http_build_query( $args ) ) );
+		exit;
 	}
 
-	wp_safe_redirect( admin_url( 'admin.php?' . http_build_query( $args ) ) );
-	exit;
+	if ( 'dashboard' === $variant ) {
+		$ms = isset( $_GET['ms'] ) ? $_GET['ms'] : '';
+		$is_retired_mysite = 'untangling-mysite' === $page && 'plan' !== $ms;
+		if ( 'untangling-hosting' === $page || $is_retired_mysite ) {
+			$args = $_GET;
+			unset( $args['page'], $args['ms'], $args['untangling_tab'] );
+			wp_safe_redirect( admin_url( 'index.php' . ( $args ? '?' . http_build_query( $args ) : '' ) ) );
+			exit;
+		}
+	}
 } );
 
 add_action( 'admin_menu', function () {
 	$variant = untangling_get_variant();
+
+	if ( 'dashboard' === $variant ) {
+		// Both retired pages stay registered but hidden: untangling-hosting so
+		// persisted links keep redirecting, untangling-mysite because its Plan
+		// & products section still renders there (and its enqueue hook —
+		// toplevel_page_untangling-mysite — only exists while the page is
+		// registered).
+		add_menu_page( __( 'Hosting' ), __( 'Hosting' ), 'manage_options', 'untangling-hosting', 'untangling_render_hosting_page', 'dashicons-cloud', 1 );
+		remove_menu_page( 'untangling-hosting' );
+		add_menu_page( __( 'My Site' ), __( 'My Site' ), 'manage_options', 'untangling-mysite', 'untangling_render_mysite_page', '', 2 );
+		remove_menu_page( 'untangling-mysite' );
+
+		// Plan & products keeps its own top-level anchor, directly below
+		// Dashboard. Next steps and Hosting became index.php widgets and Help
+		// & Learn is hidden in this iteration, so this is the one custom item
+		// left — a direct link into the retained Plan & products section.
+		add_menu_page( __( 'Plan & products' ), __( 'Plan & products' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan', '', 'dashicons-products', 2 );
+
+		// Parity mocks keep their order: Stats, then Jetpack (both collide at
+		// 3, first registered wins the earlier slot).
+		add_menu_page( __( 'Stats' ), __( 'Stats' ), 'manage_options', UNTANGLING_MSD_URL . '/stats', '', 'dashicons-chart-bar', 3 );
+		add_menu_page(
+			__( 'Jetpack' ),
+			__( 'Jetpack' ),
+			'manage_options',
+			'#',
+			'',
+			'data:image/svg+xml;base64,' . base64_encode( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#a7aaad" d="M16 0C7.2 0 0 7.2 0 16s7.2 16 16 16 16-7.2 16-16S24.8 0 16 0zm-1 19H7l8-16v16zm2 10V13h8l-8 16z"/></svg>' ),
+			3
+		);
+		return;
+	}
 
 	if ( 'drawer' === $variant ) {
 		// Drawer variant (Untangle Calypso IA): no Hosting brand anchor. The
@@ -1183,6 +1253,17 @@ add_filter( 'submenu_file', function ( $submenu_file ) {
 		return 'admin.php?page=untangling-mysite&ms=' . $_GET['ms'];
 	}
 	return $submenu_file;
+} );
+
+// Dashboard variant: Plan & products is a top-level direct link, so the page
+// it opens (the retained My Site plan section) must highlight that item —
+// otherwise no sidebar entry lights up on it.
+add_filter( 'parent_file', function ( $parent_file ) {
+	if ( 'dashboard' === untangling_get_variant()
+		&& isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page'] && 'plan' === $_GET['ms'] ) {
+		return 'admin.php?page=untangling-mysite&ms=plan';
+	}
+	return $parent_file;
 } );
 
 function untangling_render_hosting_page() {
@@ -6160,7 +6241,15 @@ function untangling_marketplace_done_step( $type ) {
 			<?php elseif ( $is_renew ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', admin_url() ) ); ?>"><?php esc_html_e( 'Back to WP Admin' ); ?></a>
 			<?php elseif ( $is_ms ) : ?>
-				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ) ); ?>"><?php esc_html_e( 'Back to My Site' ); ?></a>
+				<?php
+				// The ms-context exit follows the live variant: the drawer's
+				// home is the My Site plan section, the dashboard variant's is
+				// index.php (its widgets are the surface that upsold).
+				$ms_is_dashboard = 'dashboard' === untangling_get_variant();
+				$ms_fallback     = $ms_is_dashboard ? admin_url( 'index.php' ) : admin_url( 'admin.php?page=untangling-mysite&ms=plan' );
+				$ms_label        = $ms_is_dashboard ? __( 'Back to Dashboard' ) : __( 'Back to My Site' );
+				?>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', $ms_fallback ) ); ?>"><?php echo esc_html( $ms_label ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php else : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( wp_validate_redirect( ! empty( $_GET['back'] ) ? wp_unslash( $_GET['back'] ) : '', untangling_plan_flow_home_url() ) ); ?>"><?php esc_html_e( 'Back to WordPress.com' ); ?></a>
@@ -7425,7 +7514,18 @@ add_action( 'admin_footer', function () {
 			</div>
 			<div class="untangling-gproto-body is-lean">
 				<?php
-				$group( __( 'My Site' ) );
+				$variant = untangling_get_variant();
+				$group( __( 'Layout' ) );
+				$variant_hints = array(
+					'dashboard' => __( 'All-in Dashboard: next steps, activity, backups, and hosting as widgets on the core Dashboard.' ),
+					'drawer'    => __( 'My Site drawer: a My Site item below Dashboard with Next steps, Plan & products, Hosting, and Help & Learn.' ),
+				);
+				$seg( __( 'Variant' ), 'untangling_variant', array(
+					'dashboard' => __( 'Dashboard' ),
+					'drawer'    => __( 'My Site' ),
+				), $variant, isset( $variant_hints[ $variant ] ) ? $variant_hints[ $variant ] : '' );
+
+				$group( 'dashboard' === $variant ? __( 'Dashboard widgets' ) : __( 'My Site' ) );
 				$ms_state = untangling_ms_get_state();
 				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, 'new' === $ms_state
 					? __( 'Setup unfinished: Next steps leads with the launchpad.' )
@@ -7603,6 +7703,15 @@ add_action( 'admin_footer', function () {
 				}
 				var key = button.closest( '.untangling-gproto-seg' ).dataset.key;
 				var value = button.dataset.value;
+				// A variant switch always lands on that variant's home — the
+				// two layouts live on different screens, so staying put would
+				// show the old one (or bounce through a redirect).
+				if ( 'untangling_variant' === key ) {
+					window.location.href = 'drawer' === value
+						? <?php echo wp_json_encode( admin_url( 'admin.php?page=untangling-mysite' ) ); ?> + '&untangling_variant=drawer'
+						: <?php echo wp_json_encode( admin_url( 'index.php' ) ); ?> + '?untangling_variant=dashboard';
+					return;
+				}
 				// Leaving Split while on its in-admin showcase/details page
 				// lands on core Themes — the page only registers in Split.
 				if ( 'untangling_marketplace' === key && 'split' !== value && -1 !== window.location.search.indexOf( 'page=untangling-themes' ) ) {
@@ -7686,7 +7795,11 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	$bar->add_node( array( 'id' => 'untangling-get-involved', 'parent' => 'untangling-logo-secondary', 'title' => __( 'Get Involved' ), 'href' => admin_url( 'contribute.php' ) ) );
 
 	$bar->add_node( array( 'id' => 'untangling-site-dashboard', 'parent' => 'site-name', 'title' => __( 'Dashboard' ), 'href' => admin_url() ) );
-	$bar->add_node( array( 'id' => 'untangling-site-mysite', 'parent' => 'site-name', 'title' => __( 'My Site' ), 'href' => admin_url( 'admin.php?page=untangling-mysite' ) ) );
+	// The dashboard variant folds My Site into the core Dashboard, so its
+	// dropdown entry would only bounce through a redirect — drawer only.
+	if ( 'drawer' === untangling_get_variant() ) {
+		$bar->add_node( array( 'id' => 'untangling-site-mysite', 'parent' => 'site-name', 'title' => __( 'My Site' ), 'href' => admin_url( 'admin.php?page=untangling-mysite' ) ) );
+	}
 	$bar->add_node( array( 'id' => 'untangling-site-stats', 'parent' => 'site-name', 'title' => __( 'Stats' ), 'href' => $msd . '/stats' ) );
 	$bar->add_node( array( 'id' => 'untangling-site-plan', 'parent' => 'site-name', 'title' => __( 'Plan' ) . '<span class="untangling-chip">' . esc_html( untangling_get_plan() ) . '</span>', 'href' => admin_url( 'admin.php?page=untangling-mysite&ms=plan' ) ) );
 
@@ -8256,6 +8369,9 @@ function untangling_ms_data() {
 			'summary' => $row[2],
 			'actor'   => $row[3],
 			'time'    => gmdate( 'M j, Y, g:i A', $now - $row[4] ),
+			// The Dashboard widget's feed rows keep a short relative stamp on
+			// the right (the Logs table keeps the full UTC column).
+			'ago'     => sprintf( __( '%s ago' ), human_time_diff( $now - $row[4], $now ) ),
 		);
 	}
 	$server_seed = array(
@@ -8322,6 +8438,29 @@ function untangling_ms_data() {
 		'logs'         => $logs,
 		'activity'     => $activity,
 		'serverLogs'   => $server_logs,
+		// Dashboard-variant extras. Deterministic mock traffic (last 7 days,
+		// deltas vs the week before) — same spirit as the perf series; content
+		// counts and versions feed the At a glance widget.
+		'variant'      => untangling_get_variant(),
+		'planPageUrl'  => admin_url( 'admin.php?page=untangling-mysite&ms=plan' ),
+		'wpVersion'    => get_bloginfo( 'version' ),
+		'phpVersion'   => implode( '.', array_slice( explode( '.', PHP_VERSION ), 0, 2 ) ),
+		'counts'       => array(
+			'posts'    => (int) wp_count_posts()->publish,
+			'pages'    => (int) wp_count_posts( 'page' )->publish,
+			'comments' => (int) wp_count_comments()->approved,
+		),
+		'stats'        => array(
+			'views'         => array( 286, 312, 264, 341, 298, 372, 409 ),
+			'visitors'      => array( 178, 195, 160, 208, 181, 224, 246 ),
+			'viewsTotal'    => 2282,
+			'visitorsTotal' => 1392,
+			'viewsDelta'    => '+12%',
+			'visitorsDelta' => '+9%',
+		),
+		// The Plan widget's one promo slot on paid plans: the same two-year
+		// renewal deal the omnibar pill sells, through the same checkout mimic.
+		'renewUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => $plan, 'flow' => 'renew', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 	);
 }
 
@@ -8338,6 +8477,280 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	// adds this page's own classes on top.
 	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() );
 } );
+
+/* -------------------------------------------------------------------------
+ * 8b. All-in Dashboard variant: the My Site content as core Dashboard
+ *     widgets ("push to explore all-in on dashboard" — activity log, backups,
+ *     checklist etc. as widgets). Every widget is a preview that links to the
+ *     MSD as the one full management surface. Postbox chrome is kept on
+ *     purpose: Screen Options, drag-reorder, and collapse come free from core
+ *     and are exactly the "integrated with Core" feel.
+ * ---------------------------------------------------------------------- */
+
+// Default IA: column 1 (normal) is your site and what's happening — identity,
+// action, traffic, history. Column 2 (side) is the machine — vitals,
+// protection, infrastructure — and the plan last, carrying the one promo slot
+// below the fold. Users can rearrange; this is the designed first look.
+add_action( 'wp_dashboard_setup', function () {
+	if ( 'dashboard' !== untangling_get_variant() ) {
+		return;
+	}
+
+	$mount = function ( $id ) {
+		return function () use ( $id ) {
+			// .untangling-app scopes the vendored --wpds-* tokens,
+			// .untangling-ms the component styles, .untangling-dw the
+			// postbox-fit overrides.
+			echo '<div class="untangling-app untangling-ms untangling-dw untangling-dw-mount" data-widget="' . esc_attr( $id ) . '"></div>';
+		};
+	};
+
+	wp_add_dashboard_widget( 'untangling_dw_site', __( 'Your site' ), $mount( 'site' ), null, null, 'normal', 'high' );
+	wp_add_dashboard_widget( 'untangling_dw_next_steps', __( 'Next steps' ), $mount( 'next' ), null, null, 'normal', 'core' );
+	wp_add_dashboard_widget( 'untangling_dw_stats', __( 'Stats' ), $mount( 'stats' ), null, null, 'normal', 'default' );
+	wp_add_dashboard_widget( 'untangling_dw_activity', __( 'Activity' ), $mount( 'activity' ), null, null, 'normal', 'low' );
+
+	wp_add_dashboard_widget( 'untangling_dw_glance', __( 'At a glance' ), $mount( 'glance' ), null, null, 'side', 'high' );
+	wp_add_dashboard_widget( 'untangling_dw_backups', __( 'Backups' ), $mount( 'backups' ), null, null, 'side', 'core' );
+	wp_add_dashboard_widget( 'untangling_dw_scan', __( 'Scan' ), $mount( 'scan' ), null, null, 'side', 'core' );
+	wp_add_dashboard_widget( 'untangling_dw_hosting', __( 'Hosting' ), $mount( 'hosting' ), null, null, 'side', 'default' );
+	wp_add_dashboard_widget( 'untangling_dw_plan', __( 'Plan' ), $mount( 'plan' ), null, null, 'side', 'low' );
+
+	// The welcome panel's job (first look at your site, next actions) is the
+	// Site + Next steps widgets now. No clean filter exists for its user-meta
+	// switch, so the render hook goes and the CSS below hides the shell.
+	remove_action( 'welcome_panel', 'wp_welcome_panel' );
+} );
+
+// The designed IA is two columns (the reference grid): column 1 is the site,
+// column 2 is the machine. Core would offer up to four columns on wide
+// screens, leaving empty "drag boxes here" wells beside the design.
+add_filter( 'screen_layout_columns', function ( $columns ) {
+	if ( 'dashboard' === untangling_get_variant() ) {
+		$columns['dashboard'] = 2;
+	}
+	return $columns;
+} );
+add_filter( 'get_user_option_screen_layout_dashboard', function ( $value ) {
+	return 'dashboard' === untangling_get_variant() ? 2 : $value;
+} );
+
+// Core (and Woo) widgets are curated, not removed: unchecked by default,
+// one Screen Options checkbox away. The filter only supplies defaults —
+// the moment someone touches Screen Options their own user meta wins, and
+// "Reset demo" clears that meta to restore the designed first look.
+add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
+	if ( 'dashboard' !== $screen->id || 'dashboard' !== untangling_get_variant() ) {
+		return $hidden;
+	}
+	return array_unique( array_merge( $hidden, array(
+		'dashboard_right_now',
+		'dashboard_activity',
+		'dashboard_quick_press',
+		'dashboard_primary',
+		'dashboard_site_health',
+		// Woo registers these on the two store sites; absent ids are harmless.
+		'woocommerce_dashboard_status',
+		'woocommerce_dashboard_recent_reviews',
+		'wc_admin_dashboard_setup',
+	) ) );
+}, 10, 2 );
+
+add_action( 'admin_enqueue_scripts', function ( $hook ) {
+	if ( 'index.php' !== $hook || 'dashboard' !== untangling_get_variant() ) {
+		return;
+	}
+	wp_enqueue_style( 'wp-components' );
+	wp_register_script( 'untangling-ms-app', '', array( 'wp-element', 'wp-components', 'wp-i18n' ), '0.1.0', true );
+	wp_enqueue_script( 'untangling-ms-app' );
+	wp_add_inline_script( 'untangling-ms-app', 'window.untanglingMsData = ' . wp_json_encode( untangling_ms_data() ) . ';', 'before' );
+	// The same app as the My Site page: the shared components render the
+	// widgets, and each surface's mount loop no-ops on the other.
+	wp_add_inline_script( 'untangling-ms-app', untangling_ms_app_js() );
+	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() . untangling_dw_css() );
+} );
+
+// Screen Options, grouped. Core prints one flat run of checkboxes; the
+// re-parenting below moves the SAME label nodes (never clones — core's
+// show/hide bindings live on them) into fieldsets with headings, so the
+// panel reads as a small map of the page instead of a word soup.
+add_action( 'admin_footer-index.php', function () {
+	if ( 'dashboard' !== untangling_get_variant() ) {
+		return;
+	}
+	?>
+	<script>
+	( function () {
+		var prefs = document.querySelector( '#adv-settings .metabox-prefs' );
+		if ( ! prefs ) {
+			return;
+		}
+		var GROUPS = [
+			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
+			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'untangling_dw_activity' ] },
+			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_backups', 'untangling_dw_scan', 'untangling_dw_hosting' ] },
+			{ title: <?php echo wp_json_encode( __( 'Plan' ) ); ?>, ids: [ 'untangling_dw_plan' ] },
+			{ title: <?php echo wp_json_encode( __( 'Store' ) ); ?>, ids: [ 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
+			{ title: <?php echo wp_json_encode( __( 'More WordPress' ) ); ?>, ids: [] },
+		];
+		var labels = Array.prototype.slice.call( prefs.querySelectorAll( 'label[for$="-hide"]' ) );
+		if ( ! labels.length ) {
+			return;
+		}
+		var byId = {};
+		labels.forEach( function ( label ) {
+			byId[ label.getAttribute( 'for' ).replace( /-hide$/, '' ) ] = label;
+		} );
+		var claimed = {};
+		var anchor = labels[ 0 ];
+		var host = anchor.parentNode;
+		GROUPS.forEach( function ( group ) {
+			var members = group.ids.map( function ( id ) {
+				claimed[ id ] = true;
+				return byId[ id ];
+			} ).filter( Boolean );
+			if ( 'More WordPress' !== group.title ) {
+				group.nodes = members;
+			}
+		} );
+		// Everything unclaimed — core widgets and any plugin's — falls into
+		// the last group, in its original order.
+		GROUPS[ GROUPS.length - 1 ].nodes = labels.filter( function ( label ) {
+			return ! claimed[ label.getAttribute( 'for' ).replace( /-hide$/, '' ) ];
+		} );
+		GROUPS.forEach( function ( group ) {
+			if ( ! group.nodes || ! group.nodes.length ) {
+				return;
+			}
+			var fieldset = document.createElement( 'fieldset' );
+			fieldset.className = 'untangling-dw-optgroup';
+			var legend = document.createElement( 'legend' );
+			legend.textContent = group.title;
+			fieldset.appendChild( legend );
+			group.nodes.forEach( function ( node ) {
+				fieldset.appendChild( node );
+			} );
+			host.insertBefore( fieldset, anchor.parentNode === host ? anchor : null );
+		} );
+		// The moved labels leave the original run empty; the welcome-panel
+		// checkbox is hidden in CSS (its widget is replaced, not curated).
+	} )();
+	</script>
+	<?php
+}, 999 );
+
+// Postbox-fit styles for the widgets, plus the curated-dashboard chrome.
+// Content cards stay flat (hairline, no shadow) — elevation is reserved for
+// the checklist's current step, the one "act on this" in the design.
+function untangling_dw_css() {
+	return <<<'CSS'
+/* Curated chrome: the welcome panel's job moved into the Site + Next steps
+   widgets; its Screen Options checkbox goes with it. */
+#welcome-panel { display: none !important; }
+#adv-settings label[for="wp_welcome_panel-hide"] { display: none; }
+
+/* Empty extra sortables containers read as debris beside the designed grid —
+   core's dashboard sheet keeps their dashed "drag boxes here" wells visible
+   at rest. Show them only while a widget is actually being dragged. */
+#dashboard-widgets .postbox-container .empty-container { outline: none; min-height: 0; visibility: hidden; }
+body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-container { visibility: visible; outline: 3px dashed #c3c4c7; min-height: 250px; }
+
+/* Screen Options groups. */
+.untangling-dw-optgroup { margin: 8px 0 0; }
+.untangling-dw-optgroup legend { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 4px; }
+.untangling-dw-optgroup label { margin-right: 12px; }
+
+/* Widgets inside postboxes: the postbox supplies chrome and title, so the
+   inner components drop their own card shells. */
+#dashboard-widgets .postbox .untangling-dw { margin: 0 -12px -12px; }
+.untangling-dw { font-size: 13px; }
+.untangling-dw .components-card { box-shadow: none; border-radius: 0; }
+.untangling-dw > * { padding: 12px; }
+.untangling-dw > .ms-linkfooter,
+.untangling-dw > .ms-dw-body { padding: 12px; }
+
+/* Generic widget body + footer. The footer mirrors .ms-linkfooter but sits on
+   a hairline inside the postbox. */
+.untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; }
+.untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: 13px; }
+.untangling-dw .ms-linkfooter .ms-logs-credit { position: static; transform: none; margin-left: auto; margin-right: 10px; }
+
+/* Site widget: preview scales to the postbox via a measured transform. */
+.untangling-dw .ms-dw-preview { position: relative; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; background: #f6f7f7; }
+.untangling-dw .ms-dw-preview iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: top left; pointer-events: none; }
+.untangling-dw .ms-dw-site-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.untangling-dw .ms-dw-site-meta .ms-tl-preview-title { margin: 0 0 2px; }
+.untangling-dw .ms-dw-site-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* At a glance: label/value rows split by hairlines (the settings-card model). */
+.untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
+.untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-grid-row:last-child { border-bottom: 0; }
+.untangling-dw .ms-dw-grid-label { color: #757575; flex-shrink: 0; }
+.untangling-dw .ms-dw-grid-value { text-align: right; color: #1e1e1e; }
+.untangling-dw .ms-dw-grid-value a { text-decoration: none; }
+.untangling-dw .ms-dw-grid-value a:hover { text-decoration: underline; }
+.untangling-dw .ms-dw-grid-row.is-block { display: block; }
+.untangling-dw .ms-dw-grid-row.is-block .ms-storage { margin: 6px 0 0; }
+.untangling-dw .ms-storage-used { margin-top: 6px; }
+
+/* Stats: KPI pair, the selected one underlined (it drives the sparkline). */
+.untangling-dw .ms-dw-kpis { display: flex; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpi { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; font: inherit; text-align: left; flex: 1; padding: 4px 12px 10px 0; }
+.untangling-dw .ms-dw-kpi + .ms-dw-kpi { border-left: 1px solid #f0f0f0; padding-left: 16px; }
+.untangling-dw .ms-dw-kpi.is-active { border-bottom-color: #1e1e1e; }
+.untangling-dw .ms-dw-kpi-label { display: block; font-size: 12px; color: #757575; margin-bottom: 2px; }
+.untangling-dw .ms-dw-kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; color: #1e1e1e; }
+.untangling-dw .ms-dw-kpi-delta { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #f0f0f0; font-size: 11px; font-weight: 500; color: #1e1e1e; vertical-align: 4px; }
+.untangling-dw .ms-dw-spark { display: block; width: 100%; height: 64px; margin-top: 10px; }
+
+/* Activity feed rows: icon · title/summary · relative time. Empty state is a
+   grey circle and one sentence, and the card keeps its height. */
+.untangling-dw .ms-dw-feed { display: flex; flex-direction: column; }
+.untangling-dw .ms-dw-feed-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-feed-row:last-child { border-bottom: 0; }
+.untangling-dw .ms-dw-feed-icon { flex-shrink: 0; display: flex; margin-top: 1px; }
+.untangling-dw .ms-dw-feed-icon svg { fill: #757575; }
+.untangling-dw .ms-dw-feed-main { flex: 1; min-width: 0; }
+.untangling-dw .ms-dw-feed-title { display: block; font-weight: 500; color: #1e1e1e; }
+.untangling-dw .ms-dw-feed-summary { display: block; color: #757575; }
+.untangling-dw .ms-dw-feed-time { flex-shrink: 0; color: #757575; font-size: 12px; margin-top: 2px; }
+.untangling-dw .ms-dw-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 120px; text-align: center; color: #757575; }
+.untangling-dw .ms-dw-empty-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; }
+.untangling-dw .ms-dw-empty-icon svg { fill: #949494; }
+
+/* Backups / Scan: the OvCard drops its own shell inside the postbox. */
+.untangling-dw .ms-ovcard { box-shadow: none; padding: 0; }
+.untangling-dw a.ms-ovcard:hover { box-shadow: none; background: none; }
+.untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
+
+/* Checklist: the open (current) step is the page's only elevation. */
+.untangling-dw .ms-tl-tasks { background: #f6f7f7; }
+.untangling-dw .ms-tl-card { box-shadow: none; border: 1px solid transparent; }
+.untangling-dw .ms-tl-card.is-open { box-shadow: 0 4px 12px rgba(0, 0, 0, .08), 0 0 0 1px #e0e0e0; }
+.untangling-dw .ms-tl-progress { margin: 0 0 10px; font-size: 12px; color: #757575; }
+.untangling-dw .ms-madefor { margin: 12px 0 0; }
+.untangling-dw .ms-hero { box-shadow: none; border: 1px solid #e0e0e0; padding: 16px; }
+.untangling-dw .ms-hero-title { font-size: 18px; }
+
+/* Upsell callouts stack in the narrow column. */
+.untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0; }
+
+/* Hosting rows reuse the advanced-row recipe minus its card shell. */
+.untangling-dw .ms-advanced-row { box-shadow: none; padding: 9px 0; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-advanced-row:last-child { border-bottom: 0; }
+.untangling-dw .ms-advanced-row:hover { box-shadow: none; background: none; }
+
+/* Plan widget: name row, then the one promo slot. */
+.untangling-dw .ms-plan-namerow { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; }
+.untangling-dw .ms-plan-namerow .ms-card-title { font-size: 14px; margin: 0; }
+.untangling-dw .ms-dw-offer { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; }
+.untangling-dw .ms-dw-offer svg { flex-shrink: 0; fill: #3858e9; }
+.untangling-dw .ms-dw-offer-text { flex: 1; }
+.untangling-dw .ms-dw-offer-title { display: block; font-weight: 500; color: #1e1e1e; }
+.untangling-dw .ms-dw-offer-desc { display: block; color: #757575; font-size: 12px; }
+CSS;
+}
 
 function untangling_ms_app_js() {
 	return <<<'JS'
@@ -10258,6 +10671,388 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	/* ---- Dashboard widgets (the all-in dashboard variant) ----
+	   Each component mounts into one core postbox on index.php; the postbox
+	   supplies the chrome and the title, so these render content only. All of
+	   them are previews — the full management surface is the MSD, one footer
+	   link away ("one preview + one full management interface per concept"). */
+
+	// Widget footer: one link, optionally carrying the Jetpack credit. The
+	// external icon marks the jump out to the MSD; internal links (the Plan &
+	// products page) keep the chevron.
+	function dwFooter( href, label, credit, internal ) {
+		return el( 'a', { className: 'ms-linkfooter', href: href },
+			el( 'span', null, label ),
+			credit ? jetpackCredit( 'ms-logs-credit', 'span' ) : null,
+			icon( internal ? PATHS.chevron : PATHS.external, '0 0 24 24', internal ? 20 : 18 )
+		);
+	}
+
+	// Your site: the first place a new visitor sees their site (the welcome
+	// panel's one real job), kept as a live preview — with the redundant
+	// buttons gone. The iframe renders at 1280px and scales to the postbox.
+	function DwSite() {
+		var frameRef = useRef( null );
+		useEffect( function () {
+			var node = frameRef.current;
+			if ( ! node ) {
+				return;
+			}
+			function fit() {
+				var iframe = node.querySelector( 'iframe' );
+				if ( iframe && node.clientWidth ) {
+					iframe.style.transform = 'scale(' + node.clientWidth / 1280 + ')';
+				}
+			}
+			fit();
+			window.addEventListener( 'resize', fit );
+			return function () {
+				window.removeEventListener( 'resize', fit );
+			};
+		}, [] );
+		return el( 'div', { className: 'ms-dw-body' },
+			el( 'div', { className: 'ms-dw-preview', ref: frameRef },
+				el( 'iframe', {
+					title: data.siteName || data.domain || 'Site preview',
+					src: ( data.siteUrl || '/' ) + '?iframe=true',
+					tabIndex: -1,
+				} )
+			),
+			el( 'div', { className: 'ms-dw-site-meta' },
+				el( 'div', null,
+					el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.domain ),
+					el( 'a', { className: 'ms-tl-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain )
+				),
+				el( 'div', { className: 'ms-dw-site-actions' },
+					el( Badge, null, 'WordPress.com ' + data.plan ),
+					el( Button, { variant: 'tertiary', size: 'compact', href: data.siteUrl, target: '_blank' }, 'Visit site' )
+				)
+			)
+		);
+	}
+
+	// At a glance, extended with what the site runs on. Storage takes two
+	// lines (meter, then the numbers) instead of core's two columns.
+	function DwGlance() {
+		var counts = data.counts || {};
+		function row( label, value ) {
+			return el( 'div', { className: 'ms-dw-grid-row' },
+				el( 'span', { className: 'ms-dw-grid-label' }, label ),
+				el( 'span', { className: 'ms-dw-grid-value' }, value )
+			);
+		}
+		return el( 'div', { className: 'ms-dw-body' },
+			el( 'div', { className: 'ms-dw-grid' },
+				row( 'Plan', el( 'a', { href: data.planPageUrl }, 'WordPress.com ' + data.plan ) ),
+				row( 'WordPress', data.wpVersion ),
+				row( 'PHP', isFree ? data.phpVersion + ' — managed for you' : data.phpVersion ),
+				row( 'Content', ( counts.posts || 0 ) + ' posts · ' + ( counts.pages || 0 ) + ' pages · ' + ( counts.comments || 0 ) + ' comments' ),
+				el( 'div', { className: 'ms-dw-grid-row is-block' },
+					el( 'span', { className: 'ms-dw-grid-label' }, 'Storage' ),
+					el( StorageMeter )
+				)
+			)
+		);
+	}
+
+	// Next steps: the launchpad (just created) or the living pool
+	// (established), same data and persistence as the My Site page — minus
+	// the page heading, the two-column layout, and the preview column, which
+	// the Site widget and the postbox title already provide. The open step is
+	// the dashboard's only elevation: the one "act on this".
+	function DwLaunchpad( props ) {
+		var doneState = useState( lpInitialDone );
+		var done = doneState[ 0 ], setDone = doneState[ 1 ];
+		var openState = useState( function () { return firstIncomplete( lpInitialDone() ); } );
+		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
+		var count = LP_TASKS.filter( function ( t ) { return done[ t.id ]; } ).length;
+
+		function complete( id ) {
+			if ( done[ id ] ) {
+				return;
+			}
+			var next = Object.assign( {}, done );
+			next[ id ] = true;
+			setDone( next );
+			setOpenId( firstIncomplete( next ) );
+			var doneCount = LP_TASKS.filter( function ( t ) { return next[ t.id ]; } ).length;
+			var isComplete = doneCount === LP_TASKS.length;
+			lpPersist( next, isComplete );
+			if ( isComplete && props.onComplete ) {
+				props.onComplete();
+			}
+		}
+
+		return el( 'div', null,
+			el( 'p', { className: 'ms-tl-progress' }, count + ' of ' + LP_TASKS.length + ' completed' ),
+			el( 'div', { className: 'ms-tl-tasks', 'aria-label': 'Launchpad checklist' },
+				LP_TASKS.map( function ( task ) {
+					return el( TailoredTaskCard, {
+						key: task.id,
+						task: task,
+						done: !! done[ task.id ],
+						open: openId === task.id,
+						onToggle: function () { setOpenId( openId === task.id ? null : task.id ); },
+						onComplete: function () { complete( task.id ); },
+					} );
+				} )
+			),
+			el( MadeForLine )
+		);
+	}
+
+	function DwChecklistEstablished() {
+		var handledState = useState( upnextHandled );
+		var handled = handledState[ 0 ], setHandled = handledState[ 1 ];
+		function pendingOf( ids ) {
+			return DO_STEPS.filter( function ( s ) { return ids.indexOf( s.id ) === -1; } );
+		}
+		var openState = useState( function () {
+			var first = pendingOf( upnextHandled() )[ 0 ];
+			return first ? first.id : '';
+		} );
+		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
+		function onHandle( id ) {
+			var next = handled.concat( [ id ] );
+			setHandled( next );
+			upnextSave( next );
+			var first = pendingOf( next )[ 0 ];
+			setOpenId( first ? first.id : '' );
+			if ( ! pendingOf( next ).length ) {
+				confettiBurst();
+			}
+		}
+		function onReset() {
+			setHandled( [] );
+			upnextSave( [] );
+			setOpenId( DO_STEPS.length ? DO_STEPS[ 0 ].id : '' );
+		}
+		var pending = pendingOf( handled );
+		return el( 'div', null,
+			el( 'div', { className: 'ms-tl-tasks ms-next-flow', 'aria-label': 'Next steps' },
+				! pending.length && el( CaughtUpCard, { onReset: onReset } ),
+				DO_STEPS.map( function ( step ) {
+					var isDone = handled.indexOf( step.id ) !== -1;
+					return el( NextStepCard, {
+						key: step.id,
+						step: step,
+						done: isDone,
+						open: ! isDone && openId === step.id,
+						onToggle: function () { setOpenId( openId === step.id ? '' : step.id ); },
+						onHandle: onHandle,
+					} );
+				} )
+			),
+			el( MadeForLine )
+		);
+	}
+
+	function DwChecklist() {
+		var phaseState = useState( 'established' === data.state ? 'established' : 'launchpad' );
+		var phase = phaseState[ 0 ], setPhase = phaseState[ 1 ];
+		function onComplete() {
+			confettiBurst();
+			window.setTimeout( function () { setPhase( 'established' ); }, 1100 );
+		}
+		return el( 'div', { className: 'ms-dw-body' },
+			'established' === phase ? el( DwChecklistEstablished ) : el( DwLaunchpad, { onComplete: onComplete } )
+		);
+	}
+
+	// Stats: two KPIs, the underlined one drives the sparkline (Ghost's KPI
+	// strip). Numbers are the last 7 days, deltas vs the week before.
+	function Sparkline( props ) {
+		var width = 400;
+		var height = 64;
+		var pad = 4;
+		var max = 1;
+		( props.values || [] ).forEach( function ( v ) { max = Math.max( max, v ); } );
+		var points = toPoints( props.values || [ 0, 0 ], width, height, max * 1.15, pad );
+		var line = smoothPath( points );
+		var area = line + 'L' + points[ points.length - 1 ][ 0 ] + ',' + ( height - pad ) + 'L' + points[ 0 ][ 0 ] + ',' + ( height - pad ) + 'Z';
+		var gid = 'msdwgrad-' + ( props.id || 'spark' );
+		return el( 'svg', { className: 'ms-dw-spark', viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', 'aria-hidden': true },
+			el( 'defs', null,
+				el( 'linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
+					el( 'stop', { offset: '0%', stopColor: props.color, stopOpacity: 0.2 } ),
+					el( 'stop', { offset: '100%', stopColor: props.color, stopOpacity: 0 } )
+				)
+			),
+			el( 'path', { d: area, fill: 'url(#' + gid + ')' } ),
+			el( 'path', { d: line, fill: 'none', stroke: props.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
+		);
+	}
+
+	function DwStats() {
+		var kpiState = useState( 'views' );
+		var kpi = kpiState[ 0 ], setKpi = kpiState[ 1 ];
+		var s = data.stats || {};
+		var KPIS = [
+			{ key: 'views', label: 'Views · last 7 days', total: s.viewsTotal || 0, delta: s.viewsDelta, color: '#3858e9', values: s.views || [] },
+			{ key: 'visitors', label: 'Visitors · last 7 days', total: s.visitorsTotal || 0, delta: s.visitorsDelta, color: '#5ba300', values: s.visitors || [] },
+		];
+		var active = KPIS.filter( function ( k ) { return k.key === kpi; } )[ 0 ] || KPIS[ 0 ];
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', { className: 'ms-dw-kpis' },
+					KPIS.map( function ( k ) {
+						return el( 'button', {
+							key: k.key,
+							type: 'button',
+							className: 'ms-dw-kpi' + ( k.key === kpi ? ' is-active' : '' ),
+							'aria-pressed': k.key === kpi,
+							onClick: function () { setKpi( k.key ); },
+						},
+							el( 'span', { className: 'ms-dw-kpi-label' }, k.label ),
+							el( 'span', { className: 'ms-dw-kpi-value' },
+								k.total.toLocaleString(),
+								k.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, k.delta )
+							)
+						);
+					} )
+				),
+				el( Sparkline, { id: active.key, color: active.color, values: active.values } )
+			),
+			dwFooter( msd + '/stats', 'See all stats', true )
+		);
+	}
+
+	// Activity: the feed rows, quiet — no per-row buttons; the full log (and
+	// its history) lives in the MSD.
+	function DwActivity() {
+		var rows = data.activity || [];
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				rows.length
+					? el( 'div', { className: 'ms-dw-feed' },
+						rows.map( function ( row, i ) {
+							return el( 'div', { key: i, className: 'ms-dw-feed-row' },
+								el( 'span', { className: 'ms-dw-feed-icon', 'aria-hidden': true }, icon( PATHS[ row.icon ] || PATHS.post, '0 0 24 24', 20 ) ),
+								el( 'span', { className: 'ms-dw-feed-main' },
+									el( 'span', { className: 'ms-dw-feed-title' }, row.title ),
+									el( 'span', { className: 'ms-dw-feed-summary' }, row.summary )
+								),
+								el( 'span', { className: 'ms-dw-feed-time' }, row.ago || row.time )
+							);
+						} )
+					)
+					: el( 'div', { className: 'ms-dw-empty' },
+						el( 'span', { className: 'ms-dw-empty-icon', 'aria-hidden': true }, icon( PATHS.seen, '0 0 24 24', 20 ) ),
+						el( 'span', null, 'Quiet so far. New events show up here.' )
+					)
+			),
+			dwFooter( msd + '/sites/' + data.siteSlug + '/logs/activity', 'See all activity', true )
+		);
+	}
+
+	// Backups / Scan: the MSD overview state cards, one per widget. Both are
+	// Jetpack products, so both carry the credit — in the Free upsell state
+	// too, since that is still what is being offered.
+	function DwBackups() {
+		var bad = 'attention' === data.hosting;
+		var card = isFree
+			? { icon: 'cloud', label: 'Backups', heading: 'Back up your site', desc: 'Get back online quickly with one-click restores.', muted: true, href: plansUrlFor( 'backups' ) }
+			: ( bad
+				? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
+				: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' } );
+		return el( 'div', { className: 'ms-dw-body' },
+			el( OvCard, card ),
+			jetpackCredit()
+		);
+	}
+
+	function DwScan() {
+		var bad = 'attention' === data.hosting;
+		var card = isFree
+			? { icon: 'shield', label: 'Security', heading: 'Scan for security threats', desc: 'We guard your site. You run your business.', muted: true, href: plansUrlFor( 'security' ) }
+			: ( bad
+				? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
+				: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' } );
+		return el( 'div', { className: 'ms-dw-body' },
+			el( OvCard, card ),
+			jetpackCredit()
+		);
+	}
+
+	// Hosting, compressed into one settings-card: label/value rows that each
+	// deep-link the MSD page that owns them. The charts and tables stayed in
+	// the MSD on purpose — this is the preview, not a second console. Not a
+	// Jetpack surface (Atomic host features), so no credit.
+	function DwHosting() {
+		if ( isFree ) {
+			return el( Fragment, null,
+				el( 'div', { className: 'ms-dw-body' },
+					el( UpsellCallout, {
+						stacked: true,
+						icon: 'cloud',
+						title: 'If something goes wrong',
+						desc: 'Backups, security scans, staging, and server access come with Business.',
+						cta: 'See plans',
+						need: 'hosting',
+					} )
+				),
+				dwFooter( msd + '/overview', 'Open the Hosting Dashboard' )
+			);
+		}
+		var rows = [
+			{ icon: 'code', title: 'PHP ' + data.phpVersion, desc: 'Managed for you.', route: '/settings/php' },
+			{ icon: 'performance', title: 'Caching', desc: 'Edge and object caches active.', route: '/settings' },
+			{ icon: 'layout', title: 'Staging', desc: 'No staging site yet.', route: '' },
+			{ icon: 'key', title: 'SFTP/SSH', desc: 'Direct file access for developers.', route: '/settings/sftp-ssh' },
+			{ icon: 'storage', title: 'Database', desc: 'Browse tables with phpMyAdmin.', route: '/settings/database' },
+			{ icon: 'globe', title: 'Server logs', desc: 'PHP errors and every request.', route: '/logs/php' },
+		];
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', null, rows.map( function ( row, i ) {
+					return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug + row.route },
+						el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ row.icon ] ) ),
+						el( 'span', { className: 'ms-grow-main' },
+							el( 'span', { className: 'ms-grow-title' }, row.title ),
+							el( 'span', { className: 'ms-grow-desc' }, row.desc )
+						),
+						el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.external, '0 0 24 24', 18 ) )
+					);
+				} ) )
+			),
+			dwFooter( msd + '/overview', 'Open the Hosting Dashboard' )
+		);
+	}
+
+	// Plan: the plan at a glance, and the dashboard's ONE promo slot —
+	// quarantined here, last in the column, styled secondary.
+	function DwPlan() {
+		var compare = data.planCompare || {};
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', null,
+					el( 'div', { className: 'ms-plan-namerow' },
+						el( 'h3', { className: 'ms-card-title' }, 'WordPress.com ' + data.plan ),
+						el( Badge, { intent: 'success' }, 'Active' )
+					),
+					cardDesc( meta.renew )
+				),
+				isFree && compare.next
+					? el( UpsellCallout, {
+						stacked: true,
+						icon: 'performance',
+						title: 'Do more with ' + compare.next.name,
+						desc: 'More storage, more design control, and room to grow.',
+						cta: 'Upgrade to ' + compare.next.name,
+					} )
+					: el( 'div', { className: 'ms-dw-offer' },
+						upsellDiamond(),
+						el( 'span', { className: 'ms-dw-offer-text' },
+							el( 'span', { className: 'ms-dw-offer-title' }, 'Save 20% with 2-year billing' ),
+							el( 'span', { className: 'ms-dw-offer-desc' }, 'One renewal, two years of ' + data.plan + '.' )
+						),
+						el( Button, { variant: 'secondary', size: 'compact', href: data.renewUrl }, 'Renew and save' )
+					)
+			),
+			dwFooter( data.planPageUrl, 'Plan & products', false, true )
+		);
+	}
+
 	/* ---- router ---- */
 
 	var PAGES = { next: NextStepsPage, plan: PlanPage, hosting: HostingPage, help: HelpPage };
@@ -10271,6 +11066,17 @@ function untangling_ms_app_js() {
 	if ( root && wp.element.createRoot ) {
 		wp.element.createRoot( root ).render( el( App ) );
 	}
+
+	// Dashboard-variant mounts: one root per widget placeholder on index.php.
+	// No placeholders on the My Site page (and no #untangling-ms-root on the
+	// Dashboard), so each surface's loop no-ops on the other.
+	var DW_WIDGETS = { site: DwSite, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, backups: DwBackups, scan: DwScan, hosting: DwHosting, plan: DwPlan };
+	document.querySelectorAll( '.untangling-dw-mount' ).forEach( function ( node ) {
+		var Widget = DW_WIDGETS[ node.dataset.widget ];
+		if ( Widget && wp.element.createRoot ) {
+			wp.element.createRoot( node ).render( el( Widget ) );
+		}
+	} );
 
 	// Feature tooltips open above where the cursor entered, then stay put —
 	// same delegated positioning as the WP.com page app.
