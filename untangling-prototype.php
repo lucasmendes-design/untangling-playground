@@ -8618,6 +8618,10 @@ add_action( 'admin_footer-index.php', function () {
 		GROUPS[ GROUPS.length - 1 ].nodes = labels.filter( function ( label ) {
 			return ! claimed[ label.getAttribute( 'for' ).replace( /-hide$/, '' ) ];
 		} );
+		// One grid wrapper, groups as columns — the panel spreads across the
+		// available width instead of stacking six short rows.
+		var wrap = document.createElement( 'div' );
+		wrap.className = 'untangling-dw-optgroups';
 		GROUPS.forEach( function ( group ) {
 			if ( ! group.nodes || ! group.nodes.length ) {
 				return;
@@ -8630,8 +8634,9 @@ add_action( 'admin_footer-index.php', function () {
 			group.nodes.forEach( function ( node ) {
 				fieldset.appendChild( node );
 			} );
-			host.insertBefore( fieldset, anchor.parentNode === host ? anchor : null );
+			wrap.appendChild( fieldset );
 		} );
+		host.insertBefore( wrap, anchor.parentNode === host ? anchor : null );
 		// The moved labels leave the original run empty; the welcome-panel
 		// checkbox is hidden in CSS (its widget is replaced, not curated).
 	} )();
@@ -8667,10 +8672,12 @@ function untangling_dw_css() {
 #dashboard-widgets .postbox-container .empty-container { outline: none; min-height: 0; visibility: hidden; }
 body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-container { visibility: visible; outline: 3px dashed #c3c4c7; min-height: 250px; }
 
-/* Screen Options groups. */
-.untangling-dw-optgroup { margin: 8px 0 0; }
-.untangling-dw-optgroup legend { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 4px; }
-.untangling-dw-optgroup label { margin-right: 12px; }
+/* Screen Options groups: columns across the panel width, checkboxes stacked
+   under each heading — a map of the page, not a tall list of short rows. */
+.untangling-dw-optgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 24px; margin: 12px 0 4px; max-width: 1400px; }
+.untangling-dw-optgroup { margin: 0; }
+.untangling-dw-optgroup legend { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 6px; }
+.untangling-dw-optgroup label { display: block; margin: 0 0 8px; }
 
 /* Widgets inside postboxes: the postbox supplies chrome and title, so the
    inner components drop their own card shells. */
