@@ -8649,6 +8649,18 @@ function untangling_dw_css() {
 #welcome-panel { display: none !important; }
 #adv-settings label[for="wp_welcome_panel-hide"] { display: none; }
 
+/* The layout is pinned to two columns, but core's wide-viewport media rules
+   (3 columns at 1500-1800px, 4 above that) still restyle .postbox-container
+   widths past the columns-2 class — column 1 shrinks while column 2 keeps
+   floating right at 50.5%, leaving a dead gutter in the middle. Re-assert
+   the two-column split at every width above mobile. */
+@media only screen and (min-width: 800px) {
+	#wpbody #wpbody-content #dashboard-widgets.columns-2 .postbox-container { width: 49.5%; }
+	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-2,
+	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-3,
+	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-4 { float: right; width: 50.5%; }
+}
+
 /* Empty extra sortables containers read as debris beside the designed grid —
    core's dashboard sheet keeps their dashed "drag boxes here" wells visible
    at rest. Show them only while a widget is actually being dragged. */
