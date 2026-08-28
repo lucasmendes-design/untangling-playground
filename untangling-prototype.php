@@ -8487,10 +8487,31 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
  *     and are exactly the "integrated with Core" feel.
  * ---------------------------------------------------------------------- */
 
+// The user's saved layout preference (1 / 2 / 3), defaulting to the designed
+// two-column look. Registration reads it so each layout gets a designed
+// default distribution, not a core-JS afterthought.
+function untangling_dw_columns() {
+	$columns = (int) get_user_option( 'screen_layout_dashboard' );
+	return in_array( $columns, array( 1, 2, 3 ), true ) ? $columns : 2;
+}
+
 // Default IA: column 1 (normal) is your site and what's happening — identity,
 // action, traffic, history. Column 2 (side) is the machine — vitals,
 // protection, infrastructure — and the plan last, carrying the one promo slot
-// below the fold. Users can rearrange; this is the designed first look.
+// below the fold. At 3 columns the split follows the Screen Options groups:
+// site + next steps / traffic and activity / machine + plan. Users can
+// rearrange; this is the designed first look per layout.
+// Jetpack-backed widgets carry the mark in the postbox title (mark + name),
+// the one place the credit lives — no "Powered by Jetpack" line in the body
+// or footer. The title string also feeds the Screen Options checkbox label,
+// where the mark is hidden via CSS.
+function untangling_dw_jetpack_title( $title ) {
+	$mark = '<svg class="ms-jp-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="16" height="16" aria-hidden="true" focusable="false">'
+		. '<path fill="#069e08" d="M16,0C7.2,0,0,7.2,0,16s7.2,16,16,16s16-7.2,16-16S24.8,0,16,0z"/>'
+		. '<polygon fill="#ffffff" points="15,19 7,19 15,3 "/><polygon fill="#ffffff" points="17,29 17,13 25,13 "/></svg>';
+	return '<span class="untangling-dw-title">' . $mark . '<span>' . esc_html( $title ) . '</span></span>';
+}
+
 add_action( 'wp_dashboard_setup', function () {
 	if ( 'dashboard' !== untangling_get_variant() ) {
 		return;
@@ -8505,16 +8526,22 @@ add_action( 'wp_dashboard_setup', function () {
 		};
 	};
 
+	$three_col = ( 3 === untangling_dw_columns() );
+	// In 3 columns, Stats + Activity take the middle column and the machine
+	// moves to the third; a saved drag order (user meta) still wins over this.
+	$traffic = $three_col ? 'side' : 'normal';
+	$machine = $three_col ? 'column3' : 'side';
+
 	wp_add_dashboard_widget( 'untangling_dw_site', __( 'Your site' ), $mount( 'site' ), null, null, 'normal', 'high' );
 	wp_add_dashboard_widget( 'untangling_dw_next_steps', __( 'Next steps' ), $mount( 'next' ), null, null, 'normal', 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_stats', __( 'Stats' ), $mount( 'stats' ), null, null, 'normal', 'default' );
-	wp_add_dashboard_widget( 'untangling_dw_activity', __( 'Activity' ), $mount( 'activity' ), null, null, 'normal', 'low' );
+	wp_add_dashboard_widget( 'untangling_dw_stats', untangling_dw_jetpack_title( __( 'Stats' ) ), $mount( 'stats' ), null, null, $traffic, $three_col ? 'high' : 'default' );
+	wp_add_dashboard_widget( 'untangling_dw_activity', untangling_dw_jetpack_title( __( 'Activity' ) ), $mount( 'activity' ), null, null, $traffic, $three_col ? 'core' : 'low' );
 
-	wp_add_dashboard_widget( 'untangling_dw_glance', __( 'At a glance' ), $mount( 'glance' ), null, null, 'side', 'high' );
-	wp_add_dashboard_widget( 'untangling_dw_backups', __( 'Backups' ), $mount( 'backups' ), null, null, 'side', 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_scan', __( 'Scan' ), $mount( 'scan' ), null, null, 'side', 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_hosting', __( 'Hosting' ), $mount( 'hosting' ), null, null, 'side', 'default' );
-	wp_add_dashboard_widget( 'untangling_dw_plan', __( 'Plan' ), $mount( 'plan' ), null, null, 'side', 'low' );
+	wp_add_dashboard_widget( 'untangling_dw_glance', __( 'At a glance' ), $mount( 'glance' ), null, null, $machine, 'high' );
+	wp_add_dashboard_widget( 'untangling_dw_backups', untangling_dw_jetpack_title( __( 'Backups' ) ), $mount( 'backups' ), null, null, $machine, 'core' );
+	wp_add_dashboard_widget( 'untangling_dw_scan', untangling_dw_jetpack_title( __( 'Scan' ) ), $mount( 'scan' ), null, null, $machine, 'core' );
+	wp_add_dashboard_widget( 'untangling_dw_hosting', __( 'Hosting' ), $mount( 'hosting' ), null, null, $machine, 'default' );
+	wp_add_dashboard_widget( 'untangling_dw_plan', __( 'Plan' ), $mount( 'plan' ), null, null, $machine, 'low' );
 
 	// The welcome panel's job (first look at your site, next actions) is the
 	// Site + Next steps widgets now. No clean filter exists for its user-meta
@@ -8540,17 +8567,56 @@ add_action( 'wp_dashboard_setup', function () {
 	}
 } );
 
-// The designed IA is two columns (the reference grid): column 1 is the site,
-// column 2 is the machine. Core would offer up to four columns on wide
-// screens, leaving empty "drag boxes here" wells beside the design.
+// Layout offers 1 / 2 / 3 columns (core's own Screen Options radio). The
+// designed default is two columns — the user's pick persists in user meta and
+// "Reset demo" clears it back. Core's fourth column is left out: nine widgets
+// spread over four wells reads as debris, not a dashboard.
 add_filter( 'screen_layout_columns', function ( $columns ) {
 	if ( 'dashboard' === untangling_get_variant() ) {
-		$columns['dashboard'] = 2;
+		$columns['dashboard'] = 3;
 	}
 	return $columns;
 } );
 add_filter( 'get_user_option_screen_layout_dashboard', function ( $value ) {
-	return 'dashboard' === untangling_get_variant() ? 2 : $value;
+	if ( 'dashboard' === untangling_get_variant() && ! in_array( (int) $value, array( 1, 2, 3 ), true ) ) {
+		return 2;
+	}
+	return $value;
+} );
+
+// A drag order saved under two columns replays verbatim at three, leaving the
+// third well empty beside the design. When that happens, rebalance to the
+// designed 3-column split (traffic → column 2, machine → column 3) while
+// keeping any other widgets where the user put them. A drag done in the
+// 3-column layout fills column3 and is then respected as saved.
+add_filter( 'get_user_option_meta-box-order_dashboard', function ( $order ) {
+	if ( 'dashboard' !== untangling_get_variant() || ! is_array( $order ) ) {
+		return $order;
+	}
+	if ( 3 !== untangling_dw_columns() || '' !== trim( (string) ( $order['column3'] ?? '' ) ) ) {
+		return $order;
+	}
+	$traffic = array( 'untangling_dw_stats', 'untangling_dw_activity' );
+	$machine = array( 'untangling_dw_glance', 'untangling_dw_backups', 'untangling_dw_scan', 'untangling_dw_hosting', 'untangling_dw_plan' );
+	$found_traffic = array();
+	$found_machine = array();
+	foreach ( array( 'normal', 'side', 'column4' ) as $area ) {
+		$ids = array_filter( explode( ',', (string) ( $order[ $area ] ?? '' ) ) );
+		$order[ $area ] = implode( ',', array_values( array_filter( $ids, function ( $id ) use ( $traffic, $machine, &$found_traffic, &$found_machine ) {
+			if ( in_array( $id, $traffic, true ) ) {
+				$found_traffic[] = $id;
+				return false;
+			}
+			if ( in_array( $id, $machine, true ) ) {
+				$found_machine[] = $id;
+				return false;
+			}
+			return true;
+		} ) ) );
+	}
+	$order['side']    = implode( ',', array_filter( array_merge( $found_traffic, explode( ',', $order['side'] ) ) ) );
+	$order['column3'] = implode( ',', $found_machine );
+	return $order;
 } );
 
 // Core (and Woo) widgets are curated, not removed: unchecked by default,
@@ -8672,17 +8738,22 @@ function untangling_dw_css() {
 #welcome-panel { display: none !important; }
 #adv-settings label[for="wp_welcome_panel-hide"] { display: none; }
 
-/* The layout is pinned to two columns, but core's wide-viewport media rules
-   (3 columns at 1500-1800px, 4 above that) still restyle .postbox-container
-   widths past the columns-2 class — column 1 shrinks while column 2 keeps
-   floating right at 50.5%, leaving a dead gutter in the middle. Re-assert
-   the two-column split at every width above mobile. */
+/* Core's wide-viewport media rules (3 columns at 1500-1800px, 4 above that)
+   restyle .postbox-container widths past the columns-N class — column 1
+   shrinks while column 2 keeps floating right, leaving a dead gutter.
+   Re-assert each chosen layout at every width above mobile. */
 @media only screen and (min-width: 800px) {
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 .postbox-container { width: 49.5%; }
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-2,
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-3,
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-4 { float: right; width: 50.5%; }
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 .postbox-container { float: left; width: 33.33%; }
+	#wpbody #wpbody-content #dashboard-widgets.columns-1 .postbox-container { float: none; width: 100%; }
 }
+
+/* One column: a single centered reading column — every widget the same
+   width, the reference measure being 704px (the Core editor's wide size). */
+#wpbody #wpbody-content #dashboard-widgets.columns-1 { max-width: 704px; margin-left: auto; margin-right: auto; float: none; }
 
 /* Empty extra sortables containers read as debris beside the designed grid —
    core's dashboard sheet keeps their dashed "drag boxes here" wells visible
@@ -8711,6 +8782,13 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; }
 .untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: 13px; }
 .untangling-dw .ms-linkfooter .ms-logs-credit { position: static; transform: none; margin-left: auto; margin-right: 10px; }
+
+/* Jetpack-backed widgets: mark + name in the postbox title, the single credit.
+   Hidden in the Screen Options checkbox label, where core reuses the title. */
+.postbox .untangling-dw-title { display: inline-flex; align-items: center; gap: 8px; }
+.postbox .untangling-dw-title .ms-jp-mark { flex-shrink: 0; width: 16px; height: 16px; }
+.metabox-prefs .untangling-dw-title { display: inline; }
+.metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
 
 /* Site widget: preview scales to the postbox via a measured transform. */
 .untangling-dw .ms-dw-preview { position: relative; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; background: #f6f7f7; }
@@ -10714,9 +10792,10 @@ function untangling_ms_app_js() {
 	   them are previews — the full management surface is the MSD, one footer
 	   link away ("one preview + one full management interface per concept"). */
 
-	// Widget footer: one link, optionally carrying the Jetpack credit. The
-	// external icon marks the jump out to the MSD; internal links (the Plan &
-	// products page) keep the chevron.
+	// Widget footer: one link. The Jetpack credit now lives in the postbox
+	// title (see untangling_dw_jetpack_title); credit stays accepted but no
+	// dashboard widget passes it. The external icon marks the jump out to the
+	// MSD; internal links (the Plan & products page) keep the chevron.
 	function dwFooter( href, label, credit, internal ) {
 		return el( 'a', { className: 'ms-linkfooter', href: href },
 			el( 'span', null, label ),
@@ -10760,10 +10839,10 @@ function untangling_ms_app_js() {
 					el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.domain ),
 					el( 'a', { className: 'ms-tl-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain )
 				),
-				el( 'div', { className: 'ms-dw-site-actions' },
-					el( Badge, null, 'WordPress.com ' + data.plan ),
-					el( Button, { variant: 'tertiary', size: 'compact', href: data.siteUrl, target: '_blank' }, 'Visit site' )
-				)
+				// The domain link right beside it already opens the site — a
+				// separate Visit site button was the kind of redundancy this
+				// widget exists to remove.
+				el( Badge, null, 'WordPress.com ' + data.plan )
 			)
 		);
 	}
@@ -10950,7 +11029,7 @@ function untangling_ms_app_js() {
 				),
 				el( Sparkline, { id: active.key, color: active.color, values: active.values } )
 			),
-			dwFooter( msd + '/stats', 'See all stats', true )
+			dwFooter( msd + '/stats', 'See all stats' )
 		);
 	}
 
@@ -10978,13 +11057,12 @@ function untangling_ms_app_js() {
 						el( 'span', null, 'Quiet so far. New events show up here.' )
 					)
 			),
-			dwFooter( msd + '/sites/' + data.siteSlug + '/logs/activity', 'See all activity', true )
+			dwFooter( msd + '/sites/' + data.siteSlug + '/logs/activity', 'See all activity' )
 		);
 	}
 
 	// Backups / Scan: the MSD overview state cards, one per widget. Both are
-	// Jetpack products, so both carry the credit — in the Free upsell state
-	// too, since that is still what is being offered.
+	// Jetpack products; the mark sits in the postbox title, not the body.
 	function DwBackups() {
 		var bad = 'attention' === data.hosting;
 		var card = isFree
@@ -10993,8 +11071,7 @@ function untangling_ms_app_js() {
 				? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
 				: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' } );
 		return el( 'div', { className: 'ms-dw-body' },
-			el( OvCard, card ),
-			jetpackCredit()
+			el( OvCard, card )
 		);
 	}
 
@@ -11006,8 +11083,7 @@ function untangling_ms_app_js() {
 				? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
 				: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' } );
 		return el( 'div', { className: 'ms-dw-body' },
-			el( OvCard, card ),
-			jetpackCredit()
+			el( OvCard, card )
 		);
 	}
 
