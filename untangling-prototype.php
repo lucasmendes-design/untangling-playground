@@ -733,7 +733,7 @@ function untangling_get_marketplace_mode() {
 	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_marketplace'] ) && in_array( $_GET['untangling_marketplace'], array( 'fullscreen', 'split', 'tabs' ), true ) ) {
 		update_option( 'untangling_marketplace', $_GET['untangling_marketplace'] );
 	}
-	return get_option( 'untangling_marketplace', 'split' );
+	return get_option( 'untangling_marketplace', 'tabs' );
 }
 
 function untangling_marketplace_url( $tab = 'themes', $args = array() ) {
