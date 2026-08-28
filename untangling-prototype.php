@@ -8520,6 +8520,24 @@ add_action( 'wp_dashboard_setup', function () {
 	// Site + Next steps widgets now. No clean filter exists for its user-meta
 	// switch, so the render hook goes and the CSS below hides the shell.
 	remove_action( 'welcome_panel', 'wp_welcome_panel' );
+
+	// Two of the curated core widgets share a name with their replacements
+	// (At a Glance, Activity). They stay available, but a re-enabled one must
+	// not read as a duplicate — in Screen Options or in its postbox header —
+	// so the legacy pair is marked "(classic)". Core has already registered
+	// them by the time this action fires.
+	global $wp_meta_boxes;
+	if ( isset( $wp_meta_boxes['dashboard'] ) ) {
+		foreach ( $wp_meta_boxes['dashboard'] as $context => $priorities ) {
+			foreach ( $priorities as $priority => $boxes ) {
+				foreach ( array( 'dashboard_right_now', 'dashboard_activity' ) as $box_id ) {
+					if ( ! empty( $boxes[ $box_id ]['title'] ) ) {
+						$wp_meta_boxes['dashboard'][ $context ][ $priority ][ $box_id ]['title'] .= ' ' . __( '(classic)' );
+					}
+				}
+			}
+		}
+	}
 } );
 
 // The designed IA is two columns (the reference grid): column 1 is the site,
