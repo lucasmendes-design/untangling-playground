@@ -733,7 +733,7 @@ function untangling_get_marketplace_mode() {
 	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_marketplace'] ) && in_array( $_GET['untangling_marketplace'], array( 'fullscreen', 'split', 'tabs' ), true ) ) {
 		update_option( 'untangling_marketplace', $_GET['untangling_marketplace'] );
 	}
-	return get_option( 'untangling_marketplace', 'fullscreen' );
+	return get_option( 'untangling_marketplace', 'split' );
 }
 
 function untangling_marketplace_url( $tab = 'themes', $args = array() ) {
@@ -775,7 +775,7 @@ function untangling_get_upsell_placement() {
 	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_upsell'] ) && in_array( $_GET['untangling_upsell'], $allowed, true ) ) {
 		update_option( 'untangling_upsell', $_GET['untangling_upsell'] );
 	}
-	return get_option( 'untangling_upsell', 'menu-top' );
+	return get_option( 'untangling_upsell', 'none' );
 }
 
 /**
@@ -882,39 +882,6 @@ function untangling_ms_hosting_state() {
 	}
 	$override = get_option( 'untangling_ms_hosting' );
 	return in_array( $override, array( 'ok', 'attention' ), true ) ? $override : 'ok';
-}
-
-/**
- * Hosting page design, down to the two that are still in play:
- *   'current' — the page as first built: every locked capability gets its own
- *     card and its own upgrade button, which on Free adds up to five upgrade
- *     CTAs on one screen — the note that started this variant.
- *   'outcome' — logs first, then one summary card: each row a thing that can
- *     go wrong and what answers it, closing with a single CTA.
- *
- * The 'compare' (two columns, have / get) and 'grouped' (safety, speed,
- * control) shapes of that summary card were dropped — a stored value from
- * either now normalizes to 'outcome'.
- *
- * Switch with ?untangling_hosting_design=current|outcome (persisted), or from
- * the Prototype controls.
- */
-function untangling_get_hosting_design() {
-	$allowed = array( 'current', 'outcome' );
-	if ( defined( 'UNTANGLING_FORCE_HOSTING_DESIGN' ) ) {
-		return in_array( UNTANGLING_FORCE_HOSTING_DESIGN, $allowed, true ) ? UNTANGLING_FORCE_HOSTING_DESIGN : 'outcome';
-	}
-	// Simple has one hosting design. 'Current' is the five-CTA original, kept
-	// for comparison on Atomic only, so on Simple a stored value or a URL
-	// asking for it resolves back to 'outcome'.
-	if ( untangling_is_simple() ) {
-		return 'outcome';
-	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_hosting_design'] ) && in_array( $_GET['untangling_hosting_design'], $allowed, true ) ) {
-		update_option( 'untangling_hosting_design', $_GET['untangling_hosting_design'] );
-	}
-	$stored = get_option( 'untangling_hosting_design', 'outcome' );
-	return in_array( $stored, $allowed, true ) ? $stored : 'outcome';
 }
 
 function untangling_plan_filter_styles() {
@@ -1041,7 +1008,10 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_ms_state' );
 		delete_option( 'untangling_ms_storage_addon' );
 		delete_option( 'untangling_ms_hosting' );
+		delete_option( 'untangling_hosting_design' );
 		delete_option( 'untangling_upsell' );
+		delete_option( 'untangling_marketplace' );
+		delete_option( 'untangling_plan_filter' );
 		delete_option( 'untangling_variant' );
 		// The dashboard variant's designed first look lives partly in user
 		// meta (Screen Options hides, drag order, collapsed boxes) — a full
@@ -7529,7 +7499,7 @@ add_action( 'admin_footer', function () {
 				$ms_state = untangling_ms_get_state();
 				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, 'new' === $ms_state
 					? __( 'Setup unfinished: Next steps leads with the launchpad.' )
-					: __( 'Setup behind you: Next steps shows growth and vitals.' ) );
+					: __( 'Setup behind you: Next steps shows growth and vitals.' ) . ( 'dashboard' === $variant ? ' ' . __( 'WooCommerce, Yoast SEO, and Elementor widgets join the dashboard.' ) : '' ) );
 				// Hosting health has no real source in the prototype — no backup
 				// runs, no scanner — so the failure branch needs a switch to be
 				// demoable at all. Free plans gate both cards, so the segment
@@ -7538,27 +7508,8 @@ add_action( 'admin_footer', function () {
 				$seg( __( 'Hosting state' ), 'untangling_ms_hosting', array( 'ok' => __( 'All good' ), 'attention' => __( 'Needs attention' ) ), $ms_hosting, 'attention' === $ms_hosting
 					? __( 'Hosting: a failed backup and threats found — both cards turn red.' )
 					: __( 'Hosting: backups current and no threats — both cards turn green.' ) );
-				// Two options now, so a single row: 'Current' is the page as
-				// first built, 'Outcomes' the logs-first page. The 'Have / get'
-				// and 'Grouped' shapes of the summary card were dropped.
-				$hosting_design       = untangling_get_hosting_design();
-				$hosting_design_hints = array(
-					'current' => __( 'Hosting as first built: a card per locked feature, five upgrade buttons on Free.' ),
-					'outcome' => __( 'Logs first, then what answers each thing that can go wrong.' ),
-				);
-				// Atomic only: Simple has no choice to offer, and a one-button
-				// segment reads as a broken control. The Site type hint below
-				// says where the row went.
-				if ( 'simple' !== $type ) {
-					$seg( __( 'Hosting design' ), 'untangling_hosting_design', array(
-						'current' => __( 'Current' ),
-						'outcome' => __( 'Outcomes' ),
-					), $hosting_design, $hosting_design_hints[ $hosting_design ] );
-				}
-
 				$group( __( 'wp-admin' ) );
-				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type, __( 'Simple = Free plan · Atomic = Business plan in My Site.' )
-					. ( 'simple' === $type ? ' ' . __( 'Hosting design is fixed to Outcomes here.' ) : '' ) );
+				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type, __( 'Simple = Free plan · Atomic = Business plan in My Site.' ) );
 				// Placement of the upsell nudge. What it sells follows the
 				// site type: the free domain on Simple, the two-year renewal
 				// on Atomic — same card, same placements.
@@ -8353,13 +8304,26 @@ function untangling_ms_data() {
 	if ( ! $user_name ) {
 		$user_name = 'Site owner';
 	}
+	// Each row links to the wp-admin screen that owns the event. The post and
+	// comment rows come from the site's real content — the latest published
+	// post, and the post behind the newest approved comment — so the link
+	// lands on the thing named. Sites with no content keep placeholder copy
+	// and land on the list screens.
+	$latest = get_posts( array( 'post_type' => 'post', 'post_status' => 'publish', 'numberposts' => 1 ) );
+	$latest = $latest ? $latest[0] : null;
+	$recent_comment = get_comments( array( 'status' => 'approve', 'post_type' => 'post', 'number' => 1 ) );
+	$recent_comment = $recent_comment ? $recent_comment[0] : null;
+	$post_summary    = $latest ? '“' . $latest->post_title . '”' : '“Golden hour at the pier”';
+	$post_href       = $latest ? get_edit_post_link( $latest->ID, 'raw' ) : admin_url( 'edit.php' );
+	$comment_summary = $recent_comment ? 'On “' . get_the_title( $recent_comment->comment_post_ID ) . '”' : 'On “Fog over the marina”';
+	$comment_href    = $recent_comment ? admin_url( 'edit-comments.php?p=' . (int) $recent_comment->comment_post_ID . '&comment_status=approved' ) : admin_url( 'edit-comments.php?comment_status=approved' );
 	$activity_seed = array(
-		array( 'plugin', 'Plugin update available', 'Jetpack 14.8 is ready to install.', 'WordPress', 7200 ),
-		array( 'post', 'Post published', '“Golden hour at the pier”', $user_name, 28800 ),
-		array( 'comment', 'Comment approved', 'On “Fog over the marina”', $user_name, 93600 ),
-		array( 'pencil', 'Theme customized', 'Colors and typography updated.', $user_name, 121000 ),
-		array( 'login', 'Login succeeded', 'From Safari on macOS.', $user_name, 205000 ),
-		array( 'plugin', 'Plugin activated', 'Jetpack', $user_name, 292000 ),
+		array( 'plugin', 'Plugin update available', 'Jetpack 14.8 is ready to install.', 'WordPress', 7200, admin_url( 'plugins.php?plugin_status=upgrade' ) ),
+		array( 'post', 'Post published', $post_summary, $user_name, 28800, $post_href ),
+		array( 'comment', 'Comment approved', $comment_summary, $user_name, 93600, $comment_href ),
+		array( 'pencil', 'Theme customized', 'Colors and typography updated.', $user_name, 121000, admin_url( 'site-editor.php?p=%2Fstyles' ) ),
+		array( 'login', 'Login succeeded', 'From Safari on macOS.', $user_name, 205000, admin_url( 'profile.php' ) ),
+		array( 'plugin', 'Plugin activated', 'Jetpack', $user_name, 292000, admin_url( 'plugins.php?plugin_status=active' ) ),
 	);
 	$activity = array();
 	foreach ( $activity_seed as $row ) {
@@ -8368,6 +8332,7 @@ function untangling_ms_data() {
 			'title'   => $row[1],
 			'summary' => $row[2],
 			'actor'   => $row[3],
+			'href'    => $row[5],
 			'time'    => gmdate( 'M j, Y, g:i A', $now - $row[4] ),
 			// The Dashboard widget's feed rows keep a short relative stamp on
 			// the right (the Logs table keeps the full UTC column).
@@ -8434,7 +8399,6 @@ function untangling_ms_data() {
 		),
 		'attention'    => $attention,
 		'hosting'      => untangling_ms_hosting_state(),
-		'hostingDesign' => untangling_get_hosting_design(),
 		'logs'         => $logs,
 		'activity'     => $activity,
 		'serverLogs'   => $server_logs,
@@ -8488,19 +8452,20 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
  * ---------------------------------------------------------------------- */
 
 // The user's saved layout preference (1 / 2 / 3), defaulting to the designed
-// two-column look. Registration reads it so each layout gets a designed
+// three-column look. Registration reads it so each layout gets a designed
 // default distribution, not a core-JS afterthought.
 function untangling_dw_columns() {
 	$columns = (int) get_user_option( 'screen_layout_dashboard' );
-	return in_array( $columns, array( 1, 2, 3 ), true ) ? $columns : 2;
+	return in_array( $columns, array( 1, 2, 3 ), true ) ? $columns : 3;
 }
 
-// Default IA: column 1 (normal) is your site and what's happening — identity,
-// action, traffic, history. Column 2 (side) is the machine — vitals,
-// protection, infrastructure — and the plan last, carrying the one promo slot
-// below the fold. At 3 columns the split follows the Screen Options groups:
-// site + next steps / traffic and activity / machine + plan. Users can
-// rearrange; this is the designed first look per layout.
+// Default IA at 3 columns (the designed first look): column 1 (normal) is
+// the site itself — plan, vitals, history; column 2 (side) is the one thing
+// to do — Next steps, alone, so the action has the page's centre; column 3
+// is what the site is doing — traffic, protection, infrastructure. At 1–2
+// columns: action → traffic → history on the left, plan + machine on the
+// right. Users can rearrange; untangling_dw_layout() is the one map both
+// registration and the order-snap filter read.
 // Jetpack-backed widgets carry the mark in the postbox title (mark + name),
 // the one place the credit lives — no "Powered by Jetpack" line in the body
 // or footer. The title string also feeds the Screen Options checkbox label,
@@ -8526,25 +8491,27 @@ add_action( 'wp_dashboard_setup', function () {
 		};
 	};
 
-	$three_col = ( 3 === untangling_dw_columns() );
-	// In 3 columns, Stats + Activity take the middle column and the machine
-	// moves to the third; a saved drag order (user meta) still wins over this.
-	$traffic = $three_col ? 'side' : 'normal';
-	$machine = $three_col ? 'column3' : 'side';
-
-	wp_add_dashboard_widget( 'untangling_dw_site', __( 'Your site' ), $mount( 'site' ), null, null, 'normal', 'high' );
-	wp_add_dashboard_widget( 'untangling_dw_next_steps', __( 'Next steps' ), $mount( 'next' ), null, null, 'normal', 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_stats', untangling_dw_jetpack_title( __( 'Stats' ) ), $mount( 'stats' ), null, null, $traffic, $three_col ? 'high' : 'default' );
-	wp_add_dashboard_widget( 'untangling_dw_activity', untangling_dw_jetpack_title( __( 'Activity' ) ), $mount( 'activity' ), null, null, $traffic, $three_col ? 'core' : 'low' );
-
-	wp_add_dashboard_widget( 'untangling_dw_glance', __( 'At a glance' ), $mount( 'glance' ), null, null, $machine, 'high' );
-	wp_add_dashboard_widget( 'untangling_dw_backups', untangling_dw_jetpack_title( __( 'Backups' ) ), $mount( 'backups' ), null, null, $machine, 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_scan', untangling_dw_jetpack_title( __( 'Scan' ) ), $mount( 'scan' ), null, null, $machine, 'core' );
-	wp_add_dashboard_widget( 'untangling_dw_hosting', __( 'Hosting' ), $mount( 'hosting' ), null, null, $machine, 'default' );
-	wp_add_dashboard_widget( 'untangling_dw_plan', __( 'Plan' ), $mount( 'plan' ), null, null, $machine, 'low' );
+	$titles = array(
+		'untangling_dw_next_steps' => array( __( 'Next steps' ), 'next' ),
+		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
+		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Activity' ) ), 'activity' ),
+		'untangling_dw_glance'     => array( __( 'At a glance' ), 'glance' ),
+		'untangling_dw_protection' => array( untangling_dw_jetpack_title( __( 'Protection' ) ), 'protection' ),
+		'untangling_dw_hosting'    => array( __( 'Hosting' ), 'hosting' ),
+		'untangling_dw_plan'       => array( __( 'Plan' ), 'plan' ),
+	);
+	// Walk the designed map well by well; the priority ladder (high → core →
+	// default → low) keeps each well's order. A saved drag order (user meta)
+	// still wins over this.
+	$ladder = array( 'high', 'core', 'default', 'low' );
+	foreach ( untangling_dw_layout() as $context => $ids ) {
+		foreach ( array_values( $ids ) as $i => $id ) {
+			wp_add_dashboard_widget( $id, $titles[ $id ][0], $mount( $titles[ $id ][1] ), null, null, $context, $ladder[ min( $i, 3 ) ] );
+		}
+	}
 
 	// The welcome panel's job (first look at your site, next actions) is the
-	// Site + Next steps widgets now. No clean filter exists for its user-meta
+	// Next steps widget now. No clean filter exists for its user-meta
 	// switch, so the render hook goes and the CSS below hides the shell.
 	remove_action( 'welcome_panel', 'wp_welcome_panel' );
 
@@ -8567,9 +8534,27 @@ add_action( 'wp_dashboard_setup', function () {
 	}
 } );
 
+// The designed distribution per layout: well => widget ids, top to bottom.
+// Read by registration (context + priority) and by the order-snap filter, so
+// the two never disagree.
+function untangling_dw_layout( $columns = null ) {
+	$columns = $columns ?: untangling_dw_columns();
+	if ( 3 === $columns ) {
+		return array(
+			'normal'  => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_activity' ),
+			'side'    => array( 'untangling_dw_next_steps' ),
+			'column3' => array( 'untangling_dw_stats', 'untangling_dw_protection', 'untangling_dw_hosting' ),
+		);
+	}
+	return array(
+		'normal' => array( 'untangling_dw_next_steps', 'untangling_dw_stats', 'untangling_dw_activity' ),
+		'side'   => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_protection', 'untangling_dw_hosting' ),
+	);
+}
+
 // Layout offers 1 / 2 / 3 columns (core's own Screen Options radio). The
-// designed default is two columns — the user's pick persists in user meta and
-// "Reset demo" clears it back. Core's fourth column is left out: nine widgets
+// designed default is three columns — the user's pick persists in user meta
+// and "Reset demo" clears it back. Core's fourth column is left out: seven widgets
 // spread over four wells reads as debris, not a dashboard.
 add_filter( 'screen_layout_columns', function ( $columns ) {
 	if ( 'dashboard' === untangling_get_variant() ) {
@@ -8579,43 +8564,51 @@ add_filter( 'screen_layout_columns', function ( $columns ) {
 } );
 add_filter( 'get_user_option_screen_layout_dashboard', function ( $value ) {
 	if ( 'dashboard' === untangling_get_variant() && ! in_array( (int) $value, array( 1, 2, 3 ), true ) ) {
-		return 2;
+		return 3;
 	}
 	return $value;
 } );
 
-// A drag order saved under two columns replays verbatim at three, leaving the
-// third well empty beside the design. When that happens, rebalance to the
-// designed 3-column split (traffic → column 2, machine → column 3) while
-// keeping any other widgets where the user put them. A drag done in the
-// 3-column layout fills column3 and is then respected as saved.
+// A saved drag order replays verbatim across layout switches — and core's
+// postboxes JS saves the current arrangement whenever the column count
+// changes — so widgets get stranded in wells the new layout doesn't show:
+// an empty third column at 3, a populated overflow column back at 2. When
+// the saved wells don't match the current layout, snap the untangling
+// widgets to this layout's designed distribution and leave every other
+// widget where the user put it. A drag done within the current layout
+// leaves the wells consistent and is respected as saved.
 add_filter( 'get_user_option_meta-box-order_dashboard', function ( $order ) {
 	if ( 'dashboard' !== untangling_get_variant() || ! is_array( $order ) ) {
 		return $order;
 	}
-	if ( 3 !== untangling_dw_columns() || '' !== trim( (string) ( $order['column3'] ?? '' ) ) ) {
+	$columns = untangling_dw_columns();
+	$lists   = array();
+	foreach ( array( 'normal', 'side', 'column3', 'column4' ) as $area ) {
+		$lists[ $area ] = array_values( array_filter( explode( ',', (string) ( $order[ $area ] ?? '' ) ) ) );
+	}
+	$mismatch = ( 3 === $columns ) ? ! $lists['column3'] : (bool) ( $lists['column3'] || $lists['column4'] );
+	if ( ! $mismatch ) {
 		return $order;
 	}
-	$traffic = array( 'untangling_dw_stats', 'untangling_dw_activity' );
-	$machine = array( 'untangling_dw_glance', 'untangling_dw_backups', 'untangling_dw_scan', 'untangling_dw_hosting', 'untangling_dw_plan' );
-	$found_traffic = array();
-	$found_machine = array();
-	foreach ( array( 'normal', 'side', 'column4' ) as $area ) {
-		$ids = array_filter( explode( ',', (string) ( $order[ $area ] ?? '' ) ) );
-		$order[ $area ] = implode( ',', array_values( array_filter( $ids, function ( $id ) use ( $traffic, $machine, &$found_traffic, &$found_machine ) {
-			if ( in_array( $id, $traffic, true ) ) {
-				$found_traffic[] = $id;
-				return false;
-			}
-			if ( in_array( $id, $machine, true ) ) {
-				$found_machine[] = $id;
-				return false;
-			}
-			return true;
-		} ) ) );
+	$layout = untangling_dw_layout( $columns );
+	$ours   = array_merge( ...array_values( $layout ) );
+	foreach ( $lists as $area => $ids ) {
+		$lists[ $area ] = array_values( array_diff( $ids, $ours ) );
 	}
-	$order['side']    = implode( ',', array_filter( array_merge( $found_traffic, explode( ',', $order['side'] ) ) ) );
-	$order['column3'] = implode( ',', $found_machine );
+	if ( 3 === $columns ) {
+		$lists['normal']  = array_merge( $layout['normal'], $lists['normal'] );
+		$lists['side']    = array_merge( $layout['side'], $lists['side'] );
+		$lists['column3'] = array_merge( $layout['column3'], $lists['column3'] );
+	} else {
+		// Anything else stranded in the overflow wells folds into the side.
+		$lists['normal']  = array_merge( $layout['normal'], $lists['normal'] );
+		$lists['side']    = array_merge( $layout['side'], $lists['side'], $lists['column3'], $lists['column4'] );
+		$lists['column3'] = array();
+		$lists['column4'] = array();
+	}
+	foreach ( $lists as $area => $ids ) {
+		$order[ $area ] = implode( ',', $ids );
+	}
 	return $order;
 } );
 
@@ -8640,6 +8633,174 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
 	) ) );
 }, 10, 2 );
 
+/* -------------------------------------------------------------------------
+ * 8c. Foreign widgets. The median Business site is not the pristine
+ *     screenshot: it runs WooCommerce, Yoast SEO, and Elementor, and each of
+ *     them drops a widget on the dashboard. An Established site carries the
+ *     three, rendered the way those plugins render them (their markup, their
+ *     colors, their copy — not ours), so every layout is judged with them
+ *     present. They register like any plugin's widget: default context and
+ *     priority, so they land where a real install would put them (column 1,
+ *     between At a glance and Activity, pushing the history down), and Screen Options,
+ *     drag, and collapse all work. Just created sites have no plugins yet, so
+ *     nothing registers there.
+ * ---------------------------------------------------------------------- */
+
+function untangling_fw_active() {
+	return 'dashboard' === untangling_get_variant() && 'established' === untangling_ms_get_state();
+}
+
+function untangling_fw_ids() {
+	return array( 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor' );
+}
+
+add_action( 'wp_dashboard_setup', function () {
+	if ( ! untangling_fw_active() ) {
+		return;
+	}
+	// Titles and contexts as the plugins register them.
+	wp_add_dashboard_widget( 'untangling_fw_woo', 'WooCommerce Status', 'untangling_fw_render_woo' );
+	wp_add_dashboard_widget( 'untangling_fw_yoast', 'Yoast SEO Posts Overview', 'untangling_fw_render_yoast' );
+	wp_add_dashboard_widget( 'untangling_fw_elementor', 'Elementor Overview', 'untangling_fw_render_elementor' );
+}, 20 );
+
+// WooCommerce Status: the status list. Numbers are a demo month; the top
+// seller is the store's first real product when Woo is around.
+function untangling_fw_render_woo() {
+	$product = class_exists( 'WooCommerce' ) ? get_posts( array( 'post_type' => 'product', 'post_status' => 'publish', 'numberposts' => 1, 'orderby' => 'title', 'order' => 'ASC' ) ) : array();
+	$seller  = $product ? $product[0]->post_title : 'Linen tote bag';
+	$rows    = array(
+		array( 'sales-this-month', admin_url( 'admin.php?page=wc-admin&path=%2Fanalytics%2Frevenue' ), '<strong>$1,284.00</strong> net sales this month' ),
+		array( 'best-seller-this-month', admin_url( 'admin.php?page=wc-admin&path=%2Fanalytics%2Fproducts' ), '<strong>' . esc_html( $seller ) . '</strong> top seller this month (sold 18)' ),
+		array( 'processing-orders', admin_url( 'admin.php?page=wc-orders&status=wc-processing' ), '<strong>4 orders</strong> awaiting processing' ),
+		array( 'on-hold-orders', admin_url( 'admin.php?page=wc-orders&status=wc-on-hold' ), '<strong>1 order</strong> on-hold' ),
+		array( 'low-in-stock', admin_url( 'admin.php?page=wc-reports&tab=stock&report=low_in_stock' ), '<strong>2 products</strong> low in stock' ),
+		array( 'out-of-stock', admin_url( 'admin.php?page=wc-reports&tab=stock&report=out_of_stock' ), '<strong>1 product</strong> out of stock' ),
+	);
+	echo '<div class="untangling-fw untangling-fw-woo"><ul class="wc_status_list">';
+	foreach ( $rows as $row ) {
+		echo '<li class="' . esc_attr( $row[0] ) . '"><a href="' . esc_url( $row[1] ) . '">' . $row[2] . '</a></li>';
+	}
+	echo '</ul></div>';
+}
+
+// Yoast SEO Posts Overview: SEO and readability score tallies over the
+// site's published posts, split deterministically so the bars never lie
+// about the count.
+function untangling_fw_render_yoast() {
+	$total = (int) wp_count_posts( 'post' )->publish;
+	if ( $total < 4 ) {
+		$total = 12;
+	}
+	$good = (int) round( $total * 0.42 );
+	$ok   = (int) round( $total * 0.25 );
+	$bad  = (int) round( $total * 0.17 );
+	$na   = max( 0, $total - $good - $ok - $bad );
+	$list = function ( $rows ) {
+		echo '<ul class="wpseo-dashboard-overview__scores">';
+		foreach ( $rows as $row ) {
+			echo '<li><a href="' . esc_url( admin_url( 'edit.php?' . $row[2] ) ) . '"><span class="wpseo-score-icon ' . esc_attr( $row[0] ) . '"></span>' . esc_html( $row[1] ) . '</a></li>';
+		}
+		echo '</ul>';
+	};
+	echo '<div class="untangling-fw untangling-fw-yoast">';
+	echo '<p>Below are your published posts’ SEO scores. Now is as good a time as any to start improving some of your posts!</p>';
+	$list( array(
+		array( 'good', "Posts with a good SEO score: $good", 'seo_filter=good' ),
+		array( 'ok', "Posts with an OK SEO score: $ok", 'seo_filter=ok' ),
+		array( 'bad', "Posts that need improvement: $bad", 'seo_filter=bad' ),
+		array( 'na', "Posts without a focus keyphrase: $na", 'seo_filter=na' ),
+	) );
+	echo '<p>Below are your published posts’ Readability Scores.</p>';
+	$list( array(
+		array( 'good', 'Posts with a good readability score: ' . ( $good + $ok ), 'readability_filter=good' ),
+		array( 'ok', 'Posts with an OK readability score: ' . $bad, 'readability_filter=ok' ),
+		array( 'bad', 'Posts that need improvement: ' . $na, 'readability_filter=bad' ),
+	) );
+	echo '</div>';
+}
+
+// Elementor Overview: version header with the Create New Page button, the
+// site's real recently edited entries, the news list, the footer links.
+function untangling_fw_render_elementor() {
+	$recent = get_posts( array( 'post_type' => array( 'page', 'post' ), 'post_status' => 'publish', 'numberposts' => 3, 'orderby' => 'modified', 'order' => 'DESC' ) );
+	$news   = array(
+		array( 'Introducing Elementor 3.31: faster editing and new layout controls', 'https://elementor.com/blog/' ),
+		array( 'Getting started with Elementor: the core concepts', 'https://elementor.com/help/' ),
+		array( 'How to build a custom header and footer with Elementor Pro', 'https://elementor.com/help/' ),
+	);
+	$logo = '<svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="16" fill="#d30c5c"/><path fill="#fff" d="M10 9h3v14h-3zM15 9h8v3h-8zM15 14.5h8v3h-8zM15 20h8v3h-8z"/></svg>';
+	echo '<div class="untangling-fw untangling-fw-elementor">';
+	echo '<div class="e-overview__header"><div class="e-overview__logo">' . $logo . '</div><div class="e-overview__versions"><span class="e-overview__version">Elementor v3.31.2</span></div>';
+	echo '<div class="e-overview__create"><a href="' . esc_url( admin_url( 'post-new.php?post_type=page' ) ) . '" class="button">Create New Page</a></div></div>';
+	echo '<div class="e-overview__recently-edited"><h3 class="e-heading">Recently Edited</h3><ul class="e-overview__posts">';
+	foreach ( $recent as $post ) {
+		echo '<li class="e-overview__post"><a href="' . esc_url( get_edit_post_link( $post->ID, 'raw' ) ) . '" class="e-overview__post-link">' . esc_html( get_the_title( $post ) ) . ' <span class="dashicons dashicons-edit"></span></a> <span class="e-overview__post-description">' . esc_html( get_the_modified_date( 'M j, Y, g:i a', $post ) ) . '</span></li>';
+	}
+	echo '</ul></div>';
+	echo '<div class="e-overview__feed"><h3 class="e-heading">News &amp; Updates</h3><ul class="e-overview__posts">';
+	foreach ( $news as $item ) {
+		echo '<li class="e-overview__post"><a href="' . esc_url( $item[1] ) . '" class="e-overview__post-link" target="_blank" rel="noopener">' . esc_html( $item[0] ) . '</a></li>';
+	}
+	echo '</ul></div>';
+	echo '<div class="e-overview__footer"><ul><li><a href="https://elementor.com/blog/" target="_blank" rel="noopener">Blog</a></li><li><a href="https://elementor.com/help/" target="_blank" rel="noopener">Help</a></li><li class="e-overview__go-pro"><a href="https://elementor.com/pro/" target="_blank" rel="noopener">Go Pro</a></li></ul></div>';
+	echo '</div>';
+}
+
+// The three plugins' own dashboard styles, reduced to what their widgets use.
+function untangling_fw_css() {
+	return <<<'CSS'
+/* WooCommerce Status: the two-up status list with dashicon bullets. */
+.untangling-fw-woo { margin: -11px -12px -12px; }
+.untangling-fw-woo .wc_status_list { overflow: hidden; margin: 0; }
+.untangling-fw-woo .wc_status_list li { width: 50%; float: left; padding: 9px 12px 9px 40px; box-sizing: border-box; margin: 0; border-top: 1px solid #ececec; color: #757575; font-size: 12px; line-height: 1.4; position: relative; }
+.untangling-fw-woo .wc_status_list li:nth-child(-n+2) { border-top: 0; }
+.untangling-fw-woo .wc_status_list li:nth-child(odd) { border-right: 1px solid #ececec; }
+.untangling-fw-woo .wc_status_list li a { display: block; color: inherit; text-decoration: none; position: relative; }
+.untangling-fw-woo .wc_status_list li a:hover { color: #7f54b3; }
+.untangling-fw-woo .wc_status_list li strong { display: block; font-size: 18px; line-height: 1.2; color: #1e1e1e; }
+.untangling-fw-woo .wc_status_list li::before { font-family: dashicons; font-size: 16px; width: 16px; height: 16px; position: absolute; top: 12px; left: 12px; color: #7f54b3; }
+.untangling-fw-woo .sales-this-month::before { content: "\f185"; }
+.untangling-fw-woo .best-seller-this-month::before { content: "\f155"; }
+.untangling-fw-woo .processing-orders::before { content: "\f174"; }
+.untangling-fw-woo .on-hold-orders::before { content: "\f469"; }
+.untangling-fw-woo .low-in-stock::before { content: "\f534"; }
+.untangling-fw-woo .out-of-stock::before { content: "\f153"; }
+
+/* Yoast SEO Posts Overview: score bullets. */
+.untangling-fw-yoast p { margin: 0 0 8px; }
+.untangling-fw-yoast .wpseo-dashboard-overview__scores { list-style: none; margin: 0 0 16px; padding: 0; }
+.untangling-fw-yoast .wpseo-dashboard-overview__scores li { margin: 0 0 6px; }
+.untangling-fw-yoast .wpseo-dashboard-overview__scores a { text-decoration: none; color: #1e1e1e; }
+.untangling-fw-yoast .wpseo-dashboard-overview__scores a:hover { color: #a4286a; text-decoration: underline; }
+.untangling-fw-yoast .wpseo-score-icon { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin: 0 8px -1px 0; background: #888; }
+.untangling-fw-yoast .wpseo-score-icon.good { background: #7ad03a; }
+.untangling-fw-yoast .wpseo-score-icon.ok { background: #ee7c1b; }
+.untangling-fw-yoast .wpseo-score-icon.bad { background: #dc3232; }
+.untangling-fw-yoast .wpseo-score-icon.na { background: #888; }
+
+/* Elementor Overview: header band, recently edited, news, footer. */
+.untangling-fw-elementor { margin: -11px -12px -12px; }
+.untangling-fw-elementor .e-overview__header { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #ececec; }
+.untangling-fw-elementor .e-overview__logo { display: flex; }
+.untangling-fw-elementor .e-overview__versions { flex: 1; color: #1e1e1e; font-size: 13px; }
+.untangling-fw-elementor .e-overview__create .button { border-color: #d30c5c; color: #d30c5c; background: #fff; }
+.untangling-fw-elementor .e-overview__create .button:hover { background: #d30c5c; color: #fff; }
+.untangling-fw-elementor .e-heading { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #1e1e1e; }
+.untangling-fw-elementor .e-overview__recently-edited, .untangling-fw-elementor .e-overview__feed { padding: 12px; border-bottom: 1px solid #ececec; }
+.untangling-fw-elementor .e-overview__posts { margin: 0; }
+.untangling-fw-elementor .e-overview__post { margin: 0 0 6px; display: flex; justify-content: space-between; gap: 12px; }
+.untangling-fw-elementor .e-overview__post-link { text-decoration: none; }
+.untangling-fw-elementor .e-overview__post-link .dashicons { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; color: #757575; }
+.untangling-fw-elementor .e-overview__post-description { color: #757575; font-size: 12px; white-space: nowrap; }
+.untangling-fw-elementor .e-overview__footer ul { display: flex; margin: 0; padding: 10px 12px; }
+.untangling-fw-elementor .e-overview__footer li { margin: 0; padding: 0 10px; border-left: 1px solid #ececec; }
+.untangling-fw-elementor .e-overview__footer li:first-child { padding-left: 0; border-left: 0; }
+.untangling-fw-elementor .e-overview__footer a { text-decoration: none; }
+.untangling-fw-elementor .e-overview__go-pro a { color: #d30c5c; font-weight: 600; }
+CSS;
+}
+
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	if ( 'index.php' !== $hook || 'dashboard' !== untangling_get_variant() ) {
 		return;
@@ -8651,7 +8812,7 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	// The same app as the My Site page: the shared components render the
 	// widgets, and each surface's mount loop no-ops on the other.
 	wp_add_inline_script( 'untangling-ms-app', untangling_ms_app_js() );
-	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() . untangling_dw_css() );
+	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() . untangling_dw_css() . untangling_fw_css() );
 } );
 
 // Screen Options, grouped. Core prints one flat run of checkboxes; the
@@ -8670,11 +8831,11 @@ add_action( 'admin_footer-index.php', function () {
 			return;
 		}
 		var GROUPS = [
-			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
+			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
 			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'untangling_dw_activity' ] },
-			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_backups', 'untangling_dw_scan', 'untangling_dw_hosting' ] },
+			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_protection', 'untangling_dw_hosting' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plan' ) ); ?>, ids: [ 'untangling_dw_plan' ] },
-			{ title: <?php echo wp_json_encode( __( 'Store' ) ); ?>, ids: [ 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
+			{ title: <?php echo wp_json_encode( __( 'Plugins' ) ); ?>, ids: [ 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor', 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
 			{ title: <?php echo wp_json_encode( __( 'More WordPress' ) ); ?>, ids: [] },
 		];
 		var labels = Array.prototype.slice.call( prefs.querySelectorAll( 'label[for$="-hide"]' ) );
@@ -8769,8 +8930,12 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw-optgroup label { display: block; margin: 0 0 8px; }
 
 /* Widgets inside postboxes: the postbox supplies chrome and title, so the
-   inner components drop their own card shells. */
-#dashboard-widgets .postbox .untangling-dw { margin: 0 -12px -12px; }
+   inner components drop their own card shells. Core's .inside carries
+   margin: 11px 0 + padding: 0 12px 12px (dashboard.css zeroes the bottom
+   margin); the mount cancels all of it — top included, otherwise the 11px
+   stacks on the body's own padding and every widget opens with a 23px gap
+   against 12px on the other three sides. */
+#dashboard-widgets .postbox .untangling-dw { margin: -11px -12px -12px; }
 .untangling-dw { font-size: 13px; }
 .untangling-dw .components-card { box-shadow: none; border-radius: 0; }
 .untangling-dw > * { padding: 12px; }
@@ -8780,6 +8945,8 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Generic widget body + footer. The footer mirrors .ms-linkfooter but sits on
    a hairline inside the postbox. */
 .untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; }
+/* Children space through the flex gap alone; trailing text margins would stack on it. */
+.untangling-dw .ms-dw-body > * > :last-child { margin-bottom: 0; }
 .untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: 13px; }
 .untangling-dw .ms-linkfooter .ms-logs-credit { position: static; transform: none; margin-left: auto; margin-right: 10px; }
 
@@ -8790,16 +8957,9 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .metabox-prefs .untangling-dw-title { display: inline; }
 .metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
 
-/* Site widget: preview scales to the postbox via a measured transform. */
-.untangling-dw .ms-dw-preview { position: relative; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; background: #f6f7f7; }
-.untangling-dw .ms-dw-preview iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; border: 0; transform-origin: top left; pointer-events: none; }
-.untangling-dw .ms-dw-site-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-.untangling-dw .ms-dw-site-meta .ms-tl-preview-title { margin: 0 0 2px; }
-.untangling-dw .ms-dw-site-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
 /* At a glance: label/value rows split by hairlines (the settings-card model). */
 .untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
-.untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-grid-row:last-child { border-bottom: 0; }
 .untangling-dw .ms-dw-grid-label { color: #757575; flex-shrink: 0; }
 .untangling-dw .ms-dw-grid-value { text-align: right; color: #1e1e1e; }
@@ -8824,6 +8984,13 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-feed { display: flex; flex-direction: column; }
 .untangling-dw .ms-dw-feed-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-feed-row:last-child { border-bottom: 0; }
+/* Rows are links to the screen that owns the event: the whole row is the
+   target, the hover tints the title the way the Hosting rows do. */
+.untangling-dw a.ms-dw-feed-row { text-decoration: none; color: inherit; margin: 0 -12px; padding-left: 12px; padding-right: 12px; transition: background .15s ease; }
+.untangling-dw a.ms-dw-feed-row:hover, .untangling-dw a.ms-dw-feed-row:focus-visible { background: color-mix(in srgb, #3858e9 3%, #fff); }
+.untangling-dw a.ms-dw-feed-row:hover .ms-dw-feed-title, .untangling-dw a.ms-dw-feed-row:focus-visible .ms-dw-feed-title { color: #3858e9; }
+.untangling-dw a.ms-dw-feed-row:hover .ms-dw-feed-icon svg { fill: #3858e9; }
+.untangling-dw a.ms-dw-feed-row:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
 .untangling-dw .ms-dw-feed-icon { flex-shrink: 0; display: flex; margin-top: 1px; }
 .untangling-dw .ms-dw-feed-icon svg { fill: #757575; }
 .untangling-dw .ms-dw-feed-main { flex: 1; min-width: 0; }
@@ -8834,10 +9001,19 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-empty-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; }
 .untangling-dw .ms-dw-empty-icon svg { fill: #949494; }
 
-/* Backups / Scan: the OvCard drops its own shell inside the postbox. */
+/* Backups / Scan: the OvCard drops its own shell inside the postbox. Link
+   hover follows the widget row pattern (see the Activity feed): faint brand
+   tint, heading + icons brand, description stays quiet. */
 .untangling-dw .ms-ovcard { box-shadow: none; padding: 0; }
-.untangling-dw a.ms-ovcard:hover { box-shadow: none; background: none; }
+/* Stacked state cards (Protection: Backups + Security) bleed to the postbox
+   edges like the feed rows, and split on the same full-width hairline. */
+.untangling-dw .ms-dw-body > .ms-ovcard { margin: 0 -12px; padding: 0 12px; border-radius: 0; }
+.untangling-dw .ms-dw-body > .ms-ovcard + .ms-ovcard { border-top: 1px solid #f0f0f0; padding-top: 12px; }
+.untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: color-mix(in srgb, #3858e9 3%, #fff); }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
+.untangling-dw a.ms-ovcard:hover .ms-ovcard-desc { color: #757575; }
+.untangling-dw a.ms-ovcard.is-warning:hover .ms-ovcard-desc { color: #b36100; }
+.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-desc { color: #cc1818; }
 
 /* Checklist: the open (current) step is the page's only elevation. */
 .untangling-dw .ms-tl-tasks { background: #f6f7f7; }
@@ -8851,15 +9027,25 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Upsell callouts stack in the narrow column. */
 .untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0; }
 
-/* Hosting rows reuse the advanced-row recipe minus its card shell. */
-.untangling-dw .ms-advanced-row { box-shadow: none; padding: 9px 0; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
+/* Hosting rows reuse the advanced-row recipe minus its card shell. The page's
+   own row hover (shadow ring + icon recolor) half-leaked in here, leaving
+   only the icon reacting — restate the full widget row pattern instead. */
+.untangling-dw .ms-advanced-row { box-shadow: none; margin: 0 -12px; padding: 9px 12px; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-advanced-row:last-child { border-bottom: 0; }
-.untangling-dw .ms-advanced-row:hover { box-shadow: none; background: none; }
+.untangling-dw .ms-advanced-row:hover, .untangling-dw .ms-advanced-row:focus-visible { box-shadow: none; background: color-mix(in srgb, #3858e9 3%, #fff); }
+.untangling-dw .ms-advanced-row:hover .ms-grow-title, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-title { color: #3858e9; }
+.untangling-dw .ms-advanced-row:hover .ms-grow-chevron svg, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-chevron svg { fill: #3858e9; }
 
-/* Plan widget: name row, then the one promo slot. */
+/* Plan widget: name row, the top features, then the one promo slot. The id
+   selector outranks dashboard.css's postbox h3 margin, which otherwise adds
+   8px inside the name row and throws the header rhythm off. */
 .untangling-dw .ms-plan-namerow { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; }
-.untangling-dw .ms-plan-namerow .ms-card-title { font-size: 14px; margin: 0; }
-.untangling-dw .ms-dw-offer { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; }
+#dashboard-widgets .postbox .untangling-dw .ms-plan-namerow .ms-card-title { font-size: 14px; margin: 0; line-height: 20px; }
+.untangling-dw .ms-plan-namerow + .ms-card-desc { margin-top: 2px; }
+.untangling-dw .ms-plan-features { margin: 0 -12px; gap: 8px 16px; border-top: 1px solid #f0f0f0; padding: 12px 12px 0; }
+.untangling-dw .ms-plan-features li { align-items: flex-start; }
+.untangling-dw .ms-plan-features .ms-plan-check { margin-top: 1px; }
+.untangling-dw .ms-dw-offer { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; }
 .untangling-dw .ms-dw-offer svg { flex-shrink: 0; fill: #3858e9; }
 .untangling-dw .ms-dw-offer-text { flex: 1; }
 .untangling-dw .ms-dw-offer-title { display: block; font-weight: 500; color: #1e1e1e; }
@@ -9885,7 +10071,6 @@ function untangling_ms_app_js() {
 		var logsLink = ( 'activity' === kind || ! gated )
 			? { label: LOG_LINKS[ kind ].label, href: msd + '/sites/' + data.siteSlug + LOG_LINKS[ kind ].route }
 			: null;
-		var isNew = 'current' !== data.hostingDesign;
 		return el( Card, { className: 'ms-span2' },
 			// Header band over a rule, then the body — the shell the Plan
 			// upgrade card uses. Header and footer carry the same 15/20 text,
@@ -9914,14 +10099,13 @@ function untangling_ms_app_js() {
 				// clicked. Listing both logs on both tabs told the visitor the
 				// tabs were interchangeable, which is the opposite of the pitch.
 				//
-				// The logs-first designs part company here on both count and
-				// shape. One tab, one ask, centered on the empty table's own
+				// One tab, one ask, centered on the empty table's own
 				// axis — the same stacked treatment the Email card uses — and
 				// each tab names what its own log answers instead of sharing a
 				// title. A visitor who clicked "Web server" asked a different
 				// question than one who clicked "PHP errors", and the reason to
 				// pay is the answer to the question they actually asked.
-				( 'php' === kind || 'server' === kind ) && gated && isNew && el( UpsellCallout, {
+				( 'php' === kind || 'server' === kind ) && gated && el( UpsellCallout, {
 					stacked: true,
 					icon: 'php' === kind ? 'code' : 'globe',
 					title: 'php' === kind
@@ -9930,15 +10114,6 @@ function untangling_ms_app_js() {
 					desc: 'php' === kind
 						? 'Fatal errors, warnings, and notices, each with the file and line behind it.'
 						: 'Status codes and response times for every page a visitor loads.',
-					cta: 'Upgrade to Business',
-					need: 'php' === kind ? 'logs-php' : 'logs-server',
-				} ),
-				( 'php' === kind || 'server' === kind ) && gated && ! isNew && el( UpsellCallout, {
-					icon: 'code',
-					title: 'See what your server is doing',
-					desc: 'php' === kind
-						? 'Fatal errors, warnings, and notices — with severity, file, and timestamp.'
-						: 'Every request that hits your site — with status codes and response times.',
 					cta: 'Upgrade to Business',
 					need: 'php' === kind ? 'logs-php' : 'logs-server',
 				} ),
@@ -10135,49 +10310,6 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	function HostingPageCurrent() {
-		// Free mirrors the MSD overview's "Upgrade to unlock" cards (real copy
-		// from overview-backup-card / overview-scan-card); staging has no Free
-		// surface at all in the real product, so the row drops to two cards.
-		//
-		// Intents follow MSD's own branching (overview-backup-card /
-		// overview-scan-card): a healthy backup and a clean scan are 'success';
-		// a failed backup and any threat found are 'error' — MSD has no middle
-		// state for either, and its copy is reused verbatim. Staging carries no
-		// intent because "no staging site yet" isn't a verdict, the same way
-		// MSD leaves its "No backups yet" card un-intented.
-		var bad = 'attention' === data.hosting;
-		var stateCards = isFree ? [
-			{ icon: 'cloud', label: 'Backups', heading: 'Back up your site', desc: 'Get back online quickly with one-click restores.', muted: true, href: plansUrlFor( 'backups' ) },
-			{ icon: 'shield', label: 'Security', heading: 'Scan for security threats', desc: 'We guard your site. You run your business.', muted: true, href: plansUrlFor( 'security' ) },
-		] : [
-			bad
-				? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
-				: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' },
-			bad
-				? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
-				: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' },
-			{ icon: 'layout', label: 'Staging', heading: 'No staging site yet', desc: 'Test changes on a private copy before they go live.', href: msd + '/sites/' + data.siteSlug },
-		];
-		return el( Shell, {
-			title: 'Hosting',
-			description: 'Your site’s engine room. The Hosting Dashboard keeps the multi-site view — and the recovery path if this site is ever down.',
-			actions: el( Button, { variant: 'primary', href: msd + '/overview', __next40pxDefaultSize: true, icon: icon( PATHS.external, '0 0 24 24', 20 ), iconPosition: 'right' }, 'Hosting Dashboard' ),
-		},
-			el( 'div', { className: 'ms-grid' },
-				el( 'div', { className: 'ms-span2 ms-ovcard-row' + ( isFree ? ' is-two' : '' ) },
-					stateCards.map( function ( card, i ) {
-						return el( OvCard, Object.assign( { key: i }, card ) );
-					} )
-				),
-				el( PerformanceCard ),
-				el( LogsCard ),
-				el( CacheCard ),
-				el( AdvancedCard )
-			)
-		);
-	}
-
 	/* ---- Hosting, logs-first ---- */
 
 	// What Business adds, framed as the moment you would reach for it. The
@@ -10196,7 +10328,7 @@ function untangling_ms_app_js() {
 	// One card, one CTA. Replacing five upgrade buttons with one is the whole
 	// point, so nothing in here may grow a second one. Two other shapes of this
 	// card (have / get columns, and safety/speed/control groups) were tried and
-	// dropped — see untangling_get_hosting_design().
+	// dropped, as was the original five-CTA page.
 	function MissingCard() {
 		var heading = 'If something goes wrong';
 
@@ -10265,7 +10397,7 @@ function untangling_ms_app_js() {
 	}
 
 	function HostingPage() {
-		return 'current' === data.hostingDesign ? HostingPageCurrent() : HostingPageCreator();
+		return HostingPageCreator();
 	}
 
 	/* ---- Plan & products ---- */
@@ -10804,49 +10936,6 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Your site: the first place a new visitor sees their site (the welcome
-	// panel's one real job), kept as a live preview — with the redundant
-	// buttons gone. The iframe renders at 1280px and scales to the postbox.
-	function DwSite() {
-		var frameRef = useRef( null );
-		useEffect( function () {
-			var node = frameRef.current;
-			if ( ! node ) {
-				return;
-			}
-			function fit() {
-				var iframe = node.querySelector( 'iframe' );
-				if ( iframe && node.clientWidth ) {
-					iframe.style.transform = 'scale(' + node.clientWidth / 1280 + ')';
-				}
-			}
-			fit();
-			window.addEventListener( 'resize', fit );
-			return function () {
-				window.removeEventListener( 'resize', fit );
-			};
-		}, [] );
-		return el( 'div', { className: 'ms-dw-body' },
-			el( 'div', { className: 'ms-dw-preview', ref: frameRef },
-				el( 'iframe', {
-					title: data.siteName || data.domain || 'Site preview',
-					src: ( data.siteUrl || '/' ) + '?iframe=true',
-					tabIndex: -1,
-				} )
-			),
-			el( 'div', { className: 'ms-dw-site-meta' },
-				el( 'div', null,
-					el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.domain ),
-					el( 'a', { className: 'ms-tl-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain )
-				),
-				// The domain link right beside it already opens the site — a
-				// separate Visit site button was the kind of redundancy this
-				// widget exists to remove.
-				el( Badge, null, 'WordPress.com ' + data.plan )
-			)
-		);
-	}
-
 	// At a glance, extended with what the site runs on. Storage takes two
 	// lines (meter, then the numbers) instead of core's two columns.
 	function DwGlance() {
@@ -10873,9 +10962,9 @@ function untangling_ms_app_js() {
 
 	// Next steps: the launchpad (just created) or the living pool
 	// (established), same data and persistence as the My Site page — minus
-	// the page heading, the two-column layout, and the preview column, which
-	// the Site widget and the postbox title already provide. The open step is
-	// the dashboard's only elevation: the one "act on this".
+	// the page heading, the two-column layout, and the preview column; the
+	// postbox title already names it, and the admin bar links the site. The
+	// open step is the dashboard's only elevation: the one "act on this".
 	function DwLaunchpad( props ) {
 		var doneState = useState( lpInitialDone );
 		var done = doneState[ 0 ], setDone = doneState[ 1 ];
@@ -11042,7 +11131,7 @@ function untangling_ms_app_js() {
 				rows.length
 					? el( 'div', { className: 'ms-dw-feed' },
 						rows.map( function ( row, i ) {
-							return el( 'div', { key: i, className: 'ms-dw-feed-row' },
+							return el( row.href ? 'a' : 'div', { key: i, className: 'ms-dw-feed-row', href: row.href || undefined },
 								el( 'span', { className: 'ms-dw-feed-icon', 'aria-hidden': true }, icon( PATHS[ row.icon ] || PATHS.post, '0 0 24 24', 20 ) ),
 								el( 'span', { className: 'ms-dw-feed-main' },
 									el( 'span', { className: 'ms-dw-feed-title' }, row.title ),
@@ -11061,29 +11150,27 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Backups / Scan: the MSD overview state cards, one per widget. Both are
-	// Jetpack products; the mark sits in the postbox title, not the body.
-	function DwBackups() {
+	// Protection: Backups + Scan merged into one widget — both answer "is my
+	// site safe", so they share one postbox (two MSD state cards, each keeping
+	// its own deep link). Both are Jetpack products; the mark sits in the
+	// postbox title, not the body. On Free the pair collapses into a single
+	// upsell card — two muted upsells in one box would just repeat themselves.
+	function DwProtection() {
 		var bad = 'attention' === data.hosting;
-		var card = isFree
-			? { icon: 'cloud', label: 'Backups', heading: 'Back up your site', desc: 'Get back online quickly with one-click restores.', muted: true, href: plansUrlFor( 'backups' ) }
-			: ( bad
-				? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
-				: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' } );
+		if ( isFree ) {
+			return el( 'div', { className: 'ms-dw-body' },
+				el( OvCard, { icon: 'shield', label: 'Protection', heading: 'Protect your site', desc: 'Daily backups, security scans, and one-click restores come with Business.', muted: true, href: plansUrlFor( 'security' ) } )
+			);
+		}
+		var backups = bad
+			? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
+			: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' };
+		var scan = bad
+			? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
+			: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' };
 		return el( 'div', { className: 'ms-dw-body' },
-			el( OvCard, card )
-		);
-	}
-
-	function DwScan() {
-		var bad = 'attention' === data.hosting;
-		var card = isFree
-			? { icon: 'shield', label: 'Security', heading: 'Scan for security threats', desc: 'We guard your site. You run your business.', muted: true, href: plansUrlFor( 'security' ) }
-			: ( bad
-				? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
-				: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' } );
-		return el( 'div', { className: 'ms-dw-body' },
-			el( OvCard, card )
+			el( OvCard, backups ),
+			el( OvCard, scan )
 		);
 	}
 
@@ -11133,7 +11220,8 @@ function untangling_ms_app_js() {
 	}
 
 	// Plan: the plan at a glance, and the dashboard's ONE promo slot —
-	// quarantined here, last in the column, styled secondary.
+	// quarantined here, last in the column, styled secondary. The top six
+	// features fill the card; the full list stays on Plan & products.
 	function DwPlan() {
 		var compare = data.planCompare || {};
 		return el( Fragment, null,
@@ -11144,6 +11232,14 @@ function untangling_ms_app_js() {
 						el( Badge, { intent: 'success' }, 'Active' )
 					),
 					cardDesc( meta.renew )
+				),
+				el( 'ul', { className: 'ms-plan-features' },
+					( meta.features || [] ).slice( 0, 6 ).map( function ( feature, i ) {
+						return el( 'li', { key: i },
+							el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
+							el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
+						);
+					} )
 				),
 				isFree && compare.next
 					? el( UpsellCallout, {
@@ -11183,7 +11279,7 @@ function untangling_ms_app_js() {
 	// Dashboard-variant mounts: one root per widget placeholder on index.php.
 	// No placeholders on the My Site page (and no #untangling-ms-root on the
 	// Dashboard), so each surface's loop no-ops on the other.
-	var DW_WIDGETS = { site: DwSite, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, backups: DwBackups, scan: DwScan, hosting: DwHosting, plan: DwPlan };
+	var DW_WIDGETS = { next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, protection: DwProtection, hosting: DwHosting, plan: DwPlan };
 	document.querySelectorAll( '.untangling-dw-mount' ).forEach( function ( node ) {
 		var Widget = DW_WIDGETS[ node.dataset.widget ];
 		if ( Widget && wp.element.createRoot ) {
