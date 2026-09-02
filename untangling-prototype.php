@@ -1037,9 +1037,9 @@ add_action( 'admin_init', function () {
 // not 404. Drawer: redirect it to the My Site page, keeping every other query
 // arg (persisted `untangling_*` toggles) intact and mapping the old Help &
 // Learn tab onto the drawer's `ms=help` section. Dashboard: the My Site page
-// itself is also retired except its Plan & products section — everything else
-// (next steps, hosting, help) lives on index.php as widgets, so those hits
-// redirect there too.
+// itself is also retired except its Plan & products (sidebar: Upgrades) and
+// Help & Learn sections — everything else (next steps, hosting) lives on
+// index.php as widgets, so those hits redirect there too.
 add_action( 'admin_init', function () {
 	$variant = untangling_get_variant();
 	$page    = isset( $_GET['page'] ) ? $_GET['page'] : '';
@@ -1061,7 +1061,7 @@ add_action( 'admin_init', function () {
 
 	if ( 'dashboard' === $variant ) {
 		$ms = isset( $_GET['ms'] ) ? $_GET['ms'] : '';
-		$is_retired_mysite = 'untangling-mysite' === $page && 'plan' !== $ms;
+		$is_retired_mysite = 'untangling-mysite' === $page && ! in_array( $ms, array( 'plan', 'help' ), true );
 		if ( 'untangling-hosting' === $page || $is_retired_mysite ) {
 			$args = $_GET;
 			unset( $args['page'], $args['ms'], $args['untangling_tab'] );
@@ -1085,11 +1085,14 @@ add_action( 'admin_menu', function () {
 		add_menu_page( __( 'My Site' ), __( 'My Site' ), 'manage_options', 'untangling-mysite', 'untangling_render_mysite_page', '', 2 );
 		remove_menu_page( 'untangling-mysite' );
 
-		// Plan & products keeps its own top-level anchor, directly below
-		// Dashboard. Next steps and Hosting became index.php widgets and Help
-		// & Learn is hidden in this iteration, so this is the one custom item
-		// left — a direct link into the retained Plan & products section.
-		add_menu_page( __( 'Plan & products' ), __( 'Plan & products' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan', '', 'dashicons-products', 2 );
+		// Upgrades keeps its own top-level anchor, directly below Dashboard —
+		// a direct link into the retained Plan & products section (the page
+		// keeps its name; the sidebar says what you go there to do). Next steps
+		// and Hosting became index.php widgets. Help & Learn sits right after
+		// Upgrades (same position → lands after it) as a direct link into the
+		// retained help section.
+		add_menu_page( __( 'Upgrades' ), __( 'Upgrades' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan', '', 'dashicons-products', 2 );
+		add_menu_page( __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=help', '', 'dashicons-editor-help', 2 );
 
 		// Parity mocks keep their order: Stats, then Jetpack (both collide at
 		// 3, first registered wins the earlier slot).
@@ -1225,13 +1228,14 @@ add_filter( 'submenu_file', function ( $submenu_file ) {
 	return $submenu_file;
 } );
 
-// Dashboard variant: Plan & products is a top-level direct link, so the page
-// it opens (the retained My Site plan section) must highlight that item —
-// otherwise no sidebar entry lights up on it.
+// Dashboard variant: Upgrades and Help & Learn are top-level direct links, so
+// the pages they open (the retained My Site plan / help sections) must
+// highlight their item — otherwise no sidebar entry lights up on them.
 add_filter( 'parent_file', function ( $parent_file ) {
 	if ( 'dashboard' === untangling_get_variant()
-		&& isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page'] && 'plan' === $_GET['ms'] ) {
-		return 'admin.php?page=untangling-mysite&ms=plan';
+		&& isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page']
+		&& in_array( $_GET['ms'], array( 'plan', 'help' ), true ) ) {
+		return 'admin.php?page=untangling-mysite&ms=' . $_GET['ms'];
 	}
 	return $parent_file;
 } );
@@ -7487,7 +7491,7 @@ add_action( 'admin_footer', function () {
 				$variant = untangling_get_variant();
 				$group( __( 'Layout' ) );
 				$variant_hints = array(
-					'dashboard' => __( 'All-in Dashboard: next steps, activity, backups, and hosting as widgets on the core Dashboard.' ),
+					'dashboard' => __( 'All-in Dashboard: next steps, activity, backups, and hosting as widgets on the core Dashboard; Upgrades and Help & Learn in the sidebar.' ),
 					'drawer'    => __( 'My Site drawer: a My Site item below Dashboard with Next steps, Plan & products, Hosting, and Help & Learn.' ),
 				);
 				$seg( __( 'Variant' ), 'untangling_variant', array(
@@ -8987,7 +8991,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Rows are links to the screen that owns the event: the whole row is the
    target, the hover tints the title the way the Hosting rows do. */
 .untangling-dw a.ms-dw-feed-row { text-decoration: none; color: inherit; margin: 0 -12px; padding-left: 12px; padding-right: 12px; transition: background .15s ease; }
-.untangling-dw a.ms-dw-feed-row:hover, .untangling-dw a.ms-dw-feed-row:focus-visible { background: color-mix(in srgb, #3858e9 3%, #fff); }
+.untangling-dw a.ms-dw-feed-row:hover, .untangling-dw a.ms-dw-feed-row:focus-visible { background: none; }
 .untangling-dw a.ms-dw-feed-row:hover .ms-dw-feed-title, .untangling-dw a.ms-dw-feed-row:focus-visible .ms-dw-feed-title { color: #3858e9; }
 .untangling-dw a.ms-dw-feed-row:hover .ms-dw-feed-icon svg { fill: #3858e9; }
 .untangling-dw a.ms-dw-feed-row:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
@@ -9009,7 +9013,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    edges like the feed rows, and split on the same full-width hairline. */
 .untangling-dw .ms-dw-body > .ms-ovcard { margin: 0 -12px; padding: 0 12px; border-radius: 0; }
 .untangling-dw .ms-dw-body > .ms-ovcard + .ms-ovcard { border-top: 1px solid #f0f0f0; padding-top: 12px; }
-.untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: color-mix(in srgb, #3858e9 3%, #fff); }
+.untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: none; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-desc { color: #757575; }
 .untangling-dw a.ms-ovcard.is-warning:hover .ms-ovcard-desc { color: #b36100; }
@@ -9032,7 +9036,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    only the icon reacting — restate the full widget row pattern instead. */
 .untangling-dw .ms-advanced-row { box-shadow: none; margin: 0 -12px; padding: 9px 12px; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-advanced-row:last-child { border-bottom: 0; }
-.untangling-dw .ms-advanced-row:hover, .untangling-dw .ms-advanced-row:focus-visible { box-shadow: none; background: color-mix(in srgb, #3858e9 3%, #fff); }
+.untangling-dw .ms-advanced-row:hover, .untangling-dw .ms-advanced-row:focus-visible { box-shadow: none; background: none; }
 .untangling-dw .ms-advanced-row:hover .ms-grow-title, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-title { color: #3858e9; }
 .untangling-dw .ms-advanced-row:hover .ms-grow-chevron svg, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-chevron svg { fill: #3858e9; }
 
