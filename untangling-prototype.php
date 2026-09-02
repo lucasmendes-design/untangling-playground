@@ -8518,6 +8518,7 @@ add_action( 'wp_dashboard_setup', function () {
 	};
 
 	$titles = array(
+		'untangling_dw_site'       => array( __( 'Site preview' ), 'site' ),
 		'untangling_dw_next_steps' => array( __( 'Next steps' ), 'next' ),
 		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
 		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Activity' ) ), 'activity' ),
@@ -8585,12 +8586,12 @@ function untangling_dw_layout( $columns = null ) {
 	if ( 3 === $columns ) {
 		return array(
 			'normal'  => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_activity' ),
-			'side'    => array( 'untangling_dw_next_steps' ),
+			'side'    => array( 'untangling_dw_site', 'untangling_dw_next_steps' ),
 			'column3' => array( 'untangling_dw_stats', 'untangling_dw_protection', 'untangling_dw_hosting' ),
 		);
 	}
 	return array(
-		'normal' => array( 'untangling_dw_next_steps', 'untangling_dw_stats', 'untangling_dw_activity' ),
+		'normal' => array( 'untangling_dw_site', 'untangling_dw_next_steps', 'untangling_dw_stats', 'untangling_dw_activity' ),
 		'side'   => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_protection', 'untangling_dw_hosting' ),
 	);
 }
@@ -8874,7 +8875,7 @@ add_action( 'admin_footer-index.php', function () {
 			return;
 		}
 		var GROUPS = [
-			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
+			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
 			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'untangling_dw_activity' ] },
 			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_protection', 'untangling_dw_hosting' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plan' ) ); ?>, ids: [ 'untangling_dw_plan' ] },
@@ -9030,7 +9031,14 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Activity feed rows: icon · title/summary · relative time. Empty state is a
    grey circle and one sentence, and the card keeps its height. */
 .untangling-dw .ms-dw-feed { display: flex; flex-direction: column; }
-.untangling-dw .ms-dw-feed-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; }
+/* Row lists (the Activity feed, the Hosting rows) bleed into the body's
+   vertical padding as well as its sides, so the distance from a hairline to
+   the text is the same 10px at the postbox header and footer as it is between
+   rows. Before, the 12px body padding stacked on the row's own padding and
+   the first and last rows floated 21px from the chrome. */
+.untangling-dw .ms-dw-body > .ms-dw-feed,
+.untangling-dw .ms-dw-body > .ms-dw-rows { margin-top: -12px; margin-bottom: -12px; }
+.untangling-dw .ms-dw-feed-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-feed-row:last-child { border-bottom: 0; }
 /* Rows are links to the screen that owns the event: the whole row is the
    target, the hover tints the title the way the Hosting rows do. */
@@ -9083,6 +9091,15 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-ovcard-action { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-action { background: var(--wpds-color-background-interactive-error-strong-active, #a10f0f); }
 
+/* Site preview: the frame fills the postbox width at 16:10, name and
+   address beneath it on the settings-row model. */
+.untangling-dw .ms-dw-preview { display: flex; flex-direction: column; gap: 10px; }
+.untangling-dw .ms-dw-preview .ms-tl-preview-frame { max-width: none; aspect-ratio: 16 / 10; }
+.untangling-dw .ms-dw-preview-meta { display: flex; flex-direction: column; gap: 2px; }
+.untangling-dw .ms-dw-preview-title { font-weight: 500; color: #1e1e1e; }
+.untangling-dw .ms-dw-preview-link { font-size: 12px; color: #757575; text-decoration: none; }
+.untangling-dw .ms-dw-preview-link:hover, .untangling-dw .ms-dw-preview-link:focus-visible { color: #3858e9; text-decoration: underline; }
+
 /* Checklist: the open (current) step is the page's only elevation. */
 .untangling-dw .ms-tl-tasks { background: #f6f7f7; }
 .untangling-dw .ms-tl-card { box-shadow: none; border: 1px solid transparent; }
@@ -9104,7 +9121,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Hosting rows reuse the advanced-row recipe minus its card shell. The page's
    own row hover (shadow ring + icon recolor) half-leaked in here, leaving
    only the icon reacting — restate the full widget row pattern instead. */
-.untangling-dw .ms-advanced-row { box-shadow: none; margin: 0 -12px; padding: 9px 12px; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-advanced-row { box-shadow: none; margin: 0 -12px; padding: 10px 12px; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-advanced-row:last-child { border-bottom: 0; }
 .untangling-dw .ms-advanced-row:hover, .untangling-dw .ms-advanced-row:focus-visible { box-shadow: none; background: none; }
 .untangling-dw .ms-advanced-row:hover .ms-grow-title, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-title { color: #3858e9; }
@@ -11331,7 +11348,7 @@ function untangling_ms_app_js() {
 		];
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', null, rows.map( function ( row, i ) {
+				el( 'div', { className: 'ms-dw-rows' }, rows.map( function ( row, i ) {
 					return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug + row.route },
 						el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ row.icon ] ) ),
 						el( 'span', { className: 'ms-grow-main' },
@@ -11406,7 +11423,35 @@ function untangling_ms_app_js() {
 	// Dashboard-variant mounts: one root per widget placeholder on index.php.
 	// No placeholders on the My Site page (and no #untangling-ms-root on the
 	// Dashboard), so each surface's loop no-ops on the other.
-	var DW_WIDGETS = { next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, protection: DwProtection, hosting: DwHosting, plan: DwPlan };
+	// Site preview: the live site scaled into the postbox, "Edit site" on
+	// hover (the My Site page's TailoredSitePreview, without its sticky aside
+	// and 300px cap), name and address under it, Visit site in the footer.
+	function DwSitePreview() {
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', { className: 'ms-dw-preview' },
+					el( 'div', { className: 'ms-tl-preview-frame' },
+						el( 'iframe', {
+							className: 'ms-tl-preview-iframe',
+							title: data.siteName || data.domain || 'Site preview',
+							src: ( data.siteUrl || '/' ) + '?iframe=true',
+							tabIndex: -1,
+						} ),
+						el( 'span', { className: 'ms-tl-preview-edit' },
+							el( Button, { variant: 'primary', href: data.adminUrl + 'site-editor.php' }, 'Edit site' )
+						)
+					),
+					el( 'div', { className: 'ms-dw-preview-meta' },
+						el( 'span', { className: 'ms-dw-preview-title' }, data.siteName || data.domain ),
+						el( 'a', { className: 'ms-dw-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain )
+					)
+				)
+			),
+			dwFooter( data.siteUrl, 'Visit site' )
+		);
+	}
+
+	var DW_WIDGETS = { site: DwSitePreview, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, protection: DwProtection, hosting: DwHosting, plan: DwPlan };
 	document.querySelectorAll( '.untangling-dw-mount' ).forEach( function ( node ) {
 		var Widget = DW_WIDGETS[ node.dataset.widget ];
 		if ( Widget && wp.element.createRoot ) {
