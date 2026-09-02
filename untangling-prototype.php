@@ -11036,6 +11036,10 @@ function untangling_ms_app_js() {
 	// columns.
 	function DwGlance() {
 		var counts = data.counts || {};
+		function countLink( n, one, many, href ) {
+			n = n || 0;
+			return el( 'a', { href: href }, n + ' ' + ( 1 === n ? one : many ) );
+		}
 		function row( label, value ) {
 			return el( 'div', { className: 'ms-dw-grid-row' },
 				el( 'span', { className: 'ms-dw-grid-label' }, label ),
@@ -11049,7 +11053,12 @@ function untangling_ms_app_js() {
 					? el( Fragment, null, data.wpVersion, ' · ', el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ) )
 					: data.wpVersion ),
 				row( 'PHP', isFree ? data.phpVersion + ' — managed for you' : data.phpVersion ),
-				row( 'Content', ( counts.posts || 0 ) + ' posts · ' + ( counts.pages || 0 ) + ' pages · ' + ( counts.comments || 0 ) + ' comments' ),
+				// Each count opens its core list screen, like core's At a Glance.
+				row( 'Content', el( Fragment, null,
+					countLink( counts.posts, 'post', 'posts', data.adminUrl + 'edit.php' ), ' · ',
+					countLink( counts.pages, 'page', 'pages', data.adminUrl + 'edit.php?post_type=page' ), ' · ',
+					countLink( counts.comments, 'comment', 'comments', data.adminUrl + 'edit-comments.php' )
+				) ),
 				el( 'div', { className: 'ms-dw-grid-row is-block' },
 					el( 'span', { className: 'ms-dw-grid-label' }, 'Storage' ),
 					// The widget has no room for the plan page's add-on picker, so
