@@ -1089,10 +1089,11 @@ add_action( 'admin_menu', function () {
 		// a direct link into the retained Plan & products section (the page
 		// keeps its name; the sidebar says what you go there to do). Next steps
 		// and Hosting became index.php widgets. Help & Learn is the last item
-		// of the menu (position 99: after Settings at 80, before core's
-		// Collapse control), a direct link into the retained help section.
+		// of the Settings group (position 81: after Settings at 80, before
+		// core's last separator at 99), a direct link into the retained help
+		// section.
 		add_menu_page( __( 'Upgrades' ), __( 'Upgrades' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan', '', 'dashicons-cart', 2 );
-		add_menu_page( __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=help', '', 'dashicons-editor-help', 99 );
+		add_menu_page( __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=help', '', 'dashicons-editor-help', 81 );
 
 		// Parity mocks keep their order: Stats, then Jetpack (both collide at
 		// 3, first registered wins the earlier slot).
