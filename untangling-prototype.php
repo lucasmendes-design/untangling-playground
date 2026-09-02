@@ -8426,7 +8426,7 @@ function untangling_ms_data() {
 		'serverLogs'   => $server_logs,
 		// Dashboard-variant extras. Deterministic mock traffic (last 7 days,
 		// deltas vs the week before) — same spirit as the perf series; content
-		// counts and versions feed the At a glance widget.
+		// counts and versions feed the Site details widget.
 		'variant'      => untangling_get_variant(),
 		'planPageUrl'  => admin_url( 'admin.php?page=untangling-mysite&ms=plan' ),
 		'wpVersion'    => get_bloginfo( 'version' ),
@@ -8517,7 +8517,7 @@ add_action( 'wp_dashboard_setup', function () {
 		'untangling_dw_next_steps' => array( __( 'Next steps' ), 'next' ),
 		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
 		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Activity' ) ), 'activity' ),
-		'untangling_dw_glance'     => array( __( 'At a glance' ), 'glance' ),
+		'untangling_dw_glance'     => array( __( 'Site details' ), 'glance' ),
 		'untangling_dw_protection' => array( untangling_dw_jetpack_title( __( 'Protection' ) ), 'protection' ),
 		'untangling_dw_hosting'    => array( __( 'Hosting' ), 'hosting' ),
 		'untangling_dw_plan'       => array( __( 'Plan' ), 'plan' ),
@@ -8537,16 +8537,16 @@ add_action( 'wp_dashboard_setup', function () {
 	// switch, so the render hook goes and the CSS below hides the shell.
 	remove_action( 'welcome_panel', 'wp_welcome_panel' );
 
-	// Two of the curated core widgets share a name with their replacements
-	// (At a Glance, Activity). They stay available, but a re-enabled one must
-	// not read as a duplicate — in Screen Options or in its postbox header —
-	// so the legacy pair is marked "(classic)". Core has already registered
-	// them by the time this action fires.
+	// Core's Activity widget shares its name with our replacement. It stays
+	// available, but a re-enabled one must not read as a duplicate — in
+	// Screen Options or in its postbox header — so the legacy one is marked
+	// "(classic)". (Core's At a Glance keeps its name: ours is "Site details".)
+	// Core has already registered it by the time this action fires.
 	global $wp_meta_boxes;
 	if ( isset( $wp_meta_boxes['dashboard'] ) ) {
 		foreach ( $wp_meta_boxes['dashboard'] as $context => $priorities ) {
 			foreach ( $priorities as $priority => $boxes ) {
-				foreach ( array( 'dashboard_right_now', 'dashboard_activity' ) as $box_id ) {
+				foreach ( array( 'dashboard_activity' ) as $box_id ) {
 					if ( ! empty( $boxes[ $box_id ]['title'] ) ) {
 						$wp_meta_boxes['dashboard'][ $context ][ $priority ][ $box_id ]['title'] .= ' ' . __( '(classic)' );
 					}
@@ -8663,7 +8663,7 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
  *     colors, their copy — not ours), so every layout is judged with them
  *     present. They register like any plugin's widget: default context and
  *     priority, so they land where a real install would put them (column 1,
- *     between At a glance and Activity, pushing the history down), and Screen Options,
+ *     between Site details and Activity, pushing the history down), and Screen Options,
  *     drag, and collapse all work. Just created sites have no plugins yet, so
  *     nothing registers there.
  * ---------------------------------------------------------------------- */
@@ -8979,7 +8979,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .metabox-prefs .untangling-dw-title { display: inline; }
 .metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
 
-/* At a glance: label/value rows split by hairlines (the settings-card model). */
+/* Site details: label/value rows split by hairlines (the settings-card model). */
 .untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
 .untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-grid-row:last-child { border-bottom: 0; }
@@ -10958,8 +10958,9 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// At a glance, extended with what the site runs on. Storage takes two
-	// lines (meter, then the numbers) instead of core's two columns.
+	// Site details: core's At a glance extended with what the site runs on.
+	// Storage takes two lines (meter, then the numbers) instead of core's two
+	// columns.
 	function DwGlance() {
 		var counts = data.counts || {};
 		function row( label, value ) {
