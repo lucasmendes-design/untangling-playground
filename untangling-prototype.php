@@ -8430,6 +8430,10 @@ function untangling_ms_data() {
 		'variant'      => untangling_get_variant(),
 		'planPageUrl'  => admin_url( 'admin.php?page=untangling-mysite&ms=plan' ),
 		'wpVersion'    => get_bloginfo( 'version' ),
+		// A pending core update, real when WordPress knows one; the demo
+		// otherwise shows the next minor so the row's CTA is always exercised.
+		'wpUpdate'     => untangling_dw_core_update_version(),
+		'updateUrl'    => admin_url( 'update-core.php' ),
 		'phpVersion'   => implode( '.', array_slice( explode( '.', PHP_VERSION ), 0, 2 ) ),
 		'counts'       => array(
 			'posts'    => (int) wp_count_posts()->publish,
@@ -8559,6 +8563,23 @@ add_action( 'wp_dashboard_setup', function () {
 // The designed distribution per layout: well => widget ids, top to bottom.
 // Read by registration (context + priority) and by the order-snap filter, so
 // the two never disagree.
+// The pending core version for the Site details widget: what WordPress
+// reports when an update is queued, else the next minor as demo data so the
+// "Update to …" CTA is always on screen. Empty string = nothing to show.
+function untangling_dw_core_update_version() {
+	$current = get_bloginfo( 'version' );
+	$updates = get_site_transient( 'update_core' );
+	if ( ! empty( $updates->updates ) ) {
+		foreach ( $updates->updates as $u ) {
+			if ( isset( $u->response, $u->current ) && 'upgrade' === $u->response && version_compare( $u->current, $current, '>' ) ) {
+				return $u->current;
+			}
+		}
+	}
+	$parts = explode( '.', $current );
+	return $parts[0] . '.' . ( (int) ( isset( $parts[1] ) ? $parts[1] : 0 ) + 1 );
+}
+
 function untangling_dw_layout( $columns = null ) {
 	$columns = $columns ?: untangling_dw_columns();
 	if ( 3 === $columns ) {
@@ -8990,6 +9011,9 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-grid-row.is-block { display: block; }
 .untangling-dw .ms-dw-grid-row.is-block .ms-storage { margin: 6px 0 0; }
 .untangling-dw .ms-storage-used { margin-top: 6px; }
+.untangling-dw .ms-storage-used.has-cta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.untangling-dw .ms-storage-cta, .untangling-dw .ms-dw-update { text-decoration: none; font-weight: 500; white-space: nowrap; }
+.untangling-dw .ms-storage-cta:hover, .untangling-dw .ms-dw-update:hover { text-decoration: underline; }
 
 /* Stats: KPI pair, the selected one underlined (it drives the sparkline). */
 .untangling-dw .ms-dw-kpis { display: flex; border-bottom: 1px solid #f0f0f0; }
@@ -9037,17 +9061,60 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw a.ms-ovcard.is-warning:hover .ms-ovcard-desc { color: #b36100; }
 .untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-desc { color: #cc1818; }
 
+/* Needs attention. The postbox title carries an "Action needed" pill; the
+   rows sit on the error surface edge to edge (the wrapper eats the body
+   padding), split on an error-tinted hairline. The heading takes the error
+   color; the description stays dark — red on a red tint reads worse, not
+   louder. The eyebrow's link glyph becomes a pill naming the fix: the whole
+   row is still the link, the pill says what clicking it does. */
+#dashboard-widgets .postbox.is-attention .untangling-dw-title::after { content: 'Action needed'; display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; }
+.untangling-dw .ms-dw-issues { display: flex; flex-direction: column; margin: -12px; background: var(--wpds-color-background-surface-error-weak, #fcf0ef); }
+.untangling-dw .ms-dw-issues > .ms-ovcard { margin: 0; padding: 12px; border-radius: 0; background: transparent; box-shadow: none; transition: background .15s ease; }
+.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-top: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
+.untangling-dw .ms-dw-issues > a.ms-ovcard:hover, .untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { background: var(--wpds-color-background-surface-error, #f6e6e3); }
+.untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { outline: 2px solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -2px; }
+.untangling-dw .ms-ovcard.is-error .ms-ovcard-label { color: var(--wpds-color-foreground-content-error-weak, #cc1818); }
+.untangling-dw .ms-ovcard.is-error .ms-ovcard-heading,
+.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-heading { color: var(--wpds-color-foreground-content-error-weak, #cc1818); }
+.untangling-dw .ms-ovcard.is-error .ms-ovcard-desc,
+.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-desc { color: #1e1e1e; }
+.untangling-dw .ms-ovcard-action { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.untangling-dw a.ms-ovcard:hover .ms-ovcard-action { background: var(--wpds-color-background-interactive-error-strong-active, #a10f0f); }
+
 /* Checklist: the open (current) step is the page's only elevation. */
 .untangling-dw .ms-tl-tasks { background: #f6f7f7; }
 .untangling-dw .ms-tl-card { box-shadow: none; border: 1px solid transparent; }
 .untangling-dw .ms-tl-card.is-open { box-shadow: 0 4px 12px rgba(0, 0, 0, .08), 0 0 0 1px #e0e0e0; }
 .untangling-dw .ms-tl-progress { margin: 0 0 10px; font-size: 12px; color: #757575; }
-.untangling-dw .ms-madefor { margin: 12px 0 0; }
+/* Provenance line, widget edition: a footer on the hairline like every other
+   widget's, left-aligned with the cards above it. The gradient and the sparks
+   belong to the page; in a postbox the phrase is a label, so it reads as one. */
+.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { display: flex; align-items: center; gap: 6px; margin: 12px -12px -12px; padding: 12px; border-top: 1px solid #f0f0f0; text-align: left; font-size: 12px; line-height: 16px; color: #757575; white-space: nowrap; overflow: hidden; }
+.untangling-dw .ms-madefor.is-compact > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.untangling-dw .ms-madefor.is-compact .ms-ai { flex-shrink: 0; background: none; -webkit-background-clip: initial; background-clip: initial; color: #1e1e1e; font-weight: 500; animation: none; }
 .untangling-dw .ms-hero { box-shadow: none; border: 1px solid #e0e0e0; padding: 16px; }
 .untangling-dw .ms-hero-title { font-size: 18px; }
 
-/* Upsell callouts stack in the narrow column. */
-.untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0; }
+/* The promo language. Offers are the one thing on this page that is not a
+   status, so they stop dressing like one: a brand-tinted panel instead of the
+   hairline box the status rows use, the diamond as an uppercase eyebrow, the
+   copy left-aligned like everything around it. The CTA is primary in the Plan
+   widget only — the page's one promo slot — and secondary in the Free-plan
+   Protection and Hosting callouts, so three promos never shout at once. */
+.untangling-dw .ms-upsell,
+.untangling-dw .ms-upsell.is-stacked,
+.untangling-dw .ms-dw-offer { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 10px; margin: 0; padding: 14px; border: 0; border-radius: var(--wpds-border-radius-lg, 8px); background: color-mix(in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 6%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 18%, transparent); }
+.untangling-dw .ms-dw-body > .ms-ovcard.is-upsell { margin: 0; padding: 14px; border-radius: var(--wpds-border-radius-lg, 8px); background: color-mix(in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 6%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 18%, transparent); }
+.untangling-dw a.ms-ovcard.is-upsell:hover, .untangling-dw a.ms-ovcard.is-upsell:focus-visible { background: color-mix(in srgb, var(--wpds-color-stroke-surface-brand-strong, #3858e9) 10%, #fff); }
+.untangling-dw .ms-promo-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: .02em; text-transform: uppercase; color: var(--wpds-color-foreground-interactive-brand, #3858e9); }
+.untangling-dw .ms-promo-eyebrow svg { fill: currentColor; }
+.untangling-dw .ms-upsell.is-stacked .ms-upsell-main { flex: 0 1 auto; }
+.untangling-dw .ms-upsell.is-stacked .ms-upsell-title,
+.untangling-dw .ms-upsell.is-stacked .ms-upsell-desc { text-wrap: pretty; }
+#dashboard-widgets .postbox .untangling-dw .ms-upsell-title { font-size: 14px; line-height: 20px; margin: 0; }
+.untangling-dw .ms-upsell-desc { margin: 0; }
+.untangling-dw .ms-upsell .components-button,
+.untangling-dw .ms-dw-offer .components-button { margin-top: 2px; }
 
 /* Hosting rows reuse the advanced-row recipe minus its card shell. The page's
    own row hover (shadow ring + icon recolor) half-leaked in here, leaving
@@ -9067,11 +9134,9 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-plan-features { margin: 0 -12px; gap: 8px 16px; border-top: 1px solid #f0f0f0; padding: 12px 12px 0; }
 .untangling-dw .ms-plan-features li { align-items: flex-start; }
 .untangling-dw .ms-plan-features .ms-plan-check { margin-top: 1px; }
-.untangling-dw .ms-dw-offer { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; }
-.untangling-dw .ms-dw-offer svg { flex-shrink: 0; fill: #3858e9; }
-.untangling-dw .ms-dw-offer-text { flex: 1; }
-.untangling-dw .ms-dw-offer-title { display: block; font-weight: 500; color: #1e1e1e; }
-.untangling-dw .ms-dw-offer-desc { display: block; color: #757575; font-size: 12px; }
+.untangling-dw .ms-dw-offer-text { display: block; }
+.untangling-dw .ms-dw-offer-title { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: #1e1e1e; }
+.untangling-dw .ms-dw-offer-desc { display: block; color: #757575; font-size: 13px; line-height: 18px; margin-top: 2px; }
 CSS;
 }
 
@@ -9280,8 +9345,10 @@ function untangling_ms_app_js() {
 	// availability sentence repeated in every card.
 	// props.inline renders the bordered in-card variant (Free activity log).
 	function UpsellCallout( props ) {
-		return el( 'div', { className: 'ms-upsell' + ( props.inline ? ' is-inline' : '' ) + ( props.stacked ? ' is-stacked' : '' ) },
-			el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS[ props.icon || 'plugin' ], '0 0 24 24', 24 ) ),
+		return el( 'div', { className: 'ms-upsell' + ( props.inline ? ' is-inline' : '' ) + ( props.stacked ? ' is-stacked' : '' ) + ( props.eyebrow ? ' is-promo' : '' ) },
+			props.eyebrow
+				? el( 'span', { className: 'ms-promo-eyebrow' }, upsellDiamond(), el( 'span', null, props.eyebrow ) )
+				: el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS[ props.icon || 'plugin' ], '0 0 24 24', 24 ) ),
 			el( 'span', { className: 'ms-upsell-main' },
 				el( 'h3', { className: 'ms-upsell-title' }, props.title ),
 				el( 'p', { className: 'ms-upsell-desc' }, props.desc )
@@ -9290,7 +9357,7 @@ function untangling_ms_app_js() {
 			// carry three or four of them at once — as primaries they outshouted
 			// the page's one real primary action and each other. The diamond and
 			// the blue label still read as an upgrade.
-			el( Button, { variant: 'secondary', icon: upsellDiamond(), iconSize: 14, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
+			el( Button, { variant: props.primary ? 'primary' : 'secondary', icon: props.eyebrow ? null : upsellDiamond(), iconSize: 14, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
 		);
 	}
 
@@ -9828,7 +9895,17 @@ function untangling_ms_app_js() {
 	// Moving the mouse across it scatters little sparks (skipped under
 	// prefers-reduced-motion); the AI phrase carries a gradient shimmer.
 	var SPARK_COLORS = [ '#3858e9', '#b35eb1', '#e34c84', '#f2a33c', '#31cc9f' ];
-	function MadeForLine() {
+	function MadeForLine( props ) {
+		var sources = isCommerce ? 'stats, products, and orders' : 'stats, comments, and posts';
+		// Widget edition: one left-aligned line on the footer hairline, no
+		// gradient, no sparks. The page's centered sign-off floated under the
+		// task cards like a stray caption inside a 400px postbox.
+		if ( props && props.compact ) {
+			return el( 'p', { className: 'ms-madefor is-compact' },
+				el( 'span', { className: 'ms-ai' }, '\u2726 Tailored with AI' ),
+				el( 'span', null, 'from your ' + sources + '.' )
+			);
+		}
 		function spawnSpark( e ) {
 			if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
 				return;
@@ -9850,7 +9927,7 @@ function untangling_ms_app_js() {
 		}
 		return el( 'p', { className: 'ms-madefor', onMouseMove: spawnSpark },
 			el( 'span', { className: 'ms-ai' }, '✦ Tailored with AI' ),
-			' for ' + data.siteName + ' — from your ' + ( isCommerce ? 'stats, products, and orders' : 'stats, comments, and posts' ) + '. New steps appear as your site changes.'
+			' for ' + data.siteName + ' — from your ' + sources + '. New steps appear as your site changes.'
 		);
 	}
 
@@ -9980,9 +10057,11 @@ function untangling_ms_app_js() {
 			el( 'span', { className: 'ms-ovcard-label' },
 				props.muted ? upsellDiamond() : icon( PATHS[ props.icon ], '0 0 24 24', 20 ),
 				el( 'span', null, props.muted ? 'Upgrade to unlock' : props.label ),
-				props.href && el( 'span', { className: 'ms-ovcard-linkicon' },
-					props.muted ? icon( PATHS.chevron, '0 0 24 24', 20 ) : icon( PATHS.external, '0 0 24 24', 16 )
-				)
+				props.action
+					? el( 'span', { className: 'ms-ovcard-action' }, props.action )
+					: props.href && el( 'span', { className: 'ms-ovcard-linkicon' },
+						props.muted ? icon( PATHS.chevron, '0 0 24 24', 20 ) : icon( PATHS.external, '0 0 24 24', 16 )
+					)
 			),
 			el( 'span', { className: 'ms-ovcard-heading' }, props.heading ),
 			el( 'span', { className: 'ms-ovcard-desc' }, props.desc )
@@ -10534,15 +10613,23 @@ function untangling_ms_app_js() {
 	// Two lines, two jobs: the numbers stay neutral, and storage[2] carries the
 	// state (caution when the bar is in warning territory, otherwise a plain
 	// note — a purchased add-on reuses the same slot).
-	function StorageMeter() {
+	// props.ctaHref / props.ctaLabel (optional): a link on the right of the
+	// numbers line, shown only while the bar is in warning territory — the
+	// place that has no room for a full add-on picker (the dashboard widget).
+	function StorageMeter( props ) {
+		props = props || {};
 		var storage = meta.storage || [ 0, 1, null ];
 		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
 		var isTight = pct > 80;
+		var showCta = isTight && props.ctaHref;
 		return el( 'div', { className: 'ms-storage' },
 			el( 'div', { className: 'ms-storage-bar' },
 				el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
 			),
-			el( 'p', { className: 'ms-storage-used' }, storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used' ),
+			el( 'p', { className: 'ms-storage-used' + ( showCta ? ' has-cta' : '' ) },
+				el( 'span', null, storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used' ),
+				showCta && el( 'a', { className: 'ms-storage-cta', href: props.ctaHref }, props.ctaLabel || 'Add storage' )
+			),
 			// storage[2] carries a caution when space is tight and a plain note
 			// once an add-on is bought. The amber bar already says "almost
 			// full", so only the neutral note is worth a line of its own.
@@ -10972,12 +11059,16 @@ function untangling_ms_app_js() {
 		return el( 'div', { className: 'ms-dw-body' },
 			el( 'div', { className: 'ms-dw-grid' },
 				row( 'Plan', el( 'a', { href: data.planPageUrl }, 'WordPress.com ' + data.plan ) ),
-				row( 'WordPress', data.wpVersion ),
+				row( 'WordPress', data.wpUpdate
+					? el( Fragment, null, data.wpVersion, ' · ', el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ) )
+					: data.wpVersion ),
 				row( 'PHP', isFree ? data.phpVersion + ' — managed for you' : data.phpVersion ),
 				row( 'Content', ( counts.posts || 0 ) + ' posts · ' + ( counts.pages || 0 ) + ' pages · ' + ( counts.comments || 0 ) + ' comments' ),
 				el( 'div', { className: 'ms-dw-grid-row is-block' },
 					el( 'span', { className: 'ms-dw-grid-label' }, 'Storage' ),
-					el( StorageMeter )
+					// The widget has no room for the plan page's add-on picker, so
+					// the tight state gets a one-link CTA on the numbers line.
+					el( StorageMeter, { ctaHref: data.storageAddonUrl + '&gb=50', ctaLabel: 'Add storage' } )
 				)
 			)
 		);
@@ -11025,7 +11116,7 @@ function untangling_ms_app_js() {
 					} );
 				} )
 			),
-			el( MadeForLine )
+			el( MadeForLine, { compact: true } )
 		);
 	}
 
@@ -11071,7 +11162,7 @@ function untangling_ms_app_js() {
 					} );
 				} )
 			),
-			el( MadeForLine )
+			el( MadeForLine, { compact: true } )
 		);
 	}
 
@@ -11178,19 +11269,36 @@ function untangling_ms_app_js() {
 	// its own deep link). Both are Jetpack products; the mark sits in the
 	// postbox title, not the body. On Free the pair collapses into a single
 	// upsell card — two muted upsells in one box would just repeat themselves.
+	// Needs attention: the widget stops whispering. The postbox title gets an
+	// "Action needed" pill, the two rows sit on the error surface edge to
+	// edge, and each row's external-link glyph becomes the fix it leads to.
 	function DwProtection() {
 		var bad = 'attention' === data.hosting;
+		useEffect( function () {
+			var box = document.getElementById( 'untangling_dw_protection' );
+			if ( box ) {
+				box.classList.toggle( 'is-attention', bad && ! isFree );
+			}
+		}, [ bad ] );
 		if ( isFree ) {
 			return el( 'div', { className: 'ms-dw-body' },
 				el( OvCard, { icon: 'shield', label: 'Protection', heading: 'Protect your site', desc: 'Daily backups, security scans, and one-click restores come with Business.', muted: true, href: plansUrlFor( 'security' ) } )
 			);
 		}
 		var backups = bad
-			? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
+			? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Your last good backup is 3 days old. Run a new one now.', intent: 'error', action: 'Retry backup', href: msd + '/sites/' + data.siteSlug + '/backups' }
 			: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' };
 		var scan = bad
-			? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
+			? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Both have a one-click fix ready.', intent: 'error', action: 'Fix now', href: msd + '/sites/' + data.siteSlug + '/scan' }
 			: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' };
+		if ( bad ) {
+			return el( 'div', { className: 'ms-dw-body' },
+				el( 'div', { className: 'ms-dw-issues', role: 'group', 'aria-label': 'Needs attention' },
+					el( OvCard, backups ),
+					el( OvCard, scan )
+				)
+			);
+		}
 		return el( 'div', { className: 'ms-dw-body' },
 			el( OvCard, backups ),
 			el( OvCard, scan )
@@ -11207,6 +11315,7 @@ function untangling_ms_app_js() {
 				el( 'div', { className: 'ms-dw-body' },
 					el( UpsellCallout, {
 						stacked: true,
+						eyebrow: 'Upgrade',
 						icon: 'cloud',
 						title: 'If something goes wrong',
 						desc: 'Backups, security scans, staging, and server access come with Business.',
@@ -11267,18 +11376,20 @@ function untangling_ms_app_js() {
 				isFree && compare.next
 					? el( UpsellCallout, {
 						stacked: true,
+						eyebrow: 'Upgrade',
+						primary: true,
 						icon: 'performance',
 						title: 'Do more with ' + compare.next.name,
 						desc: 'More storage, more design control, and room to grow.',
 						cta: 'Upgrade to ' + compare.next.name,
 					} )
 					: el( 'div', { className: 'ms-dw-offer' },
-						upsellDiamond(),
+						el( 'span', { className: 'ms-promo-eyebrow' }, upsellDiamond(), el( 'span', null, 'Offer' ) ),
 						el( 'span', { className: 'ms-dw-offer-text' },
 							el( 'span', { className: 'ms-dw-offer-title' }, 'Save 20% with 2-year billing' ),
 							el( 'span', { className: 'ms-dw-offer-desc' }, 'One renewal, two years of ' + data.plan + '.' )
 						),
-						el( Button, { variant: 'secondary', size: 'compact', href: data.renewUrl }, 'Renew and save' )
+						el( Button, { variant: 'primary', href: data.renewUrl, __next40pxDefaultSize: true }, 'Renew and save' )
 					)
 			),
 			dwFooter( data.planPageUrl, 'Plan & products', false, true )
