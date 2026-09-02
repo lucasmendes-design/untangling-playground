@@ -1241,6 +1241,23 @@ add_filter( 'parent_file', function ( $parent_file ) {
 	return $parent_file;
 } );
 
+// Dashboard variant: a separator between Help & Learn and Collapse Menu. Core
+// strips a trailing separator from $menu as the last step of
+// wp-admin/includes/menu.php, after every menu hook, so Help & Learn cannot
+// own one through the menu array. Put it back after menu.php has built the
+// global and before menu-header.php prints it — admin_head sits between.
+add_action( 'admin_head', function () {
+	global $menu;
+	if ( 'dashboard' !== untangling_get_variant() || ! is_array( $menu ) || empty( $menu ) ) {
+		return;
+	}
+	$last = end( $menu );
+	if ( isset( $last[4] ) && 'wp-menu-separator' === $last[4] ) {
+		return;
+	}
+	$menu[] = array( '', 'read', 'separator-untangling-last', '', 'wp-menu-separator' );
+} );
+
 function untangling_render_hosting_page() {
 	echo '<div class="untangling-app"><div id="untangling-root"></div></div>';
 }
