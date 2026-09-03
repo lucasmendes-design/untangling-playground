@@ -9502,6 +9502,20 @@ function untangling_dw_css() {
 	#wpbody #wpbody-content #dashboard-widgets.columns-1 .postbox-container { float: none; width: 100%; }
 }
 
+/* Below 800px core means to stack everything in one column, but its own
+   unscoped `#wpbody-content #dashboard-widgets.columns-N …` width rules
+   outrank that mobile rule whenever a columns-N class is present — and this
+   variant always sets one (core only adds the class after a user picks a
+   layout, which is why stock wp-admin gets away with it). Re-state the
+   collapse with enough specificity to win, so phones get one column. */
+@media only screen and (max-width: 799px) {
+	#wpbody #wpbody-content #dashboard-widgets .postbox-container,
+	#wpbody #wpbody-content #dashboard-widgets #postbox-container-1,
+	#wpbody #wpbody-content #dashboard-widgets #postbox-container-2,
+	#wpbody #wpbody-content #dashboard-widgets #postbox-container-3,
+	#wpbody #wpbody-content #dashboard-widgets #postbox-container-4 { float: none; width: 100%; }
+}
+
 /* One column: a single centered reading column — every widget the same
    width, the reference measure being 704px (the Core editor's wide size). */
 #wpbody #wpbody-content #dashboard-widgets.columns-1 { max-width: 704px; margin-left: auto; margin-right: auto; float: none; }

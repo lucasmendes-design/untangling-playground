@@ -110,7 +110,7 @@ Three commands, all inside Claude Code. No terminal needed.
 
 - /untangling-start opens the day. It boots the sites and the MSD, prints the links, and tells you where the work stopped.
 - /untangling-sync "what changed" publishes the wp-admin side. It pulls first, then commits and pushes. The Playground links follow in about five minutes.
-- /untangling-start wrap closes the day. It updates this doc and publishes.
+- /untangling-wrap closes the day. It updates this doc and publishes.
 
 The wp-admin work lives in untangling-prototype.php. Your Studio sites point to this file, therefore every edit is live on reload. Seeds and per-site configs live next to it.
 

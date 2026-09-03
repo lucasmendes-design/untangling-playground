@@ -1,6 +1,6 @@
 ---
 name: untangling-start
-description: Resume the untangling IA prototype — boot the Calypso dev server and the six Studio sites if they are not running, print the live links, and recap where the work left off. Use whenever a session starts on this prototype. Argument `wrap` = end-of-session update of HANDOVER.md.
+description: Resume the untangling IA prototype — boot the Calypso dev server and the six Studio sites if they are not running, print the live links, and recap where the work left off. Use whenever a session starts on this prototype. To close a session use /untangling-wrap instead.
 ---
 
 # Resume the untangling IA prototype
@@ -23,10 +23,7 @@ description: Resume the untangling IA prototype — boot the Calypso dev server 
    mtime of `untangling-prototype.php`. If the plugin is newer, say so and
    treat the doc as possibly behind. Offer to update it.
 
-3. With the argument `wrap` (or when the user asks to wrap up): update
-   `HANDOVER.md` (current version / next steps / date), then run
-   `./sync.sh "<short message>"` to publish the wp-admin side and, if the
-   Calypso branch has intentional changes, commit them locally and ask before
-   pushing.
+3. To close the session, the user runs `/untangling-wrap`. Do not do the
+   wrap steps from here.
 
 Follow `CLAUDE.md` for conventions during the session.

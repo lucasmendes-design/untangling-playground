@@ -9,8 +9,8 @@ open next steps.
 - `/untangling-setup` — one-time machine setup: six Studio sites + the Calypso
   branch, then boots everything and recaps. Run it once on a new machine.
 - `/untangling-start` — daily resume: boots what is not running, prints the
-  live links, recaps the state. `/untangling-start wrap` closes the session:
-  updates HANDOVER.md and publishes.
+  live links, recaps the state.
+- `/untangling-wrap` — close the session: updates HANDOVER.md and publishes.
 - `/untangling-sync "message"` — publish the wp-admin side: pull first, then
   commit and push. Playground links follow within ~5 minutes.
 
