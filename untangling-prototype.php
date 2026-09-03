@@ -9481,7 +9481,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 
 /* Generic widget body + footer. The footer mirrors .ms-linkfooter but sits on
    a hairline inside the postbox. */
-.untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; }
+.untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; container: dw-body / inline-size; }
 /* Children space through the flex gap alone; trailing text margins would stack on it. */
 .untangling-dw .ms-dw-body > * > :last-child { margin-bottom: 0; }
 .untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: 13px; }
@@ -9511,15 +9511,45 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-storage-cta, .untangling-dw .ms-dw-update { text-decoration: none; font-weight: inherit; white-space: nowrap; }
 .untangling-dw .ms-storage-cta:hover, .untangling-dw .ms-dw-update:hover { text-decoration: underline; }
 
-/* Stats: KPI pair, the selected one underlined (it drives the sparkline). */
-.untangling-dw .ms-dw-kpis { display: flex; border-bottom: 1px solid #f0f0f0; }
-.untangling-dw .ms-dw-kpi { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; font: inherit; text-align: left; flex: 1; padding: 4px 12px 10px 0; }
-.untangling-dw .ms-dw-kpi + .ms-dw-kpi { border-left: 1px solid #f0f0f0; padding-left: 16px; }
-.untangling-dw .ms-dw-kpi.is-active { border-bottom-color: #1e1e1e; }
-.untangling-dw .ms-dw-kpi-label { display: block; font-size: 12px; color: #757575; margin-bottom: 2px; }
+/* Stats: KPI pair, the selected one underlined (it drives the sparkline).
+   The tiles are tabs, so they take the design system's Tabs states: on
+   hover the label steps up to the interactive-neutral active color and the
+   tile fills with the neutral-weak active background (the fill Jetpack
+   Stats' own chart tabs use in production); focus-visible draws the focus
+   stroke inside the tile. The selected tile is inert, like a selected tab.
+   The row bleeds into the body's side padding the way the feed and Hosting
+   rows do, so the fill reaches the postbox edges and the hairline-to-text
+   distance stays 12px. */
+.untangling-dw .ms-dw-kpis { display: flex; margin: 0 -12px; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpi { position: relative; appearance: none; background: var(--wpds-color-background-interactive-neutral-weak, transparent); border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: var(--wpds-cursor-control, pointer); font: inherit; text-align: left; flex: 1; padding: 6px 12px 10px; border-radius: var(--wpds-border-radius-sm, 2px) var(--wpds-border-radius-sm, 2px) 0 0; outline: none; }
+@media (prefers-reduced-motion: no-preference) {
+	.untangling-dw .ms-dw-kpi, .untangling-dw .ms-dw-kpi-label { transition: background-color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease), color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+}
+.untangling-dw .ms-dw-kpi + .ms-dw-kpi { border-left: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpi.is-active { border-bottom-color: var(--wpds-color-stroke-interactive-neutral-strong, #1e1e1e); cursor: default; }
+.untangling-dw .ms-dw-kpi:not(.is-active):hover { background: var(--wpds-color-background-interactive-neutral-weak-active, #ededed); }
+.untangling-dw .ms-dw-kpi:not(.is-active):hover .ms-dw-kpi-label,
+.untangling-dw .ms-dw-kpi:focus-visible .ms-dw-kpi-label { color: var(--wpds-color-foreground-interactive-neutral-weak-active, #1e1e1e); }
+.untangling-dw .ms-dw-kpi:focus-visible::after { content: ''; position: absolute; inset: 4px; pointer-events: none; border-radius: var(--wpds-border-radius-sm, 2px); outline: var(--wpds-border-width-focus, 1.5px) solid var(--wpds-color-stroke-focus, #3858e9); }
+.untangling-dw .ms-dw-kpi-label { display: block; font-size: 12px; color: var(--wpds-color-foreground-interactive-neutral-weak, #757575); margin-bottom: 2px; }
 .untangling-dw .ms-dw-kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; color: #1e1e1e; }
 .untangling-dw .ms-dw-kpi-delta { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #f0f0f0; font-size: 11px; font-weight: 500; color: #1e1e1e; vertical-align: 4px; }
-.untangling-dw .ms-dw-spark { display: block; width: 100%; height: 64px; margin-top: 10px; }
+.untangling-dw .ms-dw-spark-wrap { position: relative; margin-top: 10px; }
+.untangling-dw .ms-dw-spark { display: block; width: 100%; height: 64px; }
+/* Sparkline hover, after the MSD LineChart: crosshair on the grid stroke, the
+   datum glyph in the series color with a white ring, and the charts package's
+   tooltip surface (white, hairline, elevation-sm, radius-md) with its date
+   line and label/value row. All pointer-transparent; nothing to focus. */
+.untangling-dw .ms-dw-spark-guide { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--wpds-color-stroke-surface-neutral, #dcdcde); pointer-events: none; }
+.untangling-dw .ms-dw-spark-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--wpds-color-background-surface-neutral-strong, #fff); pointer-events: none; }
+.untangling-dw .ms-dw-spark-tip { position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - 12px)); padding: var(--wpds-dimension-padding-sm, 8px) var(--wpds-dimension-padding-md, 12px); background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral, #dcdcde); border-radius: var(--wpds-border-radius-md, 4px); box-shadow: var(--wpds-elevation-sm, 0 1px 2px 0 rgba(0,0,0,.05), 0 2px 3px 0 rgba(0,0,0,.04), 0 6px 6px 0 rgba(0,0,0,.03), 0 8px 8px 0 rgba(0,0,0,.02)); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); white-space: nowrap; pointer-events: none; }
+.untangling-dw .ms-dw-spark-tip.is-start { transform: translate(-12px, calc(-100% - 12px)); }
+.untangling-dw .ms-dw-spark-tip.is-end { transform: translate(calc(-100% + 12px), calc(-100% - 12px)); }
+.untangling-dw .ms-dw-spark-tip-date { font-size: var(--wpds-typography-font-size-sm, 12px); line-height: 16px; color: var(--wpds-color-foreground-content-neutral-weak, #757575); margin-bottom: 4px; }
+.untangling-dw .ms-dw-spark-tip-row { display: flex; align-items: center; gap: 8px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: 20px; }
+.untangling-dw .ms-dw-spark-tip-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.untangling-dw .ms-dw-spark-tip-label { font-weight: 500; }
+.untangling-dw .ms-dw-spark-tip-value { margin-left: auto; padding-left: 12px; font-variant-numeric: tabular-nums; }
 
 /* Activity feed rows: icon · title/summary · relative time. Empty state is a
    grey circle and one sentence, and the card keeps its height. */
@@ -9558,6 +9588,14 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    edges like the feed rows, and split on the same full-width hairline. */
 .untangling-dw .ms-dw-body > .ms-ovcard { margin: 0 -12px; padding: 0 12px; border-radius: 0; }
 .untangling-dw .ms-dw-body > .ms-ovcard + .ms-ovcard { border-top: 1px solid #f0f0f0; padding-top: 12px; }
+/* Two state cards side by side (Protection): equal columns, hairline between. */
+.untangling-dw .ms-dw-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 -12px; }
+.untangling-dw .ms-dw-pair > .ms-ovcard { margin: 0; padding: 0 12px; border-radius: 0; }
+.untangling-dw .ms-dw-pair > .ms-ovcard + .ms-ovcard { border-left: 1px solid #f0f0f0; }
+@container dw-body (max-width: 359px) {
+	.untangling-dw .ms-dw-pair { grid-template-columns: minmax(0, 1fr); }
+	.untangling-dw .ms-dw-pair > .ms-ovcard + .ms-ovcard { border-left: 0; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+}
 .untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: none; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-desc { color: #757575; }
@@ -9571,9 +9609,12 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    louder. The eyebrow's link glyph becomes a pill naming the fix: the whole
    row is still the link, the pill says what clicking it does. */
 #dashboard-widgets .postbox.is-attention .untangling-dw-title::after { content: 'Action needed'; display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; }
-.untangling-dw .ms-dw-issues { display: flex; flex-direction: column; margin: -12px; background: var(--wpds-color-background-surface-error-weak, #fcf0ef); }
+.untangling-dw .ms-dw-issues { margin: -12px; background: var(--wpds-color-background-surface-error-weak, #fcf0ef); }
 .untangling-dw .ms-dw-issues > .ms-ovcard { margin: 0; padding: 12px; border-radius: 0; background: transparent; box-shadow: none; transition: background .15s ease; }
-.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-top: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
+.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-left: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
+@container dw-body (max-width: 359px) {
+	.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-left: 0; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
+}
 .untangling-dw .ms-dw-issues > a.ms-ovcard:hover, .untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { background: var(--wpds-color-background-surface-error, #f6e6e3); }
 .untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { outline: 2px solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -2px; }
 .untangling-dw .ms-ovcard.is-error .ms-ovcard-label { color: var(--wpds-color-foreground-content-error-weak, #cc1818); }
@@ -11721,25 +11762,68 @@ function untangling_ms_app_js() {
 
 	// Stats: two KPIs, the underlined one drives the sparkline (Ghost's KPI
 	// strip). Numbers are the last 7 days, deltas vs the week before.
+	// Hover follows the MSD's LineChart (@automattic/charts): the tooltip
+	// snaps to the nearest day (snapTooltipToDatumX), a vertical crosshair
+	// drops through it, a glyph marks the point, and a surface tooltip names
+	// the day and the value. The overlays are HTML, not SVG — the svg
+	// stretches to the postbox width (preserveAspectRatio none), which would
+	// squash a circle into an ellipse and fatten a 1px line.
 	function Sparkline( props ) {
 		var width = 400;
 		var height = 64;
 		var pad = 4;
+		var hoverState = useState( -1 );
+		var hover = hoverState[ 0 ], setHover = hoverState[ 1 ];
+		var values = props.values || [];
 		var max = 1;
-		( props.values || [] ).forEach( function ( v ) { max = Math.max( max, v ); } );
-		var points = toPoints( props.values || [ 0, 0 ], width, height, max * 1.15, pad );
+		values.forEach( function ( v ) { max = Math.max( max, v ); } );
+		var points = toPoints( values.length > 1 ? values : [ 0, 0 ], width, height, max * 1.15, pad );
 		var line = smoothPath( points );
 		var area = line + 'L' + points[ points.length - 1 ][ 0 ] + ',' + ( height - pad ) + 'L' + points[ 0 ][ 0 ] + ',' + ( height - pad ) + 'Z';
 		var gid = 'msdwgrad-' + ( props.id || 'spark' );
-		return el( 'svg', { className: 'ms-dw-spark', viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', 'aria-hidden': true },
-			el( 'defs', null,
-				el( 'linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
-					el( 'stop', { offset: '0%', stopColor: props.color, stopOpacity: 0.2 } ),
-					el( 'stop', { offset: '100%', stopColor: props.color, stopOpacity: 0 } )
+		function onMove( e ) {
+			if ( values.length < 2 ) {
+				return;
+			}
+			var rect = e.currentTarget.getBoundingClientRect();
+			var frac = ( ( e.clientX - rect.left ) / rect.width * width - pad ) / ( width - pad * 2 );
+			var i = Math.round( Math.min( 1, Math.max( 0, frac ) ) * ( values.length - 1 ) );
+			if ( i !== hover ) {
+				setHover( i );
+			}
+		}
+		var tip = null;
+		if ( hover >= 0 && hover < values.length ) {
+			// The series is the last N days ending today.
+			var d = new Date();
+			d.setDate( d.getDate() - ( values.length - 1 - hover ) );
+			var px = points[ hover ][ 0 ] / width * 100;
+			var py = points[ hover ][ 1 ] / height * 100;
+			tip = el( Fragment, null,
+				el( 'span', { className: 'ms-dw-spark-guide', style: { left: px + '%' }, 'aria-hidden': true } ),
+				el( 'span', { className: 'ms-dw-spark-dot', style: { left: px + '%', top: py + '%', background: props.color }, 'aria-hidden': true } ),
+				el( 'div', { className: 'ms-dw-spark-tip' + ( px < 25 ? ' is-start' : px > 75 ? ' is-end' : '' ), style: { left: px + '%', top: py + '%' }, role: 'presentation' },
+					el( 'div', { className: 'ms-dw-spark-tip-date' }, d.toLocaleDateString( 'en-US', { weekday: 'short', month: 'short', day: 'numeric' } ) ),
+					el( 'div', { className: 'ms-dw-spark-tip-row' },
+						el( 'span', { className: 'ms-dw-spark-tip-swatch', style: { background: props.color }, 'aria-hidden': true } ),
+						el( 'span', { className: 'ms-dw-spark-tip-label' }, props.label ),
+						el( 'span', { className: 'ms-dw-spark-tip-value' }, values[ hover ].toLocaleString() )
+					)
 				)
+			);
+		}
+		return el( 'div', { className: 'ms-dw-spark-wrap', onMouseMove: onMove, onMouseLeave: function () { setHover( -1 ); } },
+			el( 'svg', { className: 'ms-dw-spark', viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', 'aria-hidden': true },
+				el( 'defs', null,
+					el( 'linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
+						el( 'stop', { offset: '0%', stopColor: props.color, stopOpacity: 0.2 } ),
+						el( 'stop', { offset: '100%', stopColor: props.color, stopOpacity: 0 } )
+					)
+				),
+				el( 'path', { d: area, fill: 'url(#' + gid + ')' } ),
+				el( 'path', { d: line, fill: 'none', stroke: props.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
 			),
-			el( 'path', { d: area, fill: 'url(#' + gid + ')' } ),
-			el( 'path', { d: line, fill: 'none', stroke: props.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
+			tip
 		);
 	}
 
@@ -11748,8 +11832,8 @@ function untangling_ms_app_js() {
 		var kpi = kpiState[ 0 ], setKpi = kpiState[ 1 ];
 		var s = data.stats || {};
 		var KPIS = [
-			{ key: 'views', label: 'Views · last 7 days', total: s.viewsTotal || 0, delta: s.viewsDelta, color: '#3858e9', values: s.views || [] },
-			{ key: 'visitors', label: 'Visitors · last 7 days', total: s.visitorsTotal || 0, delta: s.visitorsDelta, color: '#5ba300', values: s.visitors || [] },
+			{ key: 'views', label: 'Views · last 7 days', name: 'Views', total: s.viewsTotal || 0, delta: s.viewsDelta, color: '#3858e9', values: s.views || [] },
+			{ key: 'visitors', label: 'Visitors · last 7 days', name: 'Visitors', total: s.visitorsTotal || 0, delta: s.visitorsDelta, color: '#5ba300', values: s.visitors || [] },
 		];
 		var active = KPIS.filter( function ( k ) { return k.key === kpi; } )[ 0 ] || KPIS[ 0 ];
 		return el( Fragment, null,
@@ -11771,7 +11855,7 @@ function untangling_ms_app_js() {
 						);
 					} )
 				),
-				el( Sparkline, { id: active.key, color: active.color, values: active.values } )
+				el( Sparkline, { id: active.key, color: active.color, values: active.values, label: active.name } )
 			),
 			dwFooter( msd + '/stats', 'See all stats' )
 		);
@@ -11832,17 +11916,22 @@ function untangling_ms_app_js() {
 		var scan = bad
 			? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Both have a one-click fix ready.', intent: 'error', action: 'Fix now', href: msd + '/sites/' + data.siteSlug + '/scan' }
 			: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' };
+		// Side by side (a vertical hairline between them) so the widget spends
+		// its height on the two answers, not on stacking; the pair folds back
+		// to one column only when the widget itself is narrow.
 		if ( bad ) {
 			return el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { className: 'ms-dw-issues', role: 'group', 'aria-label': 'Needs attention' },
+				el( 'div', { className: 'ms-dw-pair ms-dw-issues', role: 'group', 'aria-label': 'Needs attention' },
 					el( OvCard, backups ),
 					el( OvCard, scan )
 				)
 			);
 		}
 		return el( 'div', { className: 'ms-dw-body' },
-			el( OvCard, backups ),
-			el( OvCard, scan )
+			el( 'div', { className: 'ms-dw-pair' },
+				el( OvCard, backups ),
+				el( OvCard, scan )
+			)
 		);
 	}
 
