@@ -8442,14 +8442,9 @@ function untangling_ms_data() {
 			'pages'    => (int) wp_count_posts( 'page' )->publish,
 			'comments' => (int) wp_count_comments()->approved,
 		),
-		'stats'        => array(
-			'views'         => array( 286, 312, 264, 341, 298, 372, 409 ),
-			'visitors'      => array( 178, 195, 160, 208, 181, 224, 246 ),
-			'viewsTotal'    => 2282,
-			'visitorsTotal' => 1392,
-			'viewsDelta'    => '+12%',
-			'visitorsDelta' => '+9%',
-		),
+		'stats'        => array_merge( untangling_stats_periods()['day'], array(
+			'periods' => untangling_stats_periods(),
+		) ),
 		// The Plan widget's one promo slot on paid plans: the same two-year
 		// renewal deal the omnibar pill sells, through the same checkout mimic.
 		'renewUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => $plan, 'flow' => 'renew', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
@@ -8934,16 +8929,57 @@ function untangling_pw_jetpack_logo() {
 // on Atomic only (Simple has neither), Jetpack footer. Numbers follow the
 // prototype's Stats widget in every site state, so the two stats widgets on
 // the Dashboard never disagree (the sibling Stats widget has no empty state).
-function untangling_pw_render_stats() {
-	$data        = untangling_ms_data();
-	$atomic      = 'atomic' === untangling_get_site_type();
-	$stats_base  = UNTANGLING_MSD_URL . '/stats';
-	$series      = array(
-		'day'   => array( 'views' => $data['stats']['views'], 'visitors' => $data['stats']['visitors'] ),
+// Mock traffic per period — one source for the Stats widget (one chart, the
+// period toggle) and the Jetpack Stats mimic, so the two never disagree.
+function untangling_stats_series() {
+	return array(
+		'day'   => array( 'views' => array( 286, 312, 264, 341, 298, 372, 409 ), 'visitors' => array( 178, 195, 160, 208, 181, 224, 246 ) ),
 		'week'  => array( 'views' => array( 1640, 1725, 1590, 1880, 1960, 2105, 2282 ), 'visitors' => array( 980, 1040, 955, 1130, 1185, 1290, 1392 ) ),
 		'month' => array( 'views' => array( 5420, 5880, 6130, 6710, 7240, 7860, 8410 ), 'visitors' => array( 3210, 3480, 3610, 3990, 4320, 4680, 5010 ) ),
 		'year'  => array( 'views' => array( 0, 0, 0, 0, 0, 38900, 61200 ), 'visitors' => array( 0, 0, 0, 0, 0, 23100, 36400 ) ),
 	);
+}
+
+// The Stats widget's periods: the series, the tooltip date label per point
+// (the Jetpack Stats widget's formatDate( 'LL' ) strings), the KPI unit, the
+// totals over the seven points, and the mock delta against the seven before.
+function untangling_stats_periods() {
+	$series = untangling_stats_series();
+	$today  = current_time( 'timestamp' );
+	$labels = array( 'day' => array(), 'week' => array(), 'month' => array(), 'year' => array() );
+	for ( $i = 6; $i >= 0; $i-- ) {
+		$day      = strtotime( "-$i days", $today );
+		$week     = strtotime( "monday this week -$i weeks", $today );
+		$month    = strtotime( date( 'Y-m-01', strtotime( "first day of -$i months", $today ) ) );
+		$year     = strtotime( date( 'Y-01-01', strtotime( "-$i years", $today ) ) );
+		$week_end = min( strtotime( '+6 days', $week ), $today );
+		$labels['day'][]   = date_i18n( 'F j, Y', $day );
+		$labels['week'][]  = date_i18n( 'F j, Y', $week ) . ' - ' . date_i18n( 'F j, Y', $week_end );
+		$labels['month'][] = date_i18n( 'F Y', $month );
+		$labels['year'][]  = date_i18n( 'Y', $year );
+	}
+	$copy = array(
+		'day'   => array( 'unit' => __( 'last 7 days' ), 'viewsDelta' => '+12%', 'visitorsDelta' => '+9%' ),
+		'week'  => array( 'unit' => __( 'last 7 weeks' ), 'viewsDelta' => '+8%', 'visitorsDelta' => '+6%' ),
+		'month' => array( 'unit' => __( 'last 7 months' ), 'viewsDelta' => '+15%', 'visitorsDelta' => '+13%' ),
+		'year'  => array( 'unit' => __( 'since launch' ), 'viewsDelta' => '+57%', 'visitorsDelta' => '+58%' ),
+	);
+	$out = array();
+	foreach ( $series as $period => $s ) {
+		$out[ $period ] = array_merge( $s, $copy[ $period ], array(
+			'labels'        => $labels[ $period ],
+			'viewsTotal'    => array_sum( $s['views'] ),
+			'visitorsTotal' => array_sum( $s['visitors'] ),
+		) );
+	}
+	return $out;
+}
+
+function untangling_pw_render_stats() {
+	$data        = untangling_ms_data();
+	$atomic      = 'atomic' === untangling_get_site_type();
+	$stats_base  = UNTANGLING_MSD_URL . '/stats';
+	$series      = untangling_stats_series();
 	$labels = array( 'day' => array(), 'week' => array(), 'month' => array(), 'year' => array() );
 	// Per-bar tooltip date label (formatDate(), 'LL' = "September 3, 2026")
 	// and the click range (getChartRangeParams(): the period's start/end,
@@ -9511,45 +9547,57 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-storage-cta, .untangling-dw .ms-dw-update { text-decoration: none; font-weight: inherit; white-space: nowrap; }
 .untangling-dw .ms-storage-cta:hover, .untangling-dw .ms-dw-update:hover { text-decoration: underline; }
 
-/* Stats: KPI pair, the selected one underlined (it drives the sparkline).
-   The tiles are tabs, so they take the design system's Tabs states: on
-   hover the label steps up to the interactive-neutral active color and the
-   tile fills with the neutral-weak active background (the fill Jetpack
-   Stats' own chart tabs use in production); focus-visible draws the focus
-   stroke inside the tile. The selected tile is inert, like a selected tab.
-   The row bleeds into the body's side padding the way the feed and Hosting
-   rows do, so the fill reaches the postbox edges and the hairline-to-text
-   distance stays 12px. */
-.untangling-dw .ms-dw-kpis { display: flex; margin: 0 -12px; border-bottom: 1px solid #f0f0f0; }
-.untangling-dw .ms-dw-kpi { position: relative; appearance: none; background: var(--wpds-color-background-interactive-neutral-weak, transparent); border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: var(--wpds-cursor-control, pointer); font: inherit; text-align: left; flex: 1; padding: 6px 12px 10px; border-radius: var(--wpds-border-radius-sm, 2px) var(--wpds-border-radius-sm, 2px) 0 0; outline: none; }
+/* Stats head: one 24px line — the period control on the left, the two KPIs
+   on the right as legend entries (swatch · label · value · delta), a
+   hairline under it that bleeds into the body's side padding like the feed
+   and Hosting rows. The period unit is implied by the control, so the label
+   is the series name alone (the unit stays for screen readers). Narrower:
+   dots only (below); narrower still: the KPIs on their own line. Measured. */
+.untangling-dw .ms-dw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 -12px; padding: 0 12px 10px; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpis { display: flex; align-items: center; margin-left: auto; min-height: 24px; }
+.untangling-dw .ms-dw-kpi { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; line-height: 20px; }
+.untangling-dw .ms-dw-kpi + .ms-dw-kpi { margin-left: 10px; padding-left: 10px; border-left: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpi-swatch { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; }
+.untangling-dw .ms-dw-kpi-label { font-size: 12px; line-height: 16px; color: #757575; }
+.untangling-dw .ms-dw-kpi-value { font-size: 14px; line-height: 20px; font-weight: 600; color: #1e1e1e; font-variant-numeric: tabular-nums; }
+.untangling-dw .ms-dw-kpi-delta { align-self: center; padding: 1px 5px; border-radius: 999px; background: #f0f0f0; font-size: 11px; line-height: 14px; font-weight: 500; color: #1e1e1e; }
+/* Compact: the series name leaves the line (kept for screen readers) and
+   the dot tells it on hover, in the wp.components Tooltip's bubble (12px,
+   4×8 padding, 2px radius) like the plan-feature tips. */
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect( 0, 0, 0, 0 ); white-space: nowrap; }
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi { gap: 6px; }
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch { position: relative; }
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: 50%; transform: translateX( -50% ); width: max-content; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); z-index: 10; }
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi:hover .ms-dw-kpi-swatch::after { opacity: 1; }
+/* Stacked: the last resort, KPIs on their own line under the control. */
+.untangling-dw .ms-dw-head.is-stacked .ms-dw-kpis { margin-left: 0; width: 100%; }
+/* Period control: the Jetpack Stats widget's SegmentedControl (#c3c4c7
+   hairlines, 4px radius, brand fill on the selected item) at widget scale —
+   24px tall, 11px labels, content width, on the head line's left. Hover
+   on the neutral-0 surface, focus-visible with the design system's stroke. */
+.untangling-dw .ms-dw-periods { display: inline-flex; height: 24px; border: 1px solid #c3c4c7; border-radius: 4px; overflow: hidden; background: #fff; }
+.untangling-dw .ms-dw-periods .segmented-control__item { border: 0; border-left: 1px solid #c3c4c7; border-radius: 0; background: #fff; color: #3c434a; font: inherit; font-size: 11px; line-height: 22px; font-weight: 500; cursor: var(--wpds-cursor-control, pointer); padding: 0 6px; outline: none; }
+.untangling-dw .ms-dw-periods .segmented-control__item:first-child { border-left: 0; }
+.untangling-dw .ms-dw-periods .segmented-control__item:hover { background: #f6f7f7; }
+.untangling-dw .ms-dw-periods .segmented-control__item:focus-visible { box-shadow: inset 0 0 0 var(--wpds-border-width-focus, 1.5px) var(--wpds-color-stroke-focus, #3858e9); }
+.untangling-dw .ms-dw-periods .segmented-control__item.is-selected, .untangling-dw .ms-dw-periods .segmented-control__item.is-selected:hover { background: #3858e9; color: #fff; }
 @media (prefers-reduced-motion: no-preference) {
-	.untangling-dw .ms-dw-kpi, .untangling-dw .ms-dw-kpi-label { transition: background-color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease), color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+	.untangling-dw .ms-dw-periods .segmented-control__item { transition: background-color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease), color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
 }
-.untangling-dw .ms-dw-kpi + .ms-dw-kpi { border-left: 1px solid #f0f0f0; }
-.untangling-dw .ms-dw-kpi.is-active { border-bottom-color: var(--wpds-color-stroke-interactive-neutral-strong, #1e1e1e); cursor: default; }
-.untangling-dw .ms-dw-kpi:not(.is-active):hover { background: var(--wpds-color-background-interactive-neutral-weak-active, #ededed); }
-.untangling-dw .ms-dw-kpi:not(.is-active):hover .ms-dw-kpi-label,
-.untangling-dw .ms-dw-kpi:focus-visible .ms-dw-kpi-label { color: var(--wpds-color-foreground-interactive-neutral-weak-active, #1e1e1e); }
-.untangling-dw .ms-dw-kpi:focus-visible::after { content: ''; position: absolute; inset: 4px; pointer-events: none; border-radius: var(--wpds-border-radius-sm, 2px); outline: var(--wpds-border-width-focus, 1.5px) solid var(--wpds-color-stroke-focus, #3858e9); }
-.untangling-dw .ms-dw-kpi-label { display: block; font-size: 12px; color: var(--wpds-color-foreground-interactive-neutral-weak, #757575); margin-bottom: 2px; }
-.untangling-dw .ms-dw-kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; color: #1e1e1e; }
-.untangling-dw .ms-dw-kpi-delta { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #f0f0f0; font-size: 11px; font-weight: 500; color: #1e1e1e; vertical-align: 4px; }
-.untangling-dw .ms-dw-spark-wrap { position: relative; margin-top: 10px; }
-.untangling-dw .ms-dw-spark { display: block; width: 100%; height: 64px; }
-/* Sparkline hover, after the MSD LineChart: crosshair on the grid stroke, the
-   datum glyph in the series color with a white ring, and the charts package's
-   tooltip surface (white, hairline, elevation-sm, radius-md) with its date
-   line and label/value row. All pointer-transparent; nothing to focus. */
+
+.untangling-dw .ms-dw-spark-wrap { position: relative; }
+.untangling-dw .ms-dw-spark { display: block; width: 100%; height: 96px; }
+/* Chart hover: crosshair on the grid stroke and a glyph per series (series
+   color, white ring); the tooltip itself is .untangling-pw-tooltip, the
+   Jetpack Stats widget's, positioned inside the chart instead of the body. */
 .untangling-dw .ms-dw-spark-guide { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--wpds-color-stroke-surface-neutral, #dcdcde); pointer-events: none; }
 .untangling-dw .ms-dw-spark-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--wpds-color-background-surface-neutral-strong, #fff); pointer-events: none; }
-.untangling-dw .ms-dw-spark-tip { position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - 12px)); padding: var(--wpds-dimension-padding-sm, 8px) var(--wpds-dimension-padding-md, 12px); background: var(--wpds-color-background-surface-neutral-strong, #fff); border: 1px solid var(--wpds-color-stroke-surface-neutral, #dcdcde); border-radius: var(--wpds-border-radius-md, 4px); box-shadow: var(--wpds-elevation-sm, 0 1px 2px 0 rgba(0,0,0,.05), 0 2px 3px 0 rgba(0,0,0,.04), 0 6px 6px 0 rgba(0,0,0,.03), 0 8px 8px 0 rgba(0,0,0,.02)); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); white-space: nowrap; pointer-events: none; }
-.untangling-dw .ms-dw-spark-tip.is-start { transform: translate(-12px, calc(-100% - 12px)); }
-.untangling-dw .ms-dw-spark-tip.is-end { transform: translate(calc(-100% + 12px), calc(-100% - 12px)); }
-.untangling-dw .ms-dw-spark-tip-date { font-size: var(--wpds-typography-font-size-sm, 12px); line-height: 16px; color: var(--wpds-color-foreground-content-neutral-weak, #757575); margin-bottom: 4px; }
-.untangling-dw .ms-dw-spark-tip-row { display: flex; align-items: center; gap: 8px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: 20px; }
-.untangling-dw .ms-dw-spark-tip-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; }
-.untangling-dw .ms-dw-spark-tip-label { font-weight: 500; }
-.untangling-dw .ms-dw-spark-tip-value { margin-left: auto; padding-left: 12px; font-variant-numeric: tabular-nums; }
+.untangling-dw .ms-dw-spark-tip { margin-top: 6px; }
+/* The week label (two full dates) needs two lines; the bars' date row is a
+   fixed 24px. */
+.untangling-dw .ms-dw-spark-tip li.is-date-label { height: auto; min-height: 24px; }
+.untangling-dw .ms-dw-spark-tip li.is-date-label .label { white-space: normal; line-height: 20px; word-break: normal; }
+
 
 /* Activity feed rows: icon · title/summary · relative time. Empty state is a
    grey circle and one sentence, and the card keeps its height. */
@@ -9694,23 +9742,16 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .newsletter-widget__chart-container { padding: 0 12px; }
 .newsletter-widget__chart { width: 100%; box-sizing: border-box; padding: 0 12px 12px; }
 .newsletter-widget a { text-decoration: none; }
-.subscribers-chart { width: 100%; height: 200px; }
-.subscribers-chart__tooltip { background: #fff; padding: 8px; border-radius: 4px; box-shadow: 0 1px 1px rgba(0, 0, 0, .03), 0 1px 2px rgba(0, 0, 0, .02), 0 3px 3px rgba(0, 0, 0, .02), 0 4px 4px rgba(0, 0, 0, .01); font-size: 12px; color: #1e1e1e; min-width: 120px; }
-.subscribers-chart__tooltip-date { font-weight: var(--wpds-typography-font-weight-emphasis, 499); margin-bottom: 4px; }
-.subscribers-chart__tooltip-stats { display: flex; flex-direction: column; gap: 2px; }
-.subscribers-chart__tooltip-stat { display: flex; align-items: center; }
-.subscribers-chart__tooltip-indicator { width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-.subscribers-chart__legend { display: flex; justify-content: center; }
 /* wp-admin overrides */
 #jetpack_newsletter_dashboard_widget .inside { padding: 0; margin: 0; }
 #jetpack_newsletter_dashboard_widget .newsletter-widget__footer { border-end-start-radius: 8px; border-end-end-radius: 8px; }
-/* visx defaults the mimic relies on: the tooltip portal (positioned against
-   the chart box here instead of the document), and LegendOrdinal's inline
-   flex rows. */
-.subscribers-chart { position: relative; }
-.subscribers-chart__tooltip { position: absolute; pointer-events: none; z-index: 10; }
-.subscribers-chart__legend .visx-legend-item { display: flex; align-items: center; margin: 5px; }
-.subscribers-chart__legend .visx-legend-label { margin: 0 0 0 4px; }
+/* The Stats widget's chart, embedded: its .untangling-dw styles apply, minus
+   the postbox bleed and body padding (the widget's own chart padding holds
+   it); the KPI head is the legend, so it sits left instead of trailing the
+   period control. */
+#dashboard-widgets .postbox .newsletter-widget__spark { margin: 0; }
+.newsletter-widget__spark > .ms-dw-body { padding: 0; }
+.newsletter-widget__spark .ms-dw-kpis { margin-left: 0; }
 CSS;
 }
 
@@ -11762,100 +11803,196 @@ function untangling_ms_app_js() {
 
 	// Stats: two KPIs, the underlined one drives the sparkline (Ghost's KPI
 	// strip). Numbers are the last 7 days, deltas vs the week before.
-	// Hover follows the MSD's LineChart (@automattic/charts): the tooltip
-	// snaps to the nearest day (snapTooltipToDatumX), a vertical crosshair
-	// drops through it, a glyph marks the point, and a surface tooltip names
-	// the day and the value. The overlays are HTML, not SVG — the svg
-	// stretches to the postbox width (preserveAspectRatio none), which would
-	// squash a circle into an ellipse and fatten a 1px line.
+	// One chart for both series, hover after the Jetpack Stats widget the
+	// site owner already knows: the pointer snaps to the nearest point
+	// (snapTooltipToDatumX), a crosshair drops through it, a glyph marks each
+	// series, and the widget's own tooltip opens below — date, Views,
+	// Visitors, Views Per Visitor — with its markup and CSS reused verbatim
+	// (.untangling-pw-tooltip), flipped near the right edge like the bars do.
+	// Overlays are HTML, not SVG: the svg stretches to the postbox width
+	// (preserveAspectRatio none), which would squash circles and fatten lines.
+	var TIP_ICONS = {
+		eye: 'm4 13 .67.336.003-.005a2.42 2.42 0 0 1 .094-.17c.071-.122.18-.302.329-.52.298-.435.749-1.017 1.359-1.598C7.673 9.883 9.498 8.75 12 8.75s4.326 1.132 5.545 2.293c.61.581 1.061 1.163 1.36 1.599a8.29 8.29 0 0 1 .422.689l.002.005L20 13l.67-.336v-.003l-.003-.005-.008-.015-.028-.052a9.752 9.752 0 0 0-.489-.794 11.6 11.6 0 0 0-1.562-1.838C17.174 8.617 14.998 7.25 12 7.25S6.827 8.618 5.42 9.957c-.702.669-1.22 1.337-1.563 1.839a9.77 9.77 0 0 0-.516.845l-.008.015-.002.005-.001.002v.001L4 13Zm8 3a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
+		people: 'M15.5 9.5a1 1 0 100-2 1 1 0 000 2zm0 1.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm-2.25 6v-2a2.75 2.75 0 00-2.75-2.75h-4A2.75 2.75 0 003.75 15v2h1.5v-2c0-.69.56-1.25 1.25-1.25h4c.69 0 1.25.56 1.25 1.25v2h1.5zm7-2v2h-1.5v-2c0-.69-.56-1.25-1.25-1.25H15v-1.5h2.5A2.75 2.75 0 0120.25 15zM9.5 8.5a1 1 0 11-2 0 1 1 0 012 0zm1.5 0a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
+		chevron: 'M10.6 6L9.4 7l4.6 5-4.6 5 1.2 1 5.4-6z',
+	};
+	function tipNum( n, decimals ) {
+		return n.toLocaleString( undefined, { minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0 } );
+	}
+	function tipRow( className, value, iconPath, label ) {
+		return el( 'li', { key: className, className: 'module-content-list-item ' + className },
+			el( 'span', { className: 'chart__tooltip-wrapper wrapper' },
+				el( 'span', { className: 'chart__tooltip-value value' }, value === null ? '' : value ),
+				el( 'span', { className: 'chart__tooltip-label label' },
+					iconPath ? el( 'svg', { className: 'gridicon', viewBox: '0 0 24 24', width: 24, height: 24, 'aria-hidden': true, focusable: false }, el( 'path', { d: iconPath } ) ) : null,
+					label
+				)
+			)
+		);
+	}
 	function Sparkline( props ) {
 		var width = 400;
-		var height = 64;
+		var height = 96;
 		var pad = 4;
-		var hoverState = useState( -1 );
+		var hoverState = useState( null );
 		var hover = hoverState[ 0 ], setHover = hoverState[ 1 ];
-		var values = props.values || [];
+		var series = props.series || [];
+		var n = series.length ? series[ 0 ].values.length : 0;
 		var max = 1;
-		values.forEach( function ( v ) { max = Math.max( max, v ); } );
-		var points = toPoints( values.length > 1 ? values : [ 0, 0 ], width, height, max * 1.15, pad );
-		var line = smoothPath( points );
-		var area = line + 'L' + points[ points.length - 1 ][ 0 ] + ',' + ( height - pad ) + 'L' + points[ 0 ][ 0 ] + ',' + ( height - pad ) + 'Z';
+		series.forEach( function ( s ) { s.values.forEach( function ( v ) { max = Math.max( max, v ); } ); } );
+		var pts = series.map( function ( s ) { return toPoints( s.values.length > 1 ? s.values : [ 0, 0 ], width, height, max * 1.15, pad ); } );
 		var gid = 'msdwgrad-' + ( props.id || 'spark' );
 		function onMove( e ) {
-			if ( values.length < 2 ) {
+			if ( n < 2 ) {
 				return;
 			}
 			var rect = e.currentTarget.getBoundingClientRect();
 			var frac = ( ( e.clientX - rect.left ) / rect.width * width - pad ) / ( width - pad * 2 );
-			var i = Math.round( Math.min( 1, Math.max( 0, frac ) ) * ( values.length - 1 ) );
-			if ( i !== hover ) {
-				setHover( i );
+			var i = Math.round( Math.min( 1, Math.max( 0, frac ) ) * ( n - 1 ) );
+			if ( ! hover || i !== hover.i || rect.width !== hover.w ) {
+				setHover( { i: i, w: rect.width } );
 			}
 		}
-		var tip = null;
-		if ( hover >= 0 && hover < values.length ) {
-			// The series is the last N days ending today.
-			var d = new Date();
-			d.setDate( d.getDate() - ( values.length - 1 - hover ) );
-			var px = points[ hover ][ 0 ] / width * 100;
-			var py = points[ hover ][ 1 ] / height * 100;
-			tip = el( Fragment, null,
+		var overlay = null;
+		if ( hover && hover.i < n ) {
+			var i = hover.i;
+			var px = pts[ 0 ][ i ][ 0 ] / width * 100;
+			var views = series[ 0 ].values[ i ];
+			var visitors = series[ 1 ] ? series[ 1 ].values[ i ] : NaN;
+			// Anchor under the lowest glyph. The bars put the bubble's arrow
+			// 15px in from its left edge and flip it near the right edge; a
+			// line's points reach both edges, so the bubble is clamped inside
+			// the chart instead and the arrow slides to stay on the glyph.
+			var lowest = Math.max.apply( null, pts.map( function ( p ) { return p[ i ][ 1 ]; } ) );
+			var xpx = px / 100 * hover.w;
+			var bubbleLeft = Math.min( Math.max( xpx - 15, 0 ), Math.max( hover.w - 230, 0 ) );
+			// The arrow is positioned against the tip box, which sits 10px right
+			// of the bubble (.popover__inner left: -10px); 12px wide, kept 6px
+			// inside the bubble's edges.
+			var arrowLeft = Math.min( Math.max( xpx - bubbleLeft - 16, -4 ), 202 );
+			overlay = el( Fragment, null,
 				el( 'span', { className: 'ms-dw-spark-guide', style: { left: px + '%' }, 'aria-hidden': true } ),
-				el( 'span', { className: 'ms-dw-spark-dot', style: { left: px + '%', top: py + '%', background: props.color }, 'aria-hidden': true } ),
-				el( 'div', { className: 'ms-dw-spark-tip' + ( px < 25 ? ' is-start' : px > 75 ? ' is-end' : '' ), style: { left: px + '%', top: py + '%' }, role: 'presentation' },
-					el( 'div', { className: 'ms-dw-spark-tip-date' }, d.toLocaleDateString( 'en-US', { weekday: 'short', month: 'short', day: 'numeric' } ) ),
-					el( 'div', { className: 'ms-dw-spark-tip-row' },
-						el( 'span', { className: 'ms-dw-spark-tip-swatch', style: { background: props.color }, 'aria-hidden': true } ),
-						el( 'span', { className: 'ms-dw-spark-tip-label' }, props.label ),
-						el( 'span', { className: 'ms-dw-spark-tip-value' }, values[ hover ].toLocaleString() )
+				pts.map( function ( p, si ) {
+					return el( 'span', { key: si, className: 'ms-dw-spark-dot', style: { left: px + '%', top: p[ i ][ 1 ] / height * 100 + '%', background: series[ si ].color }, 'aria-hidden': true } );
+				} ),
+				el( 'div', {
+					className: 'popover tooltip chart__tooltip untangling-pw-tooltip ms-dw-spark-tip is-bottom-right',
+					// .popover__inner sits 10px left of the tip box (bottom-right).
+					style: { left: ( bubbleLeft + 10 ) + 'px', top: lowest / height * 100 + '%' },
+					role: 'presentation',
+				},
+					el( 'div', { className: 'popover__arrow', style: { left: arrowLeft + 'px' } } ),
+					el( 'div', { className: 'popover__inner' },
+						el( 'ul', null,
+							tipRow( 'is-date-label', null, null, ( props.labels || [] )[ i ] || '' ),
+							// Rows default to the Stats set; a caller (Newsletter) supplies its own.
+							props.rows ? props.rows( i ) : [
+								tipRow( 'is-views', tipNum( views ), TIP_ICONS.eye, 'Views' ),
+								isFinite( visitors ) ? tipRow( 'is-visitors', tipNum( visitors ), TIP_ICONS.people, 'Visitors' ) : null,
+								isFinite( views / visitors ) ? tipRow( 'is-views-per-visitor', tipNum( views / visitors, 2 ), TIP_ICONS.chevron, 'Views Per Visitor' ) : null,
+							]
+						)
 					)
 				)
 			);
 		}
-		return el( 'div', { className: 'ms-dw-spark-wrap', onMouseMove: onMove, onMouseLeave: function () { setHover( -1 ); } },
+		return el( 'div', { className: 'ms-dw-spark-wrap', onMouseMove: onMove, onMouseLeave: function () { setHover( null ); } },
 			el( 'svg', { className: 'ms-dw-spark', viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', 'aria-hidden': true },
-				el( 'defs', null,
-					el( 'linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
-						el( 'stop', { offset: '0%', stopColor: props.color, stopOpacity: 0.2 } ),
-						el( 'stop', { offset: '100%', stopColor: props.color, stopOpacity: 0 } )
-					)
-				),
-				el( 'path', { d: area, fill: 'url(#' + gid + ')' } ),
-				el( 'path', { d: line, fill: 'none', stroke: props.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
+				el( 'defs', null, series.map( function ( s, si ) {
+					return el( 'linearGradient', { key: si, id: gid + si, x1: 0, y1: 0, x2: 0, y2: 1 },
+						el( 'stop', { offset: '0%', stopColor: s.color, stopOpacity: 0.2 } ),
+						el( 'stop', { offset: '100%', stopColor: s.color, stopOpacity: 0 } )
+					);
+				} ) ),
+				series.map( function ( s, si ) {
+					var line = smoothPath( pts[ si ] );
+					var last = pts[ si ][ pts[ si ].length - 1 ];
+					var area = line + 'L' + last[ 0 ] + ',' + ( height - pad ) + 'L' + pts[ si ][ 0 ][ 0 ] + ',' + ( height - pad ) + 'Z';
+					return el( 'g', { key: si },
+						el( 'path', { d: area, fill: 'url(#' + gid + si + ')' } ),
+						el( 'path', { d: line, fill: 'none', stroke: s.color, strokeWidth: 2, strokeLinecap: 'round', 'vector-effect': 'non-scaling-stroke' } )
+					);
+				} )
 			),
-			tip
+			overlay
 		);
 	}
 
 	function DwStats() {
-		var kpiState = useState( 'views' );
-		var kpi = kpiState[ 0 ], setKpi = kpiState[ 1 ];
-		var s = data.stats || {};
-		var KPIS = [
-			{ key: 'views', label: 'Views · last 7 days', name: 'Views', total: s.viewsTotal || 0, delta: s.viewsDelta, color: '#3858e9', values: s.views || [] },
-			{ key: 'visitors', label: 'Visitors · last 7 days', name: 'Visitors', total: s.visitorsTotal || 0, delta: s.visitorsDelta, color: '#5ba300', values: s.visitors || [] },
+		var periodState = useState( 'day' );
+		var period = periodState[ 0 ], setPeriod = periodState[ 1 ];
+		var periods = ( data.stats && data.stats.periods ) || {};
+		var p = periods[ period ] || periods.day || { views: [], visitors: [], labels: [], unit: '' };
+		var SERIES = [
+			{ key: 'views', label: 'Views', color: '#3858e9', values: p.views || [], total: p.viewsTotal || 0, delta: p.viewsDelta },
+			{ key: 'visitors', label: 'Visitors', color: '#5ba300', values: p.visitors || [], total: p.visitorsTotal || 0, delta: p.visitorsDelta },
 		];
-		var active = KPIS.filter( function ( k ) { return k.key === kpi; } )[ 0 ] || KPIS[ 0 ];
+		// The Jetpack Stats widget's period control, its markup and look.
+		var PERIODS = [ [ 'day', 'Days' ], [ 'week', 'Weeks' ], [ 'month', 'Months' ], [ 'year', 'Years' ] ];
+		// One head line, always: full labels when the control and both KPIs
+		// fit; dots only (label in a tooltip, and still read out) when they
+		// don't; two lines only if even that overflows. Measured on the real
+		// layout — the browser's wrap decides, not an estimate — and again
+		// whenever the postbox or the period changes the numbers' width.
+		var headRef = useRef( null );
+		var modeState = useState( 'full' );
+		var mode = modeState[ 0 ], setMode = modeState[ 1 ];
+		useLayoutEffect( function () {
+			var head = headRef.current;
+			if ( ! head ) { return; }
+			function measure() {
+				var kids = head.children;
+				if ( kids.length < 2 ) { return; }
+				// On the next line = at least half the control's height lower
+				// (centering leaves the two a pixel apart on the same line).
+				function wrapped() { return kids[ 1 ].offsetTop > kids[ 0 ].offsetTop + kids[ 0 ].offsetHeight / 2; }
+				head.classList.remove( 'is-compact', 'is-stacked' );
+				var next = 'full';
+				if ( wrapped() ) {
+					head.classList.add( 'is-compact' );
+					next = wrapped() ? 'stacked' : 'compact';
+				}
+				// Leave the DOM in the final state: React only re-renders on a
+				// change, so a probe class must not outlive the measurement.
+				head.classList.remove( 'is-compact', 'is-stacked' );
+				if ( 'full' !== next ) {
+					head.classList.add( 'is-' + next );
+				}
+				setMode( next );
+			}
+			measure();
+			if ( 'undefined' === typeof ResizeObserver ) { return; }
+			var ro = new ResizeObserver( measure );
+			ro.observe( head );
+			return function () { ro.disconnect(); };
+		}, [ period ] );
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { className: 'ms-dw-kpis' },
-					KPIS.map( function ( k ) {
-						return el( 'button', {
-							key: k.key,
-							type: 'button',
-							className: 'ms-dw-kpi' + ( k.key === kpi ? ' is-active' : '' ),
-							'aria-pressed': k.key === kpi,
-							onClick: function () { setKpi( k.key ); },
-						},
-							el( 'span', { className: 'ms-dw-kpi-label' }, k.label ),
-							el( 'span', { className: 'ms-dw-kpi-value' },
-								k.total.toLocaleString(),
-								k.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, k.delta )
-							)
-						);
-					} )
+				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( 'full' === mode ? '' : ' is-' + mode ) },
+					el( 'div', { className: 'ms-dw-periods segmented-control', role: 'group', 'aria-label': 'Period' },
+						PERIODS.map( function ( pair ) {
+							var active = pair[ 0 ] === period;
+							return el( 'button', {
+								key: pair[ 0 ],
+								type: 'button',
+								className: 'segmented-control__item' + ( active ? ' is-selected' : '' ),
+								'aria-pressed': active,
+								onClick: function () { setPeriod( pair[ 0 ] ); },
+							}, pair[ 1 ] );
+						} )
+					),
+					el( 'div', { className: 'ms-dw-kpis' },
+						SERIES.map( function ( s ) {
+							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
+								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.label, 'aria-hidden': true } ),
+								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · ' + ( p.unit || '' ) ) ),
+								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
+								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
+							);
+						} )
+					)
 				),
-				el( Sparkline, { id: active.key, color: active.color, values: active.values, label: active.name } )
+				el( Sparkline, { id: period, series: SERIES, labels: p.labels || [] } )
 			),
 			dwFooter( msd + '/stats', 'See all stats' )
 		);
@@ -12069,12 +12206,13 @@ function untangling_ms_app_js() {
 	}
 
 	/* ---- Jetpack Newsletter: the production widget (jetpack/modules/
-	   subscriptions/newsletter-widget), markup and copy verbatim. The visx
-	   XYChart is redrawn as plain SVG with the same theme: 200px tall, margins
-	   10/30/30/left-by-digits, row grid #e0e0e0, 13px #1e1e1e labels, two
-	   monotone lines (#3057dc all, #e68b28 paid), crosshair + glyph tooltip,
-	   circle legend. Counts follow the rest of the prototype: 214 subscribers,
-	   no paid newsletter yet. ---- */
+	   subscriptions/newsletter-widget), markup and copy verbatim, except the
+	   chart: the visx XYChart ("Total Subscribers" heading, axes, grid,
+	   circle legend) is replaced by the Stats widget's KPI head + Sparkline
+	   so the two charts on the Dashboard read as one system (see
+	   NewsletterSpark). Series colors stay production's (#3057dc all,
+	   #e68b28 paid). Counts follow the rest of the prototype: 214
+	   subscribers, no paid newsletter yet. ---- */
 	var NL_COLORS = { all: '#3057dc', paid: '#e68b28' };
 	var NL_LABELS = { all: 'All', paid: 'Paid' };
 	var NL_MONTHS = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
@@ -12088,8 +12226,9 @@ function untangling_ms_app_js() {
 			el( 'path', { fillRule: 'evenodd', clipRule: 'evenodd', d: NL_ICONS[ name ] } )
 		) } );
 	}
-	function nlFormatDate( d, full ) {
-		var short = NL_MONTHS[ d.getMonth() ] + ' ' + d.getDate();
+	var NL_MONTHS_LONG = [ 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
+	function nlFormatDate( d, full, long ) {
+		var short = ( long ? NL_MONTHS_LONG : NL_MONTHS )[ d.getMonth() ] + ' ' + d.getDate();
 		return full ? short + ', ' + d.getFullYear() : short;
 	}
 	function nlFormatNumber( n ) {
@@ -12106,140 +12245,63 @@ function untangling_ms_app_js() {
 			return { date: d, all: v, paid: 0 };
 		} );
 	}
-	// d3's tickStep + nice, which is what visx's linear scale with nice: true
-	// and numTicks 5 resolves to.
-	function nlTickStep( min, max, count ) {
-		var span = max - min || 1;
-		var step = Math.pow( 10, Math.floor( Math.log( span / count ) / Math.LN10 ) );
-		var error = span / count / step;
-		if ( error >= Math.sqrt( 50 ) ) {
-			step *= 10;
-		} else if ( error >= Math.sqrt( 10 ) ) {
-			step *= 5;
-		} else if ( error >= Math.sqrt( 2 ) ) {
-			step *= 2;
+	// The chart is the Stats widget's: the same KPI head (swatch, label,
+	// total, 30-day delta) standing in for the legend, the same Sparkline
+	// (area + line, crosshair, glyphs, the Jetpack Stats tooltip), the same
+	// compact fallback when the KPIs no longer fit on one line. Two series,
+	// All and Paid, in the production widget's colors.
+	function NewsletterSpark() {
+		var rows = nlTotalsByDate();
+		var all = rows.map( function ( r ) { return r.all; } );
+		var paid = rows.map( function ( r ) { return r.paid; } );
+		var labels = rows.map( function ( r ) { return nlFormatDate( r.date, true, true ); } );
+		function delta( values ) {
+			var first = values[ 0 ], last = values[ values.length - 1 ];
+			if ( ! first || first === last ) { return null; }
+			var pct = Math.round( ( last - first ) / first * 100 );
+			return ( pct > 0 ? '+' : '' ) + pct + '%';
 		}
-		return step;
-	}
-	function nlNiceTicks( min, max, count ) {
-		var step = nlTickStep( min, max, count );
-		var lo = Math.floor( min / step ) * step;
-		var hi = Math.ceil( max / step ) * step;
-		var ticks = [];
-		for ( var v = lo; v <= hi + step / 1000; v += step ) {
-			ticks.push( Math.round( v * 1000 ) / 1000 );
-		}
-		return { ticks: ticks, min: lo, max: hi };
-	}
-
-	function SubscribersChart( props ) {
-		var data = props.data;
-		var boxRef = useRef( null );
-		var widthState = useState( 0 );
-		var width = widthState[ 0 ], setWidth = widthState[ 1 ];
-		var hoverState = useState( null );
-		var hover = hoverState[ 0 ], setHover = hoverState[ 1 ];
+		var SERIES = [
+			{ key: 'all', label: NL_LABELS.all, color: NL_COLORS.all, values: all, total: all[ all.length - 1 ] || 0, delta: delta( all ) },
+			{ key: 'paid', label: NL_LABELS.paid, color: NL_COLORS.paid, values: paid, total: paid[ paid.length - 1 ] || 0, delta: delta( paid ) },
+		];
+		var headRef = useRef( null );
+		var compactState = useState( false );
+		var compact = compactState[ 0 ], setCompact = compactState[ 1 ];
 		useLayoutEffect( function () {
+			var head = headRef.current;
+			if ( ! head ) { return; }
 			function measure() {
-				if ( boxRef.current ) {
-					setWidth( boxRef.current.clientWidth );
-				}
+				var kpis = head.firstElementChild;
+				head.classList.remove( 'is-compact' );
+				setCompact( kpis.scrollWidth > head.clientWidth );
 			}
 			measure();
-			window.addEventListener( 'resize', measure );
-			return function () { window.removeEventListener( 'resize', measure ); };
+			if ( 'undefined' === typeof ResizeObserver ) { return; }
+			var ro = new ResizeObserver( measure );
+			ro.observe( head );
+			return function () { ro.disconnect(); };
 		}, [] );
-
-		if ( ! data.length ) {
-			return el( 'div', null, 'No data available' );
-		}
-
-		var height = 200;
-		var maxValue = 0;
-		var minValue = Infinity;
-		data.forEach( function ( d ) {
-			maxValue = Math.max( maxValue, d.all, d.paid );
-			minValue = Math.min( minValue, d.all, d.paid );
-		} );
-		// calcLeftAxisMargin: 8px a digit + 10, never under 30.
-		var left = Math.max( 30, String( maxValue ).length * 8 + 10 );
-		var margin = { top: 10, right: 30, bottom: 30, left: left };
-		var innerW = Math.max( 0, width - margin.left - margin.right );
-		var innerH = height - margin.top - margin.bottom;
-		var nice = nlNiceTicks( minValue, maxValue, 5 );
-		var t0 = data[ 0 ].date.getTime();
-		var t1 = data[ data.length - 1 ].date.getTime();
-		function xOf( date ) {
-			return margin.left + ( t1 === t0 ? 0 : ( date.getTime() - t0 ) / ( t1 - t0 ) ) * innerW;
-		}
-		function yOf( v ) {
-			return margin.top + innerH - ( v - nice.min ) / ( ( nice.max - nice.min ) || 1 ) * innerH;
-		}
-		function linePath( key ) {
-			return smoothPath( data.map( function ( d ) { return [ xOf( d.date ), yOf( d[ key ] ) ]; } ) );
-		}
-		// getXAxisTickValues: 0 / 25 / 50 / 75 / 100 % of the time span.
-		var xTicks = [ 0, .25, .5, .75, 1 ].map( function ( f ) { return new Date( t0 + ( t1 - t0 ) * f ); } );
-
-		function onMove( e ) {
-			var rect = boxRef.current.getBoundingClientRect();
-			var px = e.clientX - rect.left;
-			var nearest = 0;
-			var best = Infinity;
-			data.forEach( function ( d, i ) {
-				var dist = Math.abs( xOf( d.date ) - px );
-				if ( dist < best ) {
-					best = dist;
-					nearest = i;
-				}
-			} );
-			setHover( { i: nearest, px: px, py: e.clientY - rect.top } );
-		}
-
-		var datum = hover ? data[ hover.i ] : null;
-		return el( Fragment, null,
-			el( 'div', { className: 'subscribers-chart', ref: boxRef, onMouseMove: onMove, onMouseLeave: function () { setHover( null ); } },
-				width > 0 && el( 'svg', { width: width, height: height, style: { display: 'block', background: '#fff' } },
-					// Grid: rows only, numTicks 5.
-					nice.ticks.map( function ( v ) {
-						return el( 'line', { key: 'g' + v, x1: margin.left, x2: margin.left + innerW, y1: yOf( v ), y2: yOf( v ), stroke: '#e0e0e0', strokeWidth: 1 } );
-					} ),
-					el( 'path', { d: linePath( 'all' ), fill: 'none', stroke: NL_COLORS.all, strokeWidth: 2 } ),
-					el( 'path', { d: linePath( 'paid' ), fill: 'none', stroke: NL_COLORS.paid, strokeWidth: 2 } ),
-					// Left axis: no line, no ticks, no zero.
-					nice.ticks.filter( function ( v ) { return 0 !== v; } ).map( function ( v ) {
-						return el( 'text', { key: 'y' + v, x: margin.left - 8, y: yOf( v ), textAnchor: 'end', dominantBaseline: 'middle', fill: '#1e1e1e', fontSize: 13, fontWeight: 400 }, nlFormatNumber( v ) );
-					} ),
-					// Bottom axis: five dates, 'M j'.
-					xTicks.map( function ( d, i ) {
-						return el( 'text', { key: 'x' + i, x: xOf( d ), y: height - margin.bottom + 18, textAnchor: 'middle', fill: '#1e1e1e', fontSize: 13, fontWeight: 400 }, nlFormatDate( d ) );
-					} ),
-					datum && el( 'line', { x1: xOf( datum.date ), x2: xOf( datum.date ), y1: margin.top, y2: margin.top + innerH, stroke: '#222', strokeWidth: 1 } ),
-					datum && [ 'all', 'paid' ].map( function ( key ) {
-						return el( 'circle', { key: 'glyph-' + key, cx: xOf( datum.date ), cy: yOf( datum[ key ] ), r: 4, fill: NL_COLORS[ key ], stroke: 'white', strokeWidth: 2 } );
-					} )
-				),
-				datum && el( 'div', { className: 'subscribers-chart__tooltip', style: { left: Math.min( hover.px + 10, Math.max( 0, width - 130 ) ) + 'px', top: ( hover.py + 10 ) + 'px' } },
-					el( 'div', { className: 'subscribers-chart__tooltip-date' }, nlFormatDate( datum.date, true ) ),
-					el( 'div', { className: 'subscribers-chart__tooltip-stats' },
-						el( 'div', { className: 'subscribers-chart__tooltip-stat' },
-							el( 'div', { style: { backgroundColor: NL_COLORS.all }, className: 'subscribers-chart__tooltip-indicator' } ),
-							el( 'span', null, 'All: ' + nlFormatNumber( datum.all ) )
-						),
-						el( 'div', { className: 'subscribers-chart__tooltip-stat' },
-							el( 'div', { style: { backgroundColor: NL_COLORS.paid }, className: 'subscribers-chart__tooltip-indicator' } ),
-							el( 'span', null, 'Paid: ' + nlFormatNumber( datum.paid ) )
-						)
+		return el( 'div', { className: 'untangling-dw newsletter-widget__spark' },
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( compact ? ' is-compact' : '' ) },
+					el( 'div', { className: 'ms-dw-kpis' },
+						SERIES.map( function ( s ) {
+							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
+								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.label, 'aria-hidden': true } ),
+								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · last 30 days' ) ),
+								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
+								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
+							);
+						} )
 					)
-				)
-			),
-			el( 'div', { className: 'visx-legend subscribers-chart__legend' },
-				[ 'all', 'paid' ].map( function ( key ) {
-					return el( 'div', { key: key, className: 'visx-legend-item' },
-						el( 'svg', { width: 10, height: 10 }, el( 'circle', { cx: 5, cy: 5, r: 5, fill: NL_COLORS[ key ] } ) ),
-						el( 'div', { className: 'visx-legend-label' }, NL_LABELS[ key ] )
-					);
-				} )
+				),
+				el( Sparkline, { id: 'newsletter', series: SERIES, labels: labels, rows: function ( i ) {
+					return [
+						tipRow( 'is-all', tipNum( all[ i ] ), TIP_ICONS.people, NL_LABELS.all ),
+						tipRow( 'is-paid', tipNum( paid[ i ] ), NL_ICONS.payment, NL_LABELS.paid ),
+					];
+				} } )
 			)
 		);
 	}
@@ -12271,8 +12333,7 @@ function untangling_ms_app_js() {
 				)
 			),
 			el( 'div', { className: 'newsletter-widget__chart' },
-				el( 'h3', { className: 'newsletter-widget__heading' }, 'Total Subscribers' ),
-				el( SubscribersChart, { data: nlTotalsByDate() } )
+				el( NewsletterSpark )
 			),
 			el( 'div', { className: 'newsletter-widget__footer' },
 				el( 'p', { className: 'newsletter-widget__footer-msg' },
