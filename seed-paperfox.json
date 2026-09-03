@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "Art prints from a small studio",
  "woocommerce": true,
  "posts": [
@@ -10,7 +10,7 @@
    "image": "riso-moon",
    "content": [
     "Fifty copies, two colors, one slightly temperamental risograph. The Riso Moon print is finally in the shop.",
-    "Each one comes out a little different \u2014 that is the riso promise and the riso threat. Numbers 1 through 50, signed."
+    "Each one comes out a little different — that is the riso promise and the riso threat. Numbers 1 through 50, signed."
    ],
    "comments": [
     [
@@ -62,6 +62,39 @@
    "image": "digital-pack",
    "virtual": true,
    "description": "Six desktop and phone wallpapers from the archive. Instant download."
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Studio Sale: Seconds and Test Prints",
+   "category": "Studio news",
+   "days_ago": 2,
+   "content": [
+    "Every print that missed registration by a hair, priced to leave the studio. One weekend only, in person, cash or card."
+   ]
+  },
+  {
+   "title": "How We Mix Riso Inks",
+   "category": "Process",
+   "days_ago": 8,
+   "content": [
+    "Soy based, a little translucent, and never quite the same blue twice. This is the part of the job that still feels like magic."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 15,
+   "content": [
+    "Reorder the fluorescent pink drum before the holiday run."
+   ]
+  },
+  {
+   "title": "Custom Wedding Prints: What to Send Us",
+   "category": "Guides",
+   "days_ago": 21,
+   "content": [
+    "Names, date, two colors you both agree on, and a deadline that gives the ink a week to dry. That is all we need to start."
+   ]
   }
  ]
 }

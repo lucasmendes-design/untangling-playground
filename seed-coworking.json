@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "A calm place to get work done",
  "posts": [
   {
@@ -19,7 +19,7 @@
    "front": true,
    "content": [
     "Core is a coworking space for people who like quiet mornings and fast wifi. Sixty desks, four meeting rooms, one very good coffee machine.",
-    "Day passes, dedicated desks, and private offices for teams of two to eight. Come for a trial day \u2014 the first one is on us."
+    "Day passes, dedicated desks, and private offices for teams of two to eight. Come for a trial day — the first one is on us."
    ]
   },
   {
@@ -47,7 +47,40 @@
    "title": "Contact",
    "content": [
     "Rua do Nucleo 42, ground floor. Doors open 8:00 to 20:00 for visitors, always open for members.",
-    "Write to hello@corecoworking.com or just come by \u2014 the front desk is staffed all day."
+    "Write to hello@corecoworking.com or just come by — the front desk is staffed all day."
+   ]
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Meeting Room Booking Changes in September",
+   "category": "Community",
+   "days_ago": 2,
+   "content": [
+    "From September 15 the booking window opens two weeks ahead instead of one. Same rooms, same rates, less scrambling on Monday mornings."
+   ]
+  },
+  {
+   "title": "Member Spotlight: The Two Person Studio on Desk 14",
+   "category": "Members",
+   "days_ago": 6,
+   "content": [
+    "They moved in with a laptop each. Eight months later they have a printer, a plant, and a client list that fills the whiteboard."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 10,
+   "content": [
+    "Ask the landlord about the bike rack by the side entrance. Members keep asking."
+   ]
+  },
+  {
+   "title": "Quiet Hours Are Back",
+   "category": "Community",
+   "days_ago": 18,
+   "content": [
+    "Nine to eleven every morning, no calls in the open area. The phone booths are for calls, and there are four of them now."
    ]
   }
  ]

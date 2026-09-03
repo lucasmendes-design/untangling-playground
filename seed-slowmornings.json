@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "Recipes and rituals for unhurried days",
  "posts": [
   {
@@ -9,7 +9,7 @@
    "image": "sourdough",
    "content": [
     "Everyone tells you to trust the float test. My starter floated beautifully on Sunday and the loaf still came out like a discus.",
-    "What actually worked: watching the dome. When the starter peaks and just begins to fall, that is the window \u2014 float test or no float test.",
+    "What actually worked: watching the dome. When the starter peaks and just begins to fall, that is the window — float test or no float test.",
     "Recipe below makes one loaf, 75% hydration, overnight cold proof."
    ],
    "comments": [
@@ -67,6 +67,39 @@
    "content": [
     "A bowl of miso soup takes four minutes and fixes approximately everything. It has quietly replaced toast as the default breakfast here.",
     "Keep dashi in the fridge, keep the miso by the stove, and do not boil it after the paste goes in. That is the whole technique."
+   ]
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Overnight Oats That Are Not Sad",
+   "category": "Recipes",
+   "days_ago": 1,
+   "content": [
+    "Toasted oats, a pinch of salt, and one thing that crunches. That is the whole trick, and it took me three years to learn it."
+   ]
+  },
+  {
+   "title": "Autumn Market Notes",
+   "category": "Seasonal",
+   "days_ago": 4,
+   "content": [
+    "Figs are in, the last of the peaches are out, and someone is already selling chestnuts. Too early. I bought some anyway."
+   ]
+  },
+  {
+   "title": "Why I Stopped Buying Bread on Weekdays",
+   "category": "Baking",
+   "days_ago": 11,
+   "content": [
+    "The starter demanded a schedule and the schedule won. A loaf every Tuesday and Friday, and the bakery only on Sundays."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 16,
+   "content": [
+    "Photograph the plum jam before it is gone."
    ]
   }
  ]

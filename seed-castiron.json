@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "Heirloom cookware, made to last",
  "woocommerce": true,
  "posts": [
@@ -57,6 +57,39 @@
    "image": "mini-skillet",
    "stock": 40,
    "description": "One egg, one cookie, or one very personal frittata. 6 inches of exactly enough."
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Holiday Gift Guide: Small Pans, Big Meals",
+   "category": "Guides",
+   "days_ago": 3,
+   "content": [
+    "Three pans under sixty dollars and the first thing to cook in each one. Start with the 8-inch skillet and a single fried egg."
+   ]
+  },
+  {
+   "title": "Why Our Dutch Ovens Ship in Wooden Crates",
+   "category": "Behind the shop",
+   "days_ago": 9,
+   "content": [
+    "Short answer: cardboard loses to eight pounds of iron every time. Long answer below, with photos of the crates before and after the courier."
+   ]
+  },
+  {
+   "title": "Restoring a Flea Market Find",
+   "category": "Care",
+   "days_ago": 14,
+   "content": [
+    "Twelve dollars, forty years of rust, and one weekend with a wire brush. Here is the pan before and after."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 21,
+   "content": [
+    "Photograph the new griddle before the listing goes live."
+   ]
   }
  ]
 }

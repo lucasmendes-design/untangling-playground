@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "A photography journal by Lucas",
  "posts": [
   {
@@ -41,7 +41,7 @@
    "image": "fog-series",
    "content": [
     "Part three of an accidental series. The harbor disappears completely about ten mornings a year, and I have decided to be there for all of them.",
-    "Fog flattens everything into layers, like a stage set. The trick is finding one dark shape to anchor the frame \u2014 a crane, a mast, a person on the pier."
+    "Fog flattens everything into layers, like a stage set. The trick is finding one dark shape to anchor the frame — a crane, a mast, a person on the pier."
    ],
    "comments": [
     [
@@ -69,6 +69,39 @@
    "content": [
     "Every few months I try to love another lens, and every few months I come back to the nifty fifty.",
     "It is not the sharpness, though it is sharp. It is that the frame matches how I see before I raise the camera. No zooming with feet, no wide-angle drama. Just the scene, cropped by habit."
+   ]
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Notes on Shooting in the Rain",
+   "category": "Field notes",
+   "days_ago": 1,
+   "content": [
+    "Half the shots this week were made under an umbrella held in the wrong hand. A few of them are keepers, and the rest are lessons about lens hoods."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 4,
+   "content": [
+    "Try the pier at blue hour before the lamps come on. Bring the tripod this time."
+   ]
+  },
+  {
+   "title": "Film vs Digital, Again",
+   "category": "Gear",
+   "days_ago": 12,
+   "content": [
+    "I promised myself I would stop writing this post. Here we are. The short version: film for the walks, digital for the work."
+   ]
+  },
+  {
+   "title": "Printing Big: A 24x36 Experiment",
+   "category": "Process",
+   "days_ago": 20,
+   "content": [
+    "The lab said the negative would hold up at that size. The lab was mostly right, and the grain is now a feature."
    ]
   }
  ]

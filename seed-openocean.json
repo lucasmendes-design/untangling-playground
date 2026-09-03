@@ -1,5 +1,5 @@
 {
- "version": "1",
+ "version": "3",
  "tagline": "Dive logs and shore days",
  "posts": [
   {
@@ -35,7 +35,7 @@
    "image": "wreck-dive",
    "content": [
     "First proper deep dive of the year, down the line to the old trawler. Thirty meters is where the colors leave and the calm arrives.",
-    "The wreck has more life on it every year \u2014 soft corals on the rails, a conger in the engine room, and a cloud of anthias standing guard over the bow."
+    "The wreck has more life on it every year — soft corals on the rails, a conger in the engine room, and a cloud of anthias standing guard over the bow."
    ]
   },
   {
@@ -46,6 +46,39 @@
    "content": [
     "Winter storms pay out in spring. The east beach is covered in frosted green and white, with the occasional impossible blue.",
     "The jar on the windowsill is nearly full again. No plans for it. There were never plans for it."
+   ]
+  }
+ ],
+ "drafts": [
+  {
+   "title": "Reef Log: Dive #143",
+   "category": "Dive log",
+   "days_ago": 1,
+   "content": [
+    "Same wall as last week, half the visibility, twice the turtles. Forty minutes at sixteen meters and a very patient buddy."
+   ]
+  },
+  {
+   "title": "Gear Check Before the Cold Season",
+   "category": "Gear",
+   "days_ago": 5,
+   "content": [
+    "The dry suit zipper needs wax and the second regulator needs a service before October. Writing it down so I actually do it."
+   ]
+  },
+  {
+   "title": "Night Dive Checklist",
+   "category": "Dive log",
+   "days_ago": 9,
+   "content": [
+    "Two lights, one backup, glow stick on the tank, and a buddy who has done it before. Everything else is optional."
+   ]
+  },
+  {
+   "title": "",
+   "days_ago": 17,
+   "content": [
+    "Book the boat for the October full moon dive."
    ]
   }
  ]

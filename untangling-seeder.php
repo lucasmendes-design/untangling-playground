@@ -70,6 +70,15 @@ function untangling_seed_run( $force ) {
 		}
 	}
 
+	// Drafts: the same shape as posts, saved unpublished by user 1 so core's
+	// Quick Draft widget lists them under "Your Recent Drafts" like production.
+	if ( ! empty( $cfg['drafts'] ) ) {
+		foreach ( $cfg['drafts'] as $draft ) {
+			$draft['status'] = 'draft';
+			untangling_seed_post( $draft, $media, $log );
+		}
+	}
+
 	if ( ! empty( $cfg['pages'] ) ) {
 		foreach ( $cfg['pages'] as $page ) {
 			untangling_seed_page( $page, $media, $log );
@@ -169,6 +178,17 @@ function untangling_seed_exists( $title, $type ) {
 	return $q->posts ? $q->posts[0] : 0;
 }
 
+function untangling_seed_exists_by_content( $needle, $type ) {
+	$q = new WP_Query( array(
+		'post_type'      => $type,
+		's'              => $needle,
+		'post_status'    => 'any',
+		'posts_per_page' => 1,
+		'fields'         => 'ids',
+	) );
+	return $q->posts ? $q->posts[0] : 0;
+}
+
 function untangling_seed_blocks( $paragraphs ) {
 	$out = '';
 	foreach ( (array) $paragraphs as $p ) {
@@ -178,7 +198,12 @@ function untangling_seed_blocks( $paragraphs ) {
 }
 
 function untangling_seed_post( $post, $media, &$log ) {
-	if ( untangling_seed_exists( $post['title'], 'post' ) ) {
+	$title = isset( $post['title'] ) ? $post['title'] : '';
+	// An untitled draft ("(no title)" in the widget) is matched on its content.
+	$exists = '' !== $title
+		? untangling_seed_exists( $title, 'post' )
+		: untangling_seed_exists_by_content( $post['content'][0], 'post' );
+	if ( $exists ) {
 		return;
 	}
 	$cat_id = 0;
@@ -189,9 +214,10 @@ function untangling_seed_post( $post, $media, &$log ) {
 	}
 	$days = isset( $post['days_ago'] ) ? (int) $post['days_ago'] : 0;
 	$id   = wp_insert_post( array(
-		'post_title'    => $post['title'],
+		'post_title'    => $title,
 		'post_content'  => untangling_seed_blocks( $post['content'] ),
-		'post_status'   => 'publish',
+		'post_status'   => ! empty( $post['status'] ) ? $post['status'] : 'publish',
+		'post_author'   => 1,
 		'post_date'     => gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ),
 		'post_category' => $cat_id ? array( $cat_id ) : array(),
 	) );
@@ -214,7 +240,7 @@ function untangling_seed_post( $post, $media, &$log ) {
 			) );
 		}
 	}
-	$log[] = 'post: ' . $post['title'];
+	$log[] = ( ! empty( $post['status'] ) ? $post['status'] : 'post' ) . ': ' . ( '' !== $title ? $title : '(no title)' );
 }
 
 function untangling_seed_page( $page, $media, &$log ) {

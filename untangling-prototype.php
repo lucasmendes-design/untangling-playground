@@ -8945,12 +8945,33 @@ function untangling_pw_render_stats() {
 		'year'  => array( 'views' => array( 0, 0, 0, 0, 0, 38900, 61200 ), 'visitors' => array( 0, 0, 0, 0, 0, 23100, 36400 ) ),
 	);
 	$labels = array( 'day' => array(), 'week' => array(), 'month' => array(), 'year' => array() );
+	// Per-bar tooltip date label (formatDate(), 'LL' = "September 3, 2026")
+	// and the click range (getChartRangeParams(): the period's start/end,
+	// capped at today, and the finer period the full Stats page opens on).
+	$meta  = array( 'day' => array(), 'week' => array(), 'month' => array(), 'year' => array() );
+	$today = current_time( 'timestamp' );
+	$cap   = function ( $end ) use ( $today ) {
+		return date( 'Y-m-d', min( $end, $today ) );
+	};
 	for ( $i = 6; $i >= 0; $i-- ) {
-		$labels['day'][]   = date_i18n( 'M j', strtotime( "-$i days" ) );
-		$labels['week'][]  = date_i18n( 'M j', strtotime( "-$i weeks" ) );
-		$labels['month'][] = date_i18n( 'M', strtotime( "-$i months" ) );
-		$labels['year'][]  = date_i18n( 'Y', strtotime( "-$i years" ) );
+		$day   = strtotime( "-$i days", $today );
+		$week  = strtotime( "monday this week -$i weeks", $today );
+		$month = strtotime( date( 'Y-m-01', strtotime( "first day of -$i months", $today ) ) );
+		$year  = strtotime( date( 'Y-01-01', strtotime( "-$i years", $today ) ) );
+
+		$labels['day'][]   = date_i18n( 'M j', $day );
+		$labels['week'][]  = date_i18n( 'M j', strtotime( "-$i weeks", $today ) );
+		$labels['month'][] = date_i18n( 'M', $month );
+		$labels['year'][]  = date_i18n( 'Y', $year );
+
+		$week_end = min( strtotime( '+6 days', $week ), $today );
+		$meta['day'][]   = array( 'label' => date_i18n( 'F j, Y', $day ), 'start' => date( 'Y-m-d', $day ), 'end' => date( 'Y-m-d', $day ), 'period' => 'hour' );
+		$meta['week'][]  = array( 'label' => date_i18n( 'F j, Y', $week ) . ' - ' . date_i18n( 'F j, Y', $week_end ), 'start' => date( 'Y-m-d', $week ), 'end' => date( 'Y-m-d', $week_end ), 'period' => 'day' );
+		$meta['month'][] = array( 'label' => date_i18n( 'F Y', $month ), 'start' => date( 'Y-m-d', $month ), 'end' => $cap( strtotime( 'last day of this month', $month ) ), 'period' => 'day' );
+		$meta['year'][]  = array( 'label' => date_i18n( 'Y', $year ), 'start' => date( 'Y-m-d', $year ), 'end' => $cap( strtotime( 'december 31', $year ) ), 'period' => 'month' );
 	}
+	// barClick(): `${statsBaseUrl}/stats/${chartPeriod}/${siteId}?chartStart=…&chartEnd=…`.
+	$click_base = $stats_base . '/%s/' . rawurlencode( untangling_get_site_slug() );
 	$posts = get_posts( array( 'post_type' => array( 'post', 'page' ), 'post_status' => 'publish', 'numberposts' => 5, 'orderby' => 'comment_count', 'order' => 'DESC' ) );
 	$post_views = array( 412, 298, 187, 143, 96 );
 	$top_posts  = array();
@@ -8985,7 +9006,7 @@ function untangling_pw_render_stats() {
 		echo '</div>';
 	};
 	?>
-	<div id="dashboard_stats" class="jp-stats-widget untangling-pw-stats" data-series="<?php echo esc_attr( wp_json_encode( array( 'series' => $series, 'labels' => $labels ) ) ); ?>">
+	<div id="dashboard_stats" class="jp-stats-widget untangling-pw-stats" data-series="<?php echo esc_attr( wp_json_encode( array( 'series' => $series, 'labels' => $labels, 'meta' => $meta, 'clickBase' => $click_base ) ) ); ?>">
 		<div id="stats-widget-content" class="stats-widget-content">
 			<div id="stats-widget-minichart" class="stats-widget-minichart" aria-hidden="true">
 				<div class="stats-widget-minichart__chart-head">
@@ -9047,10 +9068,63 @@ function untangling_pw_render_stats() {
 		var bars = root.querySelector( '.chart__bars' );
 		var axis = root.querySelector( '.chart__x-axis' );
 		var yaxis = root.querySelector( '.chart__y-axis' );
+		var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		var tip = null;
 		function fmt( n ) { return n >= 1000 ? ( Math.round( n / 100 ) / 10 ) + 'K' : String( n ); }
+		function num( n, decimals ) { return n.toLocaleString( undefined, { minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0 } ); }
+		// @wordpress/icons Icon (24px, className "gridicon"): eye (@automattic/components), people, chevronRight.
+		var icons = {
+			eye: '<svg class="gridicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="m4 13 .67.336.003-.005a2.42 2.42 0 0 1 .094-.17c.071-.122.18-.302.329-.52.298-.435.749-1.017 1.359-1.598C7.673 9.883 9.498 8.75 12 8.75s4.326 1.132 5.545 2.293c.61.581 1.061 1.163 1.36 1.599a8.29 8.29 0 0 1 .422.689l.002.005L20 13l.67-.336v-.003l-.003-.005-.008-.015-.028-.052a9.752 9.752 0 0 0-.489-.794 11.6 11.6 0 0 0-1.562-1.838C17.174 8.617 14.998 7.25 12 7.25S6.827 8.618 5.42 9.957c-.702.669-1.22 1.337-1.563 1.839a9.77 9.77 0 0 0-.516.845l-.008.015-.002.005-.001.002v.001L4 13Zm8 3a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/></svg>',
+			people: '<svg class="gridicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M15.5 9.5a1 1 0 100-2 1 1 0 000 2zm0 1.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm-2.25 6v-2a2.75 2.75 0 00-2.75-2.75h-4A2.75 2.75 0 003.75 15v2h1.5v-2c0-.69.56-1.25 1.25-1.25h4c.69 0 1.25.56 1.25 1.25v2h1.5zm7-2v2h-1.5v-2c0-.69-.56-1.25-1.25-1.25H15v-1.5h2.5A2.75 2.75 0 0120.25 15zM9.5 8.5a1 1 0 11-2 0 1 1 0 012 0zm1.5 0a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg>',
+			chevron: '<svg class="gridicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M10.6 6L9.4 7l4.6 5-4.6 5 1.2 1 5.4-6z"/></svg>'
+		};
+		function esc( str ) { return String( str ).replace( /[&<>"]/g, function ( c ) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ c ]; } ); }
+		function row( className, value, icon, label ) {
+			return '<li class="module-content-list-item ' + className + '"><span class="chart__tooltip-wrapper wrapper"><span class="chart__tooltip-value value">' + ( value === null ? '' : esc( value ) ) + '</span><span class="chart__tooltip-label label">' + ( icon || '' ) + esc( label ) + '</span></span></li>';
+		}
+		function hideTip() {
+			if ( tip ) { tip.remove(); tip = null; }
+		}
+		// ChartBar.mouseEnter → Tooltip (Popover, position "bottom right",
+		// flipped to "bottom left" near the right edge), anchored on the bar
+		// section and rendered at document level; nothing on touch devices.
+		function showTip( bar, i, period ) {
+			hideTip();
+			var s = conf.series[ period ], m = conf.meta[ period ][ i ];
+			var views = s.views[ i ], visitors = s.visitors[ i ];
+			var count = s.views.length;
+			var chartWidth = bars.getBoundingClientRect().width;
+			var barWidth = chartWidth / count;
+			var barOffset = barWidth * ( i + 1 );
+			var flip = barOffset > chartWidth - 230 && barOffset + barWidth > 230;
+			var rows = row( 'is-date-label', null, '', m.label )
+				+ row( 'is-views', num( views ), icons.eye, 'Views' )
+				+ ( isFinite( visitors ) ? row( 'is-visitors', num( visitors ), icons.people, 'Visitors' ) : '' )
+				+ ( isFinite( views / visitors ) ? row( 'is-views-per-visitor', num( views / visitors, 2 ), icons.chevron, 'Views Per Visitor' ) : '' );
+			tip = document.createElement( 'div' );
+			tip.className = 'popover tooltip chart__tooltip untangling-pw-tooltip ' + ( flip ? 'is-bottom-left' : 'is-bottom-right' );
+			tip.innerHTML = '<div class="popover__arrow"></div><div class="popover__inner"><ul>' + rows + '</ul></div>';
+			document.body.appendChild( tip );
+			var target = bar.querySelector( '.chart__bar-section' ).getBoundingClientRect();
+			var top = target.top + window.pageYOffset, left = target.left + window.pageXOffset;
+			var pad = 15, ew = tip.querySelector( '.popover__inner' ).offsetWidth;
+			tip.style.top = ( top + target.height ) + 'px';
+			tip.style.left = ( flip ? left + target.width / 2 - ew + pad : left + target.width / 2 - pad ) + 'px';
+		}
+		// barClick(): the full Stats page for that period.
+		function clickBar( i, period ) {
+			var m = conf.meta[ period ][ i ];
+			var a = document.createElement( 'a' );
+			a.href = conf.clickBase.replace( '%s', m.period ) + '?chartStart=' + encodeURIComponent( m.start ) + '&chartEnd=' + encodeURIComponent( m.end );
+			a.style.display = 'none';
+			document.body.appendChild( a );
+			a.click();
+			a.remove();
+		}
 		function draw( period ) {
 			var s = conf.series[ period ], labels = conf.labels[ period ];
 			var max = Math.max.apply( null, s.views ) || 1;
+			hideTip();
 			bars.innerHTML = '';
 			axis.innerHTML = '';
 			s.views.forEach( function ( v, i ) {
@@ -9059,7 +9133,13 @@ function untangling_pw_render_stats() {
 				var bar = document.createElement( 'div' );
 				bar.className = 'chart__bar';
 				bar.innerHTML = '<div class="chart__bar-section" style="height:' + h + '%"><div class="chart__bar-section-inner" style="height:' + ( vis ? Math.round( vis / h * 100 ) : 0 ) + '%"></div></div>';
-				bar.title = labels[ i ] + ': ' + v + ' views, ' + s.visitors[ i ] + ' visitors';
+				bar.setAttribute( 'role', 'presentation' );
+				bar.setAttribute( 'aria-hidden', 'true' );
+				if ( ! isTouch ) {
+					bar.addEventListener( 'mouseenter', function () { showTip( bar, i, period ); } );
+					bar.addEventListener( 'mouseleave', hideTip );
+				}
+				bar.addEventListener( 'click', function () { clickBar( i, period ); } );
 				bars.appendChild( bar );
 				var l = document.createElement( 'span' );
 				l.className = 'chart__x-axis-label';
@@ -9179,6 +9259,23 @@ function untangling_pw_css() {
 .untangling-pw-stats .chart__y-axis-marker.is-fifty { top: 50%; }
 .untangling-pw-stats .chart__bars { position: relative; display: flex; align-items: flex-end; gap: 12px; height: 100%; }
 .untangling-pw-stats .chart__bar { flex: 1; min-width: 35px; height: 100%; display: flex; align-items: flex-end; }
+.untangling-pw-stats .chart__bar:hover { cursor: pointer; background-color: rgba(100, 105, 112, 0.1); }
+/* Chart tooltip: .tooltip.popover.chart__tooltip (bottom right / bottom left). */
+.untangling-pw-tooltip { position: absolute; top: 0; left: 0; z-index: 100000; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; font-size: 12px; }
+.untangling-pw-tooltip .popover__inner { position: relative; width: 230px; box-sizing: border-box; padding: 6px 10px; border: 0; border-radius: 2px; box-shadow: none; background: #50575e; color: #fff; text-align: left; }
+.untangling-pw-tooltip.is-bottom-right .popover__inner { top: 10px; left: -10px; }
+.untangling-pw-tooltip.is-bottom-left .popover__inner { top: 10px; left: 10px; }
+.untangling-pw-tooltip .popover__arrow { position: absolute; top: 4px; width: 0; height: 0; line-height: 0; border: 6px dashed transparent; border-top: none; border-bottom-style: solid; border-bottom-color: #50575e; z-index: 1; }
+.untangling-pw-tooltip.is-bottom-right .popover__arrow { left: 15px; }
+.untangling-pw-tooltip.is-bottom-left .popover__arrow { left: auto; right: 5px; }
+.untangling-pw-tooltip ul { list-style: none; margin: 0; padding: 0; }
+.untangling-pw-tooltip ul::after { content: ""; display: table; clear: both; }
+.untangling-pw-tooltip li { margin: 0; padding: 2px 0; border: 0; height: 24px; box-sizing: border-box; font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.1em; }
+.untangling-pw-tooltip li .wrapper { display: block; line-height: 24px; clear: both; }
+.untangling-pw-tooltip li .value { float: right; min-width: 22px; text-align: right; color: #c3c4c7; }
+.untangling-pw-tooltip li .label { display: block; overflow: hidden; word-break: break-all; vertical-align: baseline; }
+.untangling-pw-tooltip li .gridicon { vertical-align: middle; margin-right: 6px; margin-top: -3px; fill: currentColor; }
+.untangling-pw-tooltip li.is-date-label { margin-bottom: 2px; padding-bottom: 2px; font-weight: 600; border-bottom: 1px solid #50575e; }
 .untangling-pw-stats .chart__bar-section { width: 100%; background: #c4ccf7; display: flex; align-items: flex-end; }
 .untangling-pw-stats .chart__bar-section-inner { width: 100%; background: #2145e6; }
 .untangling-pw-stats .chart__x-axis { position: absolute; left: 16px; right: 40px; bottom: 6px; display: flex; gap: 12px; }
