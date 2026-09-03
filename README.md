@@ -27,15 +27,35 @@ halves of the prototype link to each other.
 
 ## Files
 
-- `untangling-prototype.php` — the prototype mu-plugin (synced from the main
-  working copy; do not edit here).
-- `untangling-seeder.php` — seeds demo content from a `seed-*.json` (synced;
-  do not edit here).
+- `untangling-prototype.php` — the prototype mu-plugin. Source of truth when
+  you set up from this repo (see "Local setup").
+- `untangling-seeder.php` — seeds demo content from a `seed-*.json`.
 - `0-untangling-config.php` — demo identity (Free plan, standalone mode).
 - `blueprint.json` — the Playground blueprint that assembles the site.
 - `blueprint-quickstart.json` / `quickstart-config.php` — the wp-admin-only
   quick start (Prototype controls visible, standalone mode).
 - `blueprint-<site>.json` / `config-<site>.php` / `seed-<site>.json` — the six
   per-site blueprints for the combined demo.
-- `sync.sh` — copies the latest plugin/seeder/seeds from the working copies,
-  commits, pushes.
+- `studio/<slug>/0-untangling-config.php` — local Studio identities for the
+  six sites.
+- `scripts/setup.sh` / `scripts/start.sh` — local setup and daily resume.
+- `sync.sh` — commits and pushes the repo (optionally pulling the plugin and
+  seeds from an external working copy, see `.untangling.env` in the script).
+- `HANDOVER.md` — the living state doc. `CLAUDE.md` — conventions for
+  Claude Code, plus the `/untangling-setup` and `/untangling-start` skills.
+
+## Local setup (continue the work)
+
+Requirements: the [Studio](https://developer.wordpress.com/studio/) app with
+its CLI installed, Node + Yarn for Calypso, and Claude Code.
+
+```
+git clone https://github.com/lucasmendes-design/untangling-playground.git
+cd untangling-playground && claude
+```
+
+Then type `/untangling-setup`. It creates and seeds the six Studio sites,
+checks out the Calypso branch `prototype/untangling-ia`, reconciles the
+Studio ports with the MSD mocks, boots everything, and recaps the state from
+`HANDOVER.md`. From the next day on, `/untangling-start` is the resume
+command.
