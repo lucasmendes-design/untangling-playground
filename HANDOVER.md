@@ -1,7 +1,7 @@
 # Handover — untangling IA prototype
 
 Updated: 2026-09-03. This is the living state doc for the prototype. Keep it
-current when you finish a session (`/untangling-start wrap` does that).
+current when you finish a session (`/untangling-wrap` does that).
 
 ## What this is
 
