@@ -586,10 +586,11 @@ function untangling_plan_compare( $plan = null ) {
 	);
 }
 
-// Simple vs Atomic default follows the plan (Free/Premium sites are Simple);
-// the ?untangling_site_type= override still wins once used.
+// Atomic is the default view on every site (2026-09-03; it used to follow
+// the plan, Free/Premium → Simple). The ?untangling_site_type= override —
+// the Site type control — still wins once used; "Reset demo state" clears it.
 function untangling_default_site_type() {
-	return in_array( untangling_get_plan(), array( 'Free', 'Premium' ), true ) ? 'simple' : 'atomic';
+	return 'atomic';
 }
 
 // The MSD site-card previews load the front end with ?iframe=true (same
@@ -8437,6 +8438,7 @@ function untangling_ms_data() {
 		'wpUpdate'     => untangling_dw_core_update_version(),
 		'updateUrl'    => admin_url( 'update-core.php' ),
 		'phpVersion'   => implode( '.', array_slice( explode( '.', PHP_VERSION ), 0, 2 ) ),
+		'theme'        => untangling_dw_active_theme_name(),
 		'counts'       => array(
 			'posts'    => (int) wp_count_posts()->publish,
 			'pages'    => (int) wp_count_posts( 'page' )->publish,
@@ -8449,6 +8451,16 @@ function untangling_ms_data() {
 		// renewal deal the omnibar pill sells, through the same checkout mimic.
 		'renewUrl'     => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => $plan, 'flow' => 'renew', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 	);
+}
+
+/**
+ * The active theme's name for the Site details widget: the marketplace
+ * mimic's activated catalog theme when there is one, else the real theme.
+ */
+function untangling_dw_active_theme_name() {
+	$slug = get_option( 'untangling_mkt_active_theme', '' );
+	$item = $slug ? untangling_marketplace_find_item( 'theme', $slug ) : null;
+	return $item ? $item['name'] : wp_get_theme()->get( 'Name' );
 }
 
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
@@ -8483,11 +8495,11 @@ function untangling_dw_columns() {
 }
 
 // Default IA at 3 columns (the designed first look): column 1 (normal) is
-// the site itself — plan, vitals, history; column 2 (side) is the one thing
-// to do — Next steps, alone, so the action has the page's centre; column 3
-// is what the site is doing — traffic, protection, infrastructure. At 1–2
-// columns: action → traffic → history on the left, plan + machine on the
-// right. Users can rearrange; untangling_dw_layout() is the one map both
+// the site itself — Your site (identity + plan), vitals, history; column 2
+// (side) is the one thing to do — Next steps, alone, so the action has the
+// page's centre; column 3 is what the site is doing — traffic, protection,
+// infrastructure. At 1–2 columns: action → traffic → history on the left,
+// site + machine on the right. Users can rearrange; untangling_dw_layout() is the one map both
 // registration and the order-snap filter read.
 // Jetpack-backed widgets carry the mark in the postbox title (mark + name),
 // the one place the credit lives — no "Powered by Jetpack" line in the body
@@ -8515,14 +8527,17 @@ add_action( 'wp_dashboard_setup', function () {
 	};
 
 	$titles = array(
-		'untangling_dw_site'       => array( __( 'Site preview' ), 'site' ),
+		// Site: identity (preview, name, address) and plan (name, renewal,
+		// what it includes, the ONE promo slot) in a single postbox — the
+		// former Site preview and Plan widgets, redesigned as one.
+		'untangling_dw_site'       => array( __( 'Your site' ), 'site' ),
 		'untangling_dw_next_steps' => array( __( 'Next steps' ), 'next' ),
 		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
-		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Activity' ) ), 'activity' ),
-		'untangling_dw_glance'     => array( __( 'Site details' ), 'glance' ),
-		'untangling_dw_protection' => array( untangling_dw_jetpack_title( __( 'Protection' ) ), 'protection' ),
-		'untangling_dw_hosting'    => array( __( 'Hosting' ), 'hosting' ),
-		'untangling_dw_plan'       => array( __( 'Plan' ), 'plan' ),
+		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Log Activity' ) ), 'activity' ),
+		// Hosting (was Site details): core's At a glance extended with what the site runs
+		// on, plus the hosting tools behind an expand/collapse — the former
+		// Hosting widget folded in, so the column does not run tall.
+		'untangling_dw_glance'     => array( __( 'Hosting' ), 'glance' ),
 		// Jetpack Newsletter, as the Jetpack plugin registers it on every
 		// WP.com site (modules/subscriptions/newsletter-widget): same id, same
 		// mount markup, same body. The title follows the other Jetpack-backed
@@ -8550,7 +8565,7 @@ add_action( 'wp_dashboard_setup', function () {
 	// Core's Activity widget shares its name with our replacement. It stays
 	// available, but a re-enabled one must not read as a duplicate — in
 	// Screen Options or in its postbox header — so the legacy one is marked
-	// "(classic)". (Core's At a Glance keeps its name: ours is "Site details".)
+	// "(classic)". (Core's At a Glance keeps its name: ours is "Hosting".)
 	// Core has already registered it by the time this action fires.
 	global $wp_meta_boxes;
 	if ( isset( $wp_meta_boxes['dashboard'] ) ) {
@@ -8596,14 +8611,14 @@ function untangling_dw_layout( $columns = null ) {
 	$columns = $columns ?: untangling_dw_columns();
 	if ( 3 === $columns ) {
 		return array(
-			'normal'  => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_activity' ),
-			'side'    => array( 'untangling_dw_site', 'untangling_dw_next_steps' ),
-			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_protection', 'untangling_dw_hosting' ),
+			'normal'  => array( 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_activity' ),
+			'side'    => array( 'untangling_dw_next_steps' ),
+			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget' ),
 		);
 	}
 	return array(
-		'normal' => array( 'untangling_dw_site', 'untangling_dw_next_steps', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
-		'side'   => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_protection', 'untangling_dw_hosting' ),
+		'normal' => array( 'untangling_dw_next_steps', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
+		'side'   => array( 'untangling_dw_site', 'untangling_dw_glance' ),
 	);
 }
 
@@ -8940,9 +8955,6 @@ function untangling_stats_series() {
 	);
 }
 
-// The Stats widget's periods: the series, the tooltip date label per point
-// (the Jetpack Stats widget's formatDate( 'LL' ) strings), the KPI unit, the
-// totals over the seven points, and the mock delta against the seven before.
 function untangling_stats_periods() {
 	$series = untangling_stats_series();
 	$today  = current_time( 'timestamp' );
@@ -9410,8 +9422,6 @@ add_action( 'admin_footer-index.php', function () {
 		var GROUPS = [
 			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
 			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ] },
-			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_protection', 'untangling_dw_hosting' ] },
-			{ title: <?php echo wp_json_encode( __( 'Plan' ) ); ?>, ids: [ 'untangling_dw_plan' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plugins' ) ); ?>, ids: [ 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor', 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
 			{ title: <?php echo wp_json_encode( __( 'More WordPress' ) ); ?>, ids: [] },
 		];
@@ -9530,6 +9540,10 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .metabox-prefs .untangling-dw-title { display: inline; }
 .metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
 
+/* Stats → Highlights: a disclosure row under the chart (closed by default),
+   then the Jetpack widget's 7-day lists as one segmented pair + rows, and
+   the two Protect / Akismet counters on the ms-dw-pair grid. */
+
 /* Site details: label/value rows split by hairlines (the settings-card model). */
 .untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
 .untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
@@ -9547,35 +9561,44 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-storage-cta, .untangling-dw .ms-dw-update { text-decoration: none; font-weight: inherit; white-space: nowrap; }
 .untangling-dw .ms-storage-cta:hover, .untangling-dw .ms-dw-update:hover { text-decoration: underline; }
 
-/* Stats head: one 24px line — the period control on the left, the two KPIs
-   on the right as legend entries (swatch · label · value · delta), a
-   hairline under it that bleeds into the body's side padding like the feed
-   and Hosting rows. The period unit is implied by the control, so the label
-   is the series name alone (the unit stays for screen readers). Narrower:
-   dots only (below); narrower still: the KPIs on their own line. Measured. */
+/* Stats head: one row — the two KPIs side by side on the left as one line
+   of legend entries (swatch · label · value · delta, 20px tall at wp-admin's
+   13px body size, 16px between entries), the period control on the right;
+   a hairline under it that bleeds into the body's side padding like the
+   feed and Hosting rows. The period unit is implied by the control, so the
+   label is the series name alone (the unit stays for screen readers). The
+   legend keeps its full copy at every width: when the two cannot share
+   the row, the control moves above the numbers (is-stacked, below).
+   Measured. */
 .untangling-dw .ms-dw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 -12px; padding: 0 12px 10px; border-bottom: 1px solid #f0f0f0; }
-.untangling-dw .ms-dw-kpis { display: flex; align-items: center; margin-left: auto; min-height: 24px; }
-.untangling-dw .ms-dw-kpi { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; line-height: 20px; }
-.untangling-dw .ms-dw-kpi + .ms-dw-kpi { margin-left: 10px; padding-left: 10px; border-left: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-kpis { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; }
+.untangling-dw .ms-dw-kpi { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; line-height: 20px; }
 .untangling-dw .ms-dw-kpi-swatch { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; }
-.untangling-dw .ms-dw-kpi-label { font-size: 12px; line-height: 16px; color: #757575; }
+.untangling-dw .ms-dw-kpi-label { font-size: 13px; line-height: 20px; color: #757575; }
 .untangling-dw .ms-dw-kpi-value { font-size: 14px; line-height: 20px; font-weight: 600; color: #1e1e1e; font-variant-numeric: tabular-nums; }
 .untangling-dw .ms-dw-kpi-delta { align-self: center; padding: 1px 5px; border-radius: 999px; background: #f0f0f0; font-size: 11px; line-height: 14px; font-weight: 500; color: #1e1e1e; }
-/* Compact: the series name leaves the line (kept for screen readers) and
-   the dot tells it on hover, in the wp.components Tooltip's bubble (12px,
-   4×8 padding, 2px radius) like the plan-feature tips. */
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect( 0, 0, 0, 0 ); white-space: nowrap; }
+/* Stacked (Stats): the control takes its own row above the numbers, at its
+   content width and flush left like the legend, and the legend keeps its
+   full copy (dot · label · value · delta) under it. The legend may wrap as
+   the last resort, entries whole. */
+.untangling-dw .ms-dw-head.is-stacked { flex-direction: column; align-items: flex-start; gap: 10px; }
+.untangling-dw .ms-dw-head.is-stacked .ms-dw-periods { order: -1; margin-left: 0; }
+.untangling-dw .ms-dw-head.is-stacked .ms-dw-kpis { flex-wrap: wrap; gap: 4px 16px; }
+/* Compact (Newsletter): the copy after the count leaves the line (kept for
+   screen readers) and the dot tells it on hover, in the wp.components
+   Tooltip's bubble (12px, 4×8 padding, 2px radius) like the plan-feature
+   tips; it hangs from the dot's left edge, not its centre, so the first
+   entry's bubble stays inside the widget. */
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect( 0, 0, 0, 0 ); white-space: nowrap; padding: 0; }
 .untangling-dw .ms-dw-head.is-compact .ms-dw-kpi { gap: 6px; }
 .untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch { position: relative; }
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: 50%; transform: translateX( -50% ); width: max-content; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); z-index: 10; }
+.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: -4px; width: max-content; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); z-index: 10; }
 .untangling-dw .ms-dw-head.is-compact .ms-dw-kpi:hover .ms-dw-kpi-swatch::after { opacity: 1; }
-/* Stacked: the last resort, KPIs on their own line under the control. */
-.untangling-dw .ms-dw-head.is-stacked .ms-dw-kpis { margin-left: 0; width: 100%; }
 /* Period control: the Jetpack Stats widget's SegmentedControl (#c3c4c7
    hairlines, 4px radius, brand fill on the selected item) at widget scale —
-   24px tall, 11px labels, content width, on the head line's left. Hover
+   24px tall, 11px labels, content width, on the head's right. Hover
    on the neutral-0 surface, focus-visible with the design system's stroke. */
-.untangling-dw .ms-dw-periods { display: inline-flex; height: 24px; border: 1px solid #c3c4c7; border-radius: 4px; overflow: hidden; background: #fff; }
+.untangling-dw .ms-dw-periods { display: inline-flex; height: 24px; margin-left: auto; border: 1px solid #c3c4c7; border-radius: 4px; overflow: hidden; background: #fff; }
 .untangling-dw .ms-dw-periods .segmented-control__item { border: 0; border-left: 1px solid #c3c4c7; border-radius: 0; background: #fff; color: #3c434a; font: inherit; font-size: 11px; line-height: 22px; font-weight: 500; cursor: var(--wpds-cursor-control, pointer); padding: 0 6px; outline: none; }
 .untangling-dw .ms-dw-periods .segmented-control__item:first-child { border-left: 0; }
 .untangling-dw .ms-dw-periods .segmented-control__item:hover { background: #f6f7f7; }
@@ -9602,13 +9625,12 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Activity feed rows: icon · title/summary · relative time. Empty state is a
    grey circle and one sentence, and the card keeps its height. */
 .untangling-dw .ms-dw-feed { display: flex; flex-direction: column; }
-/* Row lists (the Activity feed, the Hosting rows) bleed into the body's
+/* Row lists (the Activity feed) bleed into the body's
    vertical padding as well as its sides, so the distance from a hairline to
    the text is the same 10px at the postbox header and footer as it is between
    rows. Before, the 12px body padding stacked on the row's own padding and
    the first and last rows floated 21px from the chrome. */
-.untangling-dw .ms-dw-body > .ms-dw-feed,
-.untangling-dw .ms-dw-body > .ms-dw-rows { margin-top: -12px; margin-bottom: -12px; }
+.untangling-dw .ms-dw-body > .ms-dw-feed { margin-top: -12px; margin-bottom: -12px; }
 .untangling-dw .ms-dw-feed-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-feed-row:last-child { border-bottom: 0; }
 /* Rows are links to the screen that owns the event: the whole row is the
@@ -9644,6 +9666,27 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 	.untangling-dw .ms-dw-pair { grid-template-columns: minmax(0, 1fr); }
 	.untangling-dw .ms-dw-pair > .ms-ovcard + .ms-ovcard { border-left: 0; border-top: 1px solid #f0f0f0; padding-top: 12px; }
 }
+/* Three cards stay side by side down to the pair's threshold: the
+   dashboard's three-column wells give each card ~110px of copy, so under
+   560px the trio drops to the body size (13px heading, 12px description,
+   tighter gutters) and lets headings wrap instead of stacking the cards. */
+.untangling-dw .ms-dw-trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container dw-body (max-width: 559px) {
+	.untangling-dw .ms-dw-trio > .ms-ovcard { padding: 0 8px; gap: 4px; }
+	.untangling-dw .ms-dw-trio > .ms-ovcard:first-child { padding-left: 12px; }
+	.untangling-dw .ms-dw-trio > .ms-ovcard:last-child { padding-right: 12px; }
+	.untangling-dw .ms-dw-trio .ms-ovcard-label { font-size: 10px; letter-spacing: .04em; gap: 6px; }
+	.untangling-dw .ms-dw-trio .ms-ovcard-heading { font-size: 13px; line-height: 18px; text-wrap: balance; }
+	.untangling-dw .ms-dw-trio .ms-ovcard-desc { font-size: 12px; line-height: 16px; text-wrap: pretty; }
+	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard { padding-top: 12px; padding-bottom: 12px; }
+}
+@container dw-body (max-width: 359px) {
+	.untangling-dw .ms-dw-trio { grid-template-columns: minmax(0, 1fr); }
+	.untangling-dw .ms-dw-trio > .ms-ovcard, .untangling-dw .ms-dw-trio > .ms-ovcard:first-child, .untangling-dw .ms-dw-trio > .ms-ovcard:last-child { padding: 0 12px; }
+	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard, .untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard:first-child, .untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard:last-child { padding: 12px; }
+	.untangling-dw .ms-dw-trio > .ms-ovcard + .ms-ovcard { border-left: 0; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard + .ms-ovcard { border-top-color: color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
+}
 .untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: none; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-desc { color: #757575; }
@@ -9673,25 +9716,86 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-ovcard-action { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .untangling-dw a.ms-ovcard:hover .ms-ovcard-action { background: var(--wpds-color-background-interactive-error-strong-active, #a10f0f); }
 
-/* Site preview: the frame fills the postbox width at 16:10, name and
-   address beneath it on the settings-row model. */
-.untangling-dw .ms-dw-preview { display: flex; flex-direction: column; gap: 10px; }
-.untangling-dw .ms-dw-preview .ms-tl-preview-frame { max-width: none; aspect-ratio: 16 / 10; }
-.untangling-dw .ms-dw-preview-meta { display: flex; flex-direction: column; gap: 2px; }
-.untangling-dw .ms-dw-preview-title { font-weight: 500; color: #1e1e1e; }
-.untangling-dw .ms-dw-preview-link { font-size: 12px; color: #757575; text-decoration: none; }
-.untangling-dw .ms-dw-preview-link:hover, .untangling-dw .ms-dw-preview-link:focus-visible { color: #3858e9; text-decoration: underline; }
+/* Your site: identity row (thumbnail · name / address / actions), then the
+   plan block and the promo slot, each on a hairline. The thumbnail is the
+   MSD site-card scale — a 1320px viewport at 10% — so it reads as the site's
+   face, not a hero; the postbox width goes to the words. */
+.untangling-dw .ms-dw-site { gap: 0; }
+.untangling-dw .ms-dw-site > * + * { margin: 12px -12px 0; padding: 12px 12px 0; border-top: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-site-id { display: flex; align-items: flex-start; gap: 14px; }
+.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 132px; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 6px; background: #f6f7f7; box-shadow: none; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.untangling-dw .ms-dw-site-thumb:hover, .untangling-dw .ms-dw-site-thumb:focus-visible { border-color: #3858e9; box-shadow: 0 0 0 1px #3858e9; outline: none; }
+.untangling-dw .ms-dw-site-iframe { position: absolute; top: 0; left: 0; width: 1000%; min-height: 1000%; border: 0; transform: scale(.1); transform-origin: top left; pointer-events: none; }
+.untangling-dw .ms-dw-site-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#dashboard-widgets .postbox .untangling-dw .ms-dw-site-name { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #1e1e1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.untangling-dw .ms-dw-site-thumb-hover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 500; line-height: 16px; opacity: 0; transition: opacity 120ms ease; }
+.untangling-dw .ms-dw-site-thumb-hover svg { fill: #fff; }
+.untangling-dw .ms-dw-site-thumb:hover .ms-dw-site-thumb-hover, .untangling-dw .ms-dw-site-thumb:focus-visible .ms-dw-site-thumb-hover { opacity: 1; }
+@media ( prefers-reduced-motion: reduce ) { .untangling-dw .ms-dw-site-thumb-hover { transition: none; } }
+.untangling-dw a.ms-dw-site-domain { font-size: 12px; line-height: 16px; color: #757575; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.untangling-dw a.ms-dw-site-domain:hover, .untangling-dw a.ms-dw-site-domain:focus-visible { color: #3858e9; text-decoration: underline; }
+.untangling-dw .ms-dw-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; }
+/* Visit site is the tertiary button as the design system ships it — brand
+   blue, quiet beside the secondary Edit site; the icon follows the text. */
+.untangling-dw .ms-dw-site-actions .components-button.is-tertiary svg { fill: currentColor; }
+/* Narrow well (the 3-column dashboard): a smaller thumbnail, so the words
+   keep enough room for both actions on one line. Very narrow (1-column
+   collapsed to phone width): stack. */
+@container dw-body (max-width: 400px) {
+	.untangling-dw .ms-dw-site-thumb { width: 104px; }
+}
+@container dw-body (max-width: 300px) {
+	.untangling-dw .ms-dw-site-id { flex-direction: column; }
+	.untangling-dw .ms-dw-site-thumb { width: 100%; }
+}
+
+/* Plan block: name + Active on the left, renewal on the right (wraps under
+   when the well is narrow), then the included features as check chips. */
+.untangling-dw .ms-dw-site-planrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.untangling-dw .ms-dw-site-planname { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; color: #1e1e1e; line-height: 20px; }
+.untangling-dw .ms-dw-site-renew { font-size: 12px; line-height: 20px; color: #757575; }
+/* What the plan includes: the check list (.ms-plan-features, its tooltips
+   on each feature), inside the plan block — so no hairline or bleed of its
+   own — with "+N more" as the last row, a link into Upgrades. One column,
+   one line per row at a fixed 20px, so the rows keep the same rhythm no
+   matter how long a label is; two columns only when the well is wide
+   enough (≥ 520px) that the longest label still sits on one line. */
+.untangling-dw .ms-dw-site-plan .ms-plan-features { margin: 10px 0 0; padding: 0; border-top: 0; grid-template-columns: 1fr; gap: 6px 24px; }
+.untangling-dw .ms-dw-site-features li { align-items: flex-start; line-height: 20px; }
+.untangling-dw .ms-dw-site-features .ms-plan-check { flex: none; height: 20px; align-items: center; }
+.untangling-dw .ms-dw-site-features li.is-more { padding-left: 26px; }
+.untangling-dw .ms-dw-site-features li.is-more a { color: #3858e9; text-decoration: none; }
+.untangling-dw .ms-dw-site-features li.is-more a:hover, .untangling-dw .ms-dw-site-features li.is-more a:focus-visible { text-decoration: underline; }
+@container dw-body (min-width: 520px) {
+	.untangling-dw .ms-dw-site-plan .ms-plan-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Promo slot: the ms-upsell row on every plan — icon chip, title + one
+   line, CTA — stacked only when the well is too narrow for the row. */
+.untangling-dw .ms-dw-site .ms-upsell { flex-direction: row; align-items: center; gap: 12px; padding: 12px 12px 0; }
+.untangling-dw .ms-dw-site .ms-upsell-icon { width: 36px; height: 36px; border-radius: 6px; }
+.untangling-dw .ms-dw-site .ms-upsell-title { font-size: 13px; line-height: 18px; }
+.untangling-dw .ms-dw-site .ms-upsell-desc { font-size: 12px; line-height: 16px; }
+.untangling-dw .ms-dw-site .ms-upsell .components-button { flex: none; }
+/* Narrow: icon and words stay on one line (the words get a real basis, so
+   the CTA is what wraps), the CTA drops under the words, aligned with them. */
+@container dw-body (max-width: 360px) {
+	.untangling-dw .ms-dw-site .ms-upsell { flex-wrap: wrap; row-gap: 8px; }
+	.untangling-dw .ms-dw-site .ms-upsell-main { flex: 1 1 180px; }
+	.untangling-dw .ms-dw-site .ms-upsell .components-button { margin-left: 48px; }
+}
 
 /* Checklist: the open (current) step is the page's only elevation. */
 .untangling-dw .ms-tl-tasks { background: #f6f7f7; }
 .untangling-dw .ms-tl-card { box-shadow: none; border: 1px solid transparent; }
 .untangling-dw .ms-tl-card.is-open { box-shadow: 0 4px 12px rgba(0, 0, 0, .08), 0 0 0 1px #e0e0e0; }
 .untangling-dw .ms-tl-progress { margin: 0 0 10px; font-size: 12px; color: #757575; }
-/* Provenance line, widget edition: a footer on the hairline like every other
-   widget's, left-aligned with the cards above it. The gradient shimmer and
+/* Provenance line, widget edition: no hairline (it read as a second footer
+   under the checklist), the text inset 8px so it lines up with the cards'
+   left edge inside the tasks well. The gradient shimmer and
    the sparks carry over from the page unchanged — overflow stays visible so
    the sparks can float above the line. */
-.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { position: relative; display: flex; align-items: center; gap: 6px; margin: 12px -12px -12px; padding: 12px; border-top: 1px solid #f0f0f0; text-align: left; font-size: 12px; line-height: 16px; color: #757575; white-space: nowrap; }
+.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { position: relative; display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 8px; text-align: left; font-size: 12px; line-height: 16px; color: #757575; white-space: nowrap; }
 .untangling-dw .ms-madefor.is-compact > span:last-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .untangling-dw .ms-madefor.is-compact .ms-ai { flex-shrink: 0; }
 .untangling-dw .ms-hero { box-shadow: none; border: 1px solid #e0e0e0; padding: 16px; }
@@ -9700,40 +9804,54 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 /* Upsell callouts stack in the narrow column. */
 .untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0; }
 
-/* Hosting rows reuse the advanced-row recipe minus its card shell. The page's
-   own row hover (shadow ring + icon recolor) half-leaked in here, leaving
-   only the icon reacting — restate the full widget row pattern instead. */
-.untangling-dw .ms-advanced-row { box-shadow: none; margin: 0 -12px; padding: 10px 12px; border-radius: 0; border-bottom: 1px solid #f0f0f0; }
-.untangling-dw .ms-advanced-row:last-child { border-bottom: 0; }
-.untangling-dw .ms-advanced-row:hover, .untangling-dw .ms-advanced-row:focus-visible { box-shadow: none; background: none; }
-.untangling-dw .ms-advanced-row:hover .ms-grow-title, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-title { color: #3858e9; }
-.untangling-dw .ms-advanced-row:hover .ms-grow-chevron svg, .untangling-dw .ms-advanced-row:focus-visible .ms-grow-chevron svg { fill: #3858e9; }
-
-/* Plan widget: name row, the top features, then the one promo slot. The id
-   selector outranks dashboard.css's postbox h3 margin, which otherwise adds
-   8px inside the name row and throws the header rhythm off. */
-.untangling-dw .ms-plan-namerow { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; }
-#dashboard-widgets .postbox .untangling-dw .ms-plan-namerow .ms-card-title { font-size: 14px; margin: 0; line-height: 20px; }
-.untangling-dw .ms-plan-namerow + .ms-card-desc { margin-top: 2px; }
-.untangling-dw .ms-plan-features { margin: 0 -12px; gap: 8px 16px; border-top: 1px solid #f0f0f0; padding: 12px 12px 0; }
-.untangling-dw .ms-plan-features li { align-items: flex-start; }
-.untangling-dw .ms-plan-features .ms-plan-check { margin-top: 1px; }
-.untangling-dw .ms-dw-offer { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; }
-.untangling-dw .ms-dw-offer svg { flex-shrink: 0; fill: #3858e9; }
-.untangling-dw .ms-dw-offer-text { flex: 1; }
-.untangling-dw .ms-dw-offer-title { display: block; font-weight: 500; color: #1e1e1e; }
-.untangling-dw .ms-dw-offer-desc { display: block; color: #757575; font-size: 12px; }
+/* Expand/collapse row (Hosting → Developer tools): a grid row that folds. The
+   trigger has the grid rows' metrics (13px on 20px, 9px of padding), regular
+   weight, the chevron pointing down closed and up open; hover and focus turn
+   the row brand-blue like the footer link, the widget's other action row.
+   Its hairlines — above it, under it when open — run edge to edge like every
+   grid row's, and the rows in the panel are plain grid rows (label · link
+   value), bleeding the same way, so the fold is one more row of the list. */
+/* The fold hugs the grid above it: the body's 12px gap would push its
+   hairline off the rows' 9px rhythm. */
+.untangling-dw .ms-dw-disclosure { margin: -12px -12px -12px; }
+.untangling-dw .ms-dw-disclosure-trigger { position: relative; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 9px 12px; border: 0; border-radius: 0; background: none; font: inherit; font-size: 13px; line-height: 20px; font-weight: 400; color: #1e1e1e; text-align: left; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+.untangling-dw .ms-dw-disclosure-trigger::before, .untangling-dw .ms-dw-disclosure.is-open .ms-dw-disclosure-trigger::after { content: ''; position: absolute; left: 0; right: 0; height: 1px; background: #f0f0f0; pointer-events: none; }
+.untangling-dw .ms-dw-disclosure-trigger::before { top: 0; }
+.untangling-dw .ms-dw-disclosure-trigger::after { bottom: 0; }
+.untangling-dw .ms-dw-disclosure-trigger:hover, .untangling-dw .ms-dw-disclosure-trigger:focus-visible { color: #3858e9; }
+.untangling-dw .ms-dw-disclosure-trigger:focus-visible { outline: none; box-shadow: inset 0 0 0 var(--wpds-border-width-focus, 1.5px) var(--wpds-color-stroke-focus, #3858e9); }
+.untangling-dw .ms-dw-disclosure-title { min-width: 0; }
+.untangling-dw .ms-dw-disclosure-chevron { display: flex; flex: none; }
+.untangling-dw .ms-dw-disclosure-chevron svg { fill: #757575; transform: rotate( 90deg ); transition: transform var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease), fill var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+.untangling-dw .ms-dw-disclosure-trigger:hover .ms-dw-disclosure-chevron svg, .untangling-dw .ms-dw-disclosure-trigger:focus-visible .ms-dw-disclosure-chevron svg { fill: currentColor; }
+.untangling-dw .ms-dw-disclosure.is-open .ms-dw-disclosure-chevron svg { transform: rotate( -90deg ); }
+.untangling-dw .ms-dw-disclosure-panel[hidden] { display: none; }
+.untangling-dw .ms-dw-disclosure-panel .ms-dw-grid-row { margin: 0; padding: 9px 12px; }
+/* An action in a row value: the DS link Button dressed as the row's links
+   (no underline until hover, the row's size and line), the Spinner at text
+   size while it runs. */
+.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action { display: inline-flex; align-items: center; gap: 6px; height: auto; min-height: 0; padding: 0; margin: 0; font: inherit; line-height: inherit; color: #3858e9; text-decoration: none; vertical-align: baseline; box-shadow: none; }
+.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:hover:not(:disabled), .untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:focus-visible { color: #3858e9; text-decoration: underline; }
+.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:focus-visible { outline: none; box-shadow: 0 0 0 var(--wpds-border-width-focus, 1.5px) var(--wpds-color-stroke-focus, #3858e9); border-radius: 2px; }
+.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:disabled { color: #757575; cursor: default; opacity: 1; }
+.untangling-dw .components-spinner.ms-dw-row-spinner { width: 14px; height: 14px; margin: 0; }
+/* Snackbars from the widgets sit where the editor puts its own: bottom-left
+   of the content area, clear of the admin menu at each of its widths. */
+.untangling-dw-snackbars { position: fixed; left: 184px; bottom: 24px; z-index: 100000; width: auto; }
+body.folded .untangling-dw-snackbars { left: 60px; }
+@media (max-width: 960px) { .untangling-dw-snackbars { left: 60px; } }
+@media (max-width: 782px) { .untangling-dw-snackbars { left: 16px; bottom: 16px; } }
 
 /* Jetpack Newsletter — modules/subscriptions/newsletter-widget/src/style.scss,
    compiled by hand: grid units 4/8/12/16, gray-100 #f0f0f0, gray-900 #1e1e1e,
    radius medium 4px / large 8px / round 50%, elevation-x-small, font-size
    small 12px. Nothing here is scoped to .untangling-*: the widget is not one
-   of ours, it is styled the way Jetpack styles it. */
+   of ours, it is styled the way Jetpack styles it — minus its gray footer
+   (the pitch and the Quick Links): here the widget is a preview like the
+   others, so it ends on the one footer link (.ms-linkfooter) the other
+   widgets end on. */
 .newsletter-widget__header { padding: 12px; margin-bottom: 12px; }
 .newsletter-widget__heading { font-weight: var(--wpds-typography-font-weight-emphasis, 499) !important; }
-.newsletter-widget__footer { background-color: #f0f0f0; padding: 12px; }
-.newsletter-widget__footer-msg { margin: 0; margin-bottom: 12px; }
-.newsletter-widget__footer-list { margin: 0; padding-left: 12px; list-style-type: disc; columns: 2; }
 .newsletter-widget__stat-label { margin-left: 4px; text-decoration: none; }
 .newsletter-widget__stats { display: flex; gap: 12px; flex-wrap: wrap; width: 100%; }
 .newsletter-widget__stats > :first-child { margin-right: 12px; }
@@ -9744,14 +9862,54 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .newsletter-widget a { text-decoration: none; }
 /* wp-admin overrides */
 #jetpack_newsletter_dashboard_widget .inside { padding: 0; margin: 0; }
-#jetpack_newsletter_dashboard_widget .newsletter-widget__footer { border-end-start-radius: 8px; border-end-end-radius: 8px; }
+
+/* Core Quick Draft: "Your Recent Drafts" sits on the same neutral fill as
+   the Next steps checklist (and core Activity's zebra rows), edge to edge
+   under the form, so the list reads as a block of its own, not as more
+   form. Core's .drafts already carries the hairline on top; the bottom
+   corners follow the postbox's 8px radius, as the fill is the last child
+   and the postbox does not clip. */
+#dashboard_quick_press .drafts { background: #f6f7f7; margin: 0; padding: 12px; border-end-start-radius: 8px; border-end-end-radius: 8px; }
+#dashboard_quick_press .drafts > :last-child, #dashboard_quick_press .drafts li:last-child { margin-bottom: 0; }
+/* Core indents the heading, list, and View all by 12px inside .drafts; with
+   the block's own 12px padding that put the drafts 24px in, off the form's
+   12px edge. Drop the inner margins so both sides line up with the fields. */
+#dashboard_quick_press .drafts h2, #dashboard_quick_press .drafts ul, #dashboard_quick_press .drafts .view-all { margin-left: 0; margin-right: 0; }
+/* Save Draft is secondary: saving a draft is not the page's one primary
+   action, and the widget sits beside cards whose actions are secondary
+   (Edit site). Core hardcodes .button-primary on the input, so this is the
+   secondary recipe (brand stroke and text on a clear ground, hover a shade
+   darker) applied over it. */
+#dashboard_quick_press #save-post.button-primary { background: transparent; color: var(--wp-admin-theme-color, #3858e9); border-color: var(--wp-admin-theme-color, #3858e9); box-shadow: none; text-shadow: none; }
+#dashboard_quick_press #save-post.button-primary:hover, #dashboard_quick_press #save-post.button-primary:focus { background: #f6f7f7; color: var(--wp-admin-theme-color-darker-10, #2e49d9); border-color: var(--wp-admin-theme-color-darker-10, #2e49d9); }
+#dashboard_quick_press #save-post.button-primary:focus { box-shadow: 0 0 0 1px var(--wp-admin-theme-color-darker-10, #2e49d9); }
+#dashboard_quick_press #save-post.button-primary:active { background: #f0f0f1; }
+/* The widget root carries the dashboard widgets' classes (for the footer
+   link's recipe) but sits in its own unpadded .inside: no postbox bleed. */
+#dashboard-widgets .postbox .newsletter-widget.untangling-dw { margin: 0; }
 /* The Stats widget's chart, embedded: its .untangling-dw styles apply, minus
    the postbox bleed and body padding (the widget's own chart padding holds
    it); the KPI head is the legend, so it sits left instead of trailing the
    period control. */
 #dashboard-widgets .postbox .newsletter-widget__spark { margin: 0; }
 .newsletter-widget__spark > .ms-dw-body { padding: 0; }
-.newsletter-widget__spark .ms-dw-kpis { margin-left: 0; }
+/* The legend is the stat row: both series side by side on one line as
+   Stats' legend entries (swatch · copy), the production row's copy as its
+   link (link color like production, the count in KPI weight). The line
+   never wraps: when it does not fit, the copy after the count leaves for
+   the dots' tooltips, same as Stats (is-compact, measured). With the stat
+   row gone the chart opens the widget, so it takes over the header's 12px
+   top. */
+.newsletter-widget__chart { padding-top: 12px; }
+.newsletter-widget__spark .ms-dw-head.is-list { padding-bottom: 8px; }
+.newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpis { margin-left: 0; }
+.newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpi { align-items: center; gap: 6px; }
+.newsletter-widget__spark .ms-dw-kpi-copy { text-decoration: none; color: var(--wp-admin-theme-color, #3858e9); }
+.newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-value, .newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-label { color: inherit; font-size: 13px; line-height: 20px; }
+.newsletter-widget__spark .ms-dw-kpi-detail { color: #757575; font-size: 13px; line-height: 20px; white-space: nowrap; }
+.newsletter-widget__spark .ms-dw-head.is-stacked .ms-dw-kpis { flex-direction: column; align-items: flex-start; gap: 2px; }
+.newsletter-widget__spark .ms-dw-kpi-copy:hover { text-decoration: underline; }
+.newsletter-widget__spark .ms-dw-kpi-copy:focus-visible { outline: 1.5px solid var(--wp-admin-theme-color, #3858e9); outline-offset: 2px; box-shadow: none; border-radius: 2px; }
 CSS;
 }
 
@@ -9769,6 +9927,8 @@ function untangling_ms_app_js() {
 	var Card = C.Card, CardBody = C.CardBody, CardDivider = C.CardDivider;
 	var HStack = C.__experimentalHStack, VStack = C.__experimentalVStack;
 	var Text = C.__experimentalText;
+	var Snackbar = C.Snackbar, Spinner = C.Spinner;
+	var createPortal = wp.element.createPortal;
 	var Badge = C.Badge || function ( p ) {
 		return el( 'span', { className: 'untangling-fallback-badge' + ( p.intent && 'default' !== p.intent ? ' is-' + p.intent : '' ) }, p.children );
 	};
@@ -9970,7 +10130,7 @@ function untangling_ms_app_js() {
 			// carry three or four of them at once — as primaries they outshouted
 			// the page's one real primary action and each other. The diamond and
 			// the blue label still read as an upgrade.
-			el( Button, { variant: 'secondary', icon: upsellDiamond(), iconSize: 14, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
+			el( Button, { variant: 'secondary', size: props.size, icon: upsellDiamond(), iconSize: 14, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
 		);
 	}
 
@@ -11658,11 +11818,42 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Site details: core's At a glance extended with what the site runs on.
-	// Storage takes two lines (meter, then the numbers) instead of core's two
-	// columns.
+	// Expand/collapse, on the design system's Collapsible shape (@wordpress/ui
+	// is not on this screen): a trigger button that owns the panel
+	// (aria-expanded / aria-controls) and a panel that is hidden when closed.
+	// The open state is remembered per site in localStorage, closed by default.
+	function DwDisclosure( props ) {
+		var key = 'untangling_dw_open_' + props.id + '_' + ( data.siteSlug || '' );
+		var openState = useState( function () {
+			try { return '1' === window.localStorage.getItem( key ); } catch ( e ) { return false; }
+		} );
+		var open = openState[ 0 ], setOpen = openState[ 1 ];
+		var panelId = 'untangling-dw-' + props.id + '-panel';
+		function toggle() {
+			var next = ! open;
+			setOpen( next );
+			try { window.localStorage.setItem( key, next ? '1' : '0' ); } catch ( e ) {}
+		}
+		return el( 'div', { className: 'ms-dw-disclosure' + ( open ? ' is-open' : '' ) },
+			el( 'button', { type: 'button', className: 'ms-dw-disclosure-trigger', 'aria-expanded': open, 'aria-controls': panelId, onClick: toggle },
+				el( 'span', { className: 'ms-dw-disclosure-title' }, props.title ),
+				el( 'span', { className: 'ms-dw-disclosure-chevron', 'aria-hidden': true }, icon( PATHS.chevron, '0 0 24 24', 20 ) )
+			),
+			el( 'div', { id: panelId, className: 'ms-dw-disclosure-panel', hidden: ! open }, props.children )
+		);
+	}
+
+	// Site details: core's At a glance extended with what the site runs on
+	// (plan, versions, theme, content counts, storage on two lines), then
+	// the hosting tools — the former Hosting widget — behind one
+	// expand/collapse row, closed by default, so the postbox stays the
+	// height of the grid. PHP has its row in the grid, so the tools list
+	// starts at Caching; the grid's PHP value is the link into the PHP
+	// settings on a hosted plan. On Free the panel holds the hosting upsell
+	// instead of tools. Footer: the Hosting Dashboard, out in the MSD.
 	function DwGlance() {
 		var counts = data.counts || {};
+		var hostingUrl = msd + '/sites/' + data.siteSlug;
 		function countLink( n, one, many, href ) {
 			n = n || 0;
 			return el( 'a', { href: href }, n + ' ' + ( 1 === n ? one : many ) );
@@ -11673,27 +11864,100 @@ function untangling_ms_app_js() {
 				el( 'span', { className: 'ms-dw-grid-value' }, value )
 			);
 		}
-		return el( 'div', { className: 'ms-dw-body' },
-			el( 'div', { className: 'ms-dw-grid' },
-				row( 'Plan', el( 'a', { href: data.planPageUrl }, 'WordPress.com ' + data.plan ) ),
-				row( 'WordPress', data.wpUpdate
-					? el( Fragment, null, el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ), ' · ', data.wpVersion )
-					: data.wpVersion ),
-				row( 'PHP', isFree ? data.phpVersion + ' — managed for you' : data.phpVersion ),
-				// Each count opens its core list screen, like core's At a Glance.
-				row( 'Content', el( Fragment, null,
-					countLink( counts.posts, 'post', 'posts', data.adminUrl + 'edit.php' ), ' · ',
-					countLink( counts.pages, 'page', 'pages', data.adminUrl + 'edit.php?post_type=page' ), ' · ',
-					countLink( counts.comments, 'comment', 'comments', data.adminUrl + 'edit-comments.php' )
-				) ),
-				el( 'div', { className: 'ms-dw-grid-row is-block' },
-					el( 'span', { className: 'ms-dw-grid-label' }, 'Storage' ),
-					// The widget has no room for the plan page's add-on picker, so
-					// the tight state gets a one-link CTA on the numbers line that
-					// opens the Upgrades page, where the picker lives.
-					el( StorageMeter, { ctaHref: data.planPageUrl, ctaLabel: 'Add storage' } )
-				)
-			)
+		// The hosting tools are rows of the same grid: label on the left, the
+		// value on the right is the link into the MSD (state where there is
+		// one, the destination otherwise), like Plan, Theme, and Content above.
+		function links( items ) {
+			var out = [];
+			items.forEach( function ( item, i ) {
+				if ( i ) { out.push( ' · ' ); }
+				out.push( el( 'a', { key: i, href: item[ 1 ] }, item[ 0 ] ) );
+			} );
+			return el( Fragment, null, out );
+		}
+		// Caching carries an action as well as its state, on the WordPress
+		// row's pattern (action · state): "Clear all caches" is a link-styled
+		// Button that shows the design system's Spinner while the mimic runs,
+		// then a Snackbar (bottom-left, where the editor puts its notices)
+		// confirms it. The row's own link to the settings stays.
+		var clearingState = useState( false );
+		var clearing = clearingState[ 0 ], setClearing = clearingState[ 1 ];
+		var clearedState = useState( false );
+		var cleared = clearedState[ 0 ], setCleared = clearedState[ 1 ];
+		function clearCaches() {
+			if ( clearing ) { return; }
+			setCleared( false );
+			setClearing( true );
+			window.setTimeout( function () {
+				setClearing( false );
+				setCleared( true );
+			}, 1400 );
+		}
+		var cachingValue = el( Fragment, null,
+			el( Button, { variant: 'link', className: 'ms-dw-row-action', disabled: clearing, 'aria-busy': clearing, onClick: clearCaches },
+				clearing ? el( Fragment, null, el( Spinner, { className: 'ms-dw-row-spinner' } ), 'Clearing caches' ) : 'Clear all caches'
+			),
+			' · ',
+			el( 'a', { href: hostingUrl + '/settings' }, 'Active' )
+		);
+		var snackbar = cleared && createPortal(
+			el( 'div', { className: 'components-snackbar-list untangling-dw-snackbars' },
+				el( Snackbar, { onRemove: function () { setCleared( false ); } }, 'All caches cleared.' )
+			),
+			document.body
+		);
+		var tools = [
+			[ 'Caching', cachingValue ],
+			[ 'Staging', [ [ 'Add a staging site', hostingUrl ] ] ],
+			[ 'SFTP/SSH', [ [ 'Credentials', hostingUrl + '/settings/sftp-ssh' ] ] ],
+			[ 'Database', [ [ 'phpMyAdmin', hostingUrl + '/settings/database' ] ] ],
+			[ 'Server logs', [ [ 'PHP', hostingUrl + '/logs/php' ], [ 'Web', hostingUrl + '/logs/server' ] ] ],
+		];
+		return el( Fragment, null,
+			el( 'div', { className: 'ms-dw-body' },
+				el( 'div', { className: 'ms-dw-grid' },
+					row( 'Plan', el( 'a', { href: data.planPageUrl }, 'WordPress.com ' + data.plan ) ),
+					row( 'WordPress', data.wpUpdate
+						? el( Fragment, null, el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ), ' · ', data.wpVersion )
+						: data.wpVersion ),
+					row( 'PHP', isFree
+						? data.phpVersion + ' — managed for you'
+						: el( 'a', { href: hostingUrl + '/settings/php' }, data.phpVersion ) ),
+					// The active theme, linking to Appearance → Themes (the split
+					// Marketplace redirects that screen to its in-admin showcase).
+					row( 'Theme', el( 'a', { href: data.adminUrl + 'themes.php' }, data.theme ) ),
+					// Each count opens its core list screen, like core's At a Glance.
+					row( 'Content', el( Fragment, null,
+						countLink( counts.posts, 'post', 'posts', data.adminUrl + 'edit.php' ), ' · ',
+						countLink( counts.pages, 'page', 'pages', data.adminUrl + 'edit.php?post_type=page' ), ' · ',
+						countLink( counts.comments, 'comment', 'comments', data.adminUrl + 'edit-comments.php' )
+					) ),
+					// Storage is a row like the others — the WordPress row's
+					// action · state order when space is tight. The add-on picker
+					// lives on the Upgrades page; "Add storage" opens it.
+					( function () {
+						var storage = meta.storage || [ 0, 1, null ];
+						var tight = storage[ 0 ] / storage[ 1 ] > 0.8;
+						return row( 'Storage', el( Fragment, null,
+							tight ? el( Fragment, null, el( 'a', { href: data.planPageUrl }, 'Add storage' ), ' · ' ) : null,
+							storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used'
+						) );
+					} )(),
+					// On Free there is nothing to unfold: one row says where the
+					// tools live, and the value is the link into Upgrades.
+					isFree ? row( 'Developer tools', el( 'a', { href: data.planPageUrl }, 'Comes with Business' ) ) : null
+				),
+				! isFree && el( DwDisclosure, { id: 'hosting', title: 'Developer tools' },
+					el( 'div', { className: 'ms-dw-grid' }, tools.map( function ( tool ) {
+						return el( 'div', { key: tool[ 0 ], className: 'ms-dw-grid-row' },
+							el( 'span', { className: 'ms-dw-grid-label' }, tool[ 0 ] ),
+							el( 'span', { className: 'ms-dw-grid-value' }, Array.isArray( tool[ 1 ] ) ? links( tool[ 1 ] ) : tool[ 1 ] )
+						);
+					} ) )
+				),
+				snackbar
+			),
+			dwFooter( msd + '/overview', 'Open the Hosting Dashboard' )
 		);
 	}
 
@@ -11707,7 +11971,6 @@ function untangling_ms_app_js() {
 		var done = doneState[ 0 ], setDone = doneState[ 1 ];
 		var openState = useState( function () { return firstIncomplete( lpInitialDone() ); } );
 		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
-		var count = LP_TASKS.filter( function ( t ) { return done[ t.id ]; } ).length;
 
 		function complete( id ) {
 			if ( done[ id ] ) {
@@ -11725,8 +11988,10 @@ function untangling_ms_app_js() {
 			}
 		}
 
+		// No "N of M completed" line: the checklist shows its own progress
+		// (struck-through done steps, the open step elevated), and the
+		// postbox title already names it.
 		return el( 'div', null,
-			el( 'p', { className: 'ms-tl-progress' }, count + ' of ' + LP_TASKS.length + ' completed' ),
 			el( 'div', { className: 'ms-tl-tasks', 'aria-label': 'Launchpad checklist' },
 				LP_TASKS.map( function ( task ) {
 					return el( TailoredTaskCard, {
@@ -11918,8 +12183,84 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// A KPI head changes shape as its row narrows: it tries each mode in
+	// order — full (dot · label · value · delta, control on the row),
+	// then the caller's fallbacks: stacked (Stats — the control moves
+	// above the numbers, the copy stays whole) or compact (Newsletter —
+	// the copy into the dot's tooltip) — and keeps the first where the
+	// KPI line fits the head's content box and the period control, when
+	// it still shares the row, has not wrapped under it. Measured on
+	// the real layout: the browser decides, not an estimate, re-checked when
+	// the postbox resizes, the window resizes, fonts land, or `deps` change
+	// the numbers' width.
+	function useHeadMode( headRef, modes, deps ) {
+		var modeState = useState( '' );
+		var mode = modeState[ 0 ], setMode = modeState[ 1 ];
+		useLayoutEffect( function () {
+			var head = headRef.current;
+			if ( ! head ) { return; }
+			function fits( kpis, ctrl ) {
+				var cs = window.getComputedStyle( head );
+				var inner = head.getBoundingClientRect().right - parseFloat( cs.paddingRight || 0 );
+				if ( kpis.getBoundingClientRect().right > inner + 0.5 ) { return false; }
+				// Stacked puts the control on its own row by design; otherwise
+				// the control fits while it shares the row: wrapped = it sits at
+				// least half the KPI line's height lower (centring leaves the
+				// two a pixel apart on the same row).
+				if ( -1 !== head.className.indexOf( 'is-stacked' ) ) { return true; }
+				return ! ctrl || ctrl.offsetTop <= kpis.offsetTop + kpis.offsetHeight / 2;
+			}
+			function measure() {
+				var kpis = head.querySelector( '.ms-dw-kpis' ), ctrl = head.querySelector( '.ms-dw-periods' );
+				// A hidden head (collapsed postbox, not laid out yet) measures
+				// as nothing fitting; keep the last verdict until it shows.
+				if ( ! kpis || ! head.offsetWidth ) { return; }
+				var base = head.className.replace( /\bis-(compact|minimal|stacked|brief)\b/g, '' ).replace( /\s+/g, ' ' ).trim();
+				var next = modes[ modes.length - 1 ];
+				for ( var i = 0; i < modes.length; i++ ) {
+					head.className = base + ( modes[ i ] ? ' ' + modes[ i ] : '' );
+					if ( fits( kpis, ctrl ) ) {
+						next = modes[ i ];
+						break;
+					}
+				}
+				// Leave the DOM in the final state: React only re-renders on a
+				// change, so a probe class must not outlive the measurement.
+				head.className = base + ( next ? ' ' + next : '' );
+				setMode( next );
+			}
+			measure();
+			// Layout that lands after mount (dashboard column classes, late
+			// stylesheets, the postbox drag setup): re-check over the first
+			// second as well as on the signals below.
+			var settle = [ 100, 400, 1000 ].map( function ( ms ) { return window.setTimeout( measure, ms ); } );
+			window.addEventListener( 'resize', measure );
+			window.addEventListener( 'load', measure );
+			window.addEventListener( 'pageshow', measure );
+			document.addEventListener( 'visibilitychange', measure );
+			if ( document.fonts && document.fonts.ready ) {
+				document.fonts.ready.then( measure );
+			}
+			// The postbox too: the head's own box does not change when the
+			// widget collapses or moves, its container's does.
+			var ro = 'undefined' !== typeof ResizeObserver ? new ResizeObserver( measure ) : null;
+			var box = head.closest( '.postbox' );
+			if ( ro ) { ro.observe( head ); if ( box ) { ro.observe( box ); } }
+			return function () {
+				settle.forEach( window.clearTimeout );
+				window.removeEventListener( 'resize', measure );
+				window.removeEventListener( 'load', measure );
+				window.removeEventListener( 'pageshow', measure );
+				document.removeEventListener( 'visibilitychange', measure );
+				if ( ro ) { ro.disconnect(); }
+			};
+		}, deps );
+		return mode;
+	}
+
 	function DwStats() {
-		var periodState = useState( 'day' );
+		// Weeks by default: enough range to read a trend, without the year's flatline.
+		var periodState = useState( 'week' );
 		var period = periodState[ 0 ], setPeriod = periodState[ 1 ];
 		var periods = ( data.stats && data.stats.periods ) || {};
 		var p = periods[ period ] || periods.day || { views: [], visitors: [], labels: [], unit: '' };
@@ -11929,46 +12270,23 @@ function untangling_ms_app_js() {
 		];
 		// The Jetpack Stats widget's period control, its markup and look.
 		var PERIODS = [ [ 'day', 'Days' ], [ 'week', 'Weeks' ], [ 'month', 'Months' ], [ 'year', 'Years' ] ];
-		// One head line, always: full labels when the control and both KPIs
-		// fit; dots only (label in a tooltip, and still read out) when they
-		// don't; two lines only if even that overflows. Measured on the real
-		// layout — the browser's wrap decides, not an estimate — and again
-		// whenever the postbox or the period changes the numbers' width.
+		// Full (legend and control on one row) → stacked (the control above
+		// the numbers, the legend's copy kept whole). See useHeadMode.
 		var headRef = useRef( null );
-		var modeState = useState( 'full' );
-		var mode = modeState[ 0 ], setMode = modeState[ 1 ];
-		useLayoutEffect( function () {
-			var head = headRef.current;
-			if ( ! head ) { return; }
-			function measure() {
-				var kids = head.children;
-				if ( kids.length < 2 ) { return; }
-				// On the next line = at least half the control's height lower
-				// (centering leaves the two a pixel apart on the same line).
-				function wrapped() { return kids[ 1 ].offsetTop > kids[ 0 ].offsetTop + kids[ 0 ].offsetHeight / 2; }
-				head.classList.remove( 'is-compact', 'is-stacked' );
-				var next = 'full';
-				if ( wrapped() ) {
-					head.classList.add( 'is-compact' );
-					next = wrapped() ? 'stacked' : 'compact';
-				}
-				// Leave the DOM in the final state: React only re-renders on a
-				// change, so a probe class must not outlive the measurement.
-				head.classList.remove( 'is-compact', 'is-stacked' );
-				if ( 'full' !== next ) {
-					head.classList.add( 'is-' + next );
-				}
-				setMode( next );
-			}
-			measure();
-			if ( 'undefined' === typeof ResizeObserver ) { return; }
-			var ro = new ResizeObserver( measure );
-			ro.observe( head );
-			return function () { ro.disconnect(); };
-		}, [ period ] );
+		var mode = useHeadMode( headRef, [ '', 'is-stacked' ], [ period ] );
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( 'full' === mode ? '' : ' is-' + mode ) },
+				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( mode ? ' ' + mode : '' ) },
+					el( 'div', { className: 'ms-dw-kpis' },
+						SERIES.map( function ( s ) {
+							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
+								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'aria-hidden': true } ),
+								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · ' + ( p.unit || '' ) ) ),
+								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
+								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
+							);
+						} )
+					),
 					el( 'div', { className: 'ms-dw-periods segmented-control', role: 'group', 'aria-label': 'Period' },
 						PERIODS.map( function ( pair ) {
 							var active = pair[ 0 ] === period;
@@ -11980,21 +12298,13 @@ function untangling_ms_app_js() {
 								onClick: function () { setPeriod( pair[ 0 ] ); },
 							}, pair[ 1 ] );
 						} )
-					),
-					el( 'div', { className: 'ms-dw-kpis' },
-						SERIES.map( function ( s ) {
-							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
-								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.label, 'aria-hidden': true } ),
-								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · ' + ( p.unit || '' ) ) ),
-								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
-								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
-							);
-						} )
 					)
 				),
 				el( Sparkline, { id: period, series: SERIES, labels: p.labels || [] } )
 			),
-			dwFooter( msd + '/stats', 'See all stats' )
+			// Same target as the sidebar's Stats item, so it reads as internal
+			// navigation (chevron), not a jump out of wp-admin.
+			dwFooter( msd + '/stats', 'See all stats', false, true )
 		);
 	}
 
@@ -12026,140 +12336,6 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Protection: Backups + Scan merged into one widget — both answer "is my
-	// site safe", so they share one postbox (two MSD state cards, each keeping
-	// its own deep link). Both are Jetpack products; the mark sits in the
-	// postbox title, not the body. On Free the pair collapses into a single
-	// upsell card — two muted upsells in one box would just repeat themselves.
-	// Needs attention: the widget stops whispering. The postbox title gets an
-	// "Action needed" pill, the two rows sit on the error surface edge to
-	// edge, and each row's external-link glyph becomes the fix it leads to.
-	function DwProtection() {
-		var bad = 'attention' === data.hosting;
-		useEffect( function () {
-			var box = document.getElementById( 'untangling_dw_protection' );
-			if ( box ) {
-				box.classList.toggle( 'is-attention', bad && ! isFree );
-			}
-		}, [ bad ] );
-		if ( isFree ) {
-			return el( 'div', { className: 'ms-dw-body' },
-				el( OvCard, { icon: 'shield', label: 'Protection', heading: 'Protect your site', desc: 'Daily backups, security scans, and one-click restores come with Business.', muted: true, href: plansUrlFor( 'security' ) } )
-			);
-		}
-		var backups = bad
-			? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Your last good backup is 3 days old. Run a new one now.', intent: 'error', action: 'Retry backup', href: msd + '/sites/' + data.siteSlug + '/backups' }
-			: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' };
-		var scan = bad
-			? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Both have a one-click fix ready.', intent: 'error', action: 'Fix now', href: msd + '/sites/' + data.siteSlug + '/scan' }
-			: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' };
-		// Side by side (a vertical hairline between them) so the widget spends
-		// its height on the two answers, not on stacking; the pair folds back
-		// to one column only when the widget itself is narrow.
-		if ( bad ) {
-			return el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { className: 'ms-dw-pair ms-dw-issues', role: 'group', 'aria-label': 'Needs attention' },
-					el( OvCard, backups ),
-					el( OvCard, scan )
-				)
-			);
-		}
-		return el( 'div', { className: 'ms-dw-body' },
-			el( 'div', { className: 'ms-dw-pair' },
-				el( OvCard, backups ),
-				el( OvCard, scan )
-			)
-		);
-	}
-
-	// Hosting, compressed into one settings-card: label/value rows that each
-	// deep-link the MSD page that owns them. The charts and tables stayed in
-	// the MSD on purpose — this is the preview, not a second console. Not a
-	// Jetpack surface (Atomic host features), so no credit.
-	function DwHosting() {
-		if ( isFree ) {
-			return el( Fragment, null,
-				el( 'div', { className: 'ms-dw-body' },
-					el( UpsellCallout, {
-						stacked: true,
-						icon: 'cloud',
-						title: 'If something goes wrong',
-						desc: 'Backups, security scans, staging, and server access come with Business.',
-						cta: 'See plans',
-						need: 'hosting',
-					} )
-				),
-				dwFooter( msd + '/overview', 'Open the Hosting Dashboard' )
-			);
-		}
-		var rows = [
-			{ icon: 'code', title: 'PHP ' + data.phpVersion, desc: 'Managed for you.', route: '/settings/php' },
-			{ icon: 'performance', title: 'Caching', desc: 'Edge and object caches active.', route: '/settings' },
-			{ icon: 'layout', title: 'Staging', desc: 'No staging site yet.', route: '' },
-			{ icon: 'key', title: 'SFTP/SSH', desc: 'Direct file access for developers.', route: '/settings/sftp-ssh' },
-			{ icon: 'storage', title: 'Database', desc: 'Browse tables with phpMyAdmin.', route: '/settings/database' },
-			{ icon: 'globe', title: 'Server logs', desc: 'PHP errors and every request.', route: '/logs/php' },
-		];
-		return el( Fragment, null,
-			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { className: 'ms-dw-rows' }, rows.map( function ( row, i ) {
-					return el( 'a', { key: i, className: 'ms-advanced-row', href: msd + '/sites/' + data.siteSlug + row.route },
-						el( 'span', { className: 'ms-grow-icon' }, icon( PATHS[ row.icon ] ) ),
-						el( 'span', { className: 'ms-grow-main' },
-							el( 'span', { className: 'ms-grow-title' }, row.title ),
-							el( 'span', { className: 'ms-grow-desc' }, row.desc )
-						),
-						el( 'span', { className: 'ms-grow-chevron' }, icon( PATHS.external, '0 0 24 24', 18 ) )
-					);
-				} ) )
-			),
-			dwFooter( msd + '/overview', 'Open the Hosting Dashboard' )
-		);
-	}
-
-	// Plan: the plan at a glance, and the dashboard's ONE promo slot —
-	// quarantined here, last in the column, styled secondary. The top six
-	// features fill the card; the full list stays on Plan & products.
-	function DwPlan() {
-		var compare = data.planCompare || {};
-		return el( Fragment, null,
-			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', null,
-					el( 'div', { className: 'ms-plan-namerow' },
-						el( 'h3', { className: 'ms-card-title' }, 'WordPress.com ' + data.plan ),
-						el( Badge, { intent: 'success' }, 'Active' )
-					),
-					cardDesc( meta.renew )
-				),
-				el( 'ul', { className: 'ms-plan-features' },
-					( meta.features || [] ).slice( 0, 6 ).map( function ( feature, i ) {
-						return el( 'li', { key: i },
-							el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
-							el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
-						);
-					} )
-				),
-				isFree && compare.next
-					? el( UpsellCallout, {
-						stacked: true,
-						icon: 'performance',
-						title: 'Do more with ' + compare.next.name,
-						desc: 'More storage, more design control, and room to grow.',
-						cta: 'Upgrade to ' + compare.next.name,
-					} )
-					: el( 'div', { className: 'ms-dw-offer' },
-						upsellDiamond(),
-						el( 'span', { className: 'ms-dw-offer-text' },
-							el( 'span', { className: 'ms-dw-offer-title' }, 'Save 20% with 2-year billing' ),
-							el( 'span', { className: 'ms-dw-offer-desc' }, 'One renewal, two years of ' + data.plan + '.' )
-						),
-						el( Button, { variant: 'secondary', size: 'compact', href: data.renewUrl }, 'Renew and save' )
-					)
-			),
-			dwFooter( data.planPageUrl, 'Plan & products', false, true )
-		);
-	}
-
 	/* ---- router ---- */
 
 	var PAGES = { next: NextStepsPage, plan: PlanPage, hosting: HostingPage, help: HelpPage };
@@ -12177,31 +12353,84 @@ function untangling_ms_app_js() {
 	// Dashboard-variant mounts: one root per widget placeholder on index.php.
 	// No placeholders on the My Site page (and no #untangling-ms-root on the
 	// Dashboard), so each surface's loop no-ops on the other.
-	// Site preview: the live site scaled into the postbox, "Edit site" on
-	// hover (the My Site page's TailoredSitePreview, without its sticky aside
-	// and 300px cap), name and address under it, Visit site in the footer.
-	function DwSitePreview() {
+	// Your site: the site's identity and its plan in one postbox. Top row is
+	// the identity — a small live thumbnail (the MSD site-card scale, not a
+	// hero), name, address, and the two actions as buttons (Edit site the
+	// primary, Visit site quiet beside it). The thumbnail opens the site too,
+	// so the preview is never a dead image. Under a hairline, the plan: name
+	// and Active badge with the renewal on the same line (it wraps under on a
+	// narrow well), then what the plan includes as the two-column check list
+	// (each feature with its tooltip) — the first five, and "+N more" as the
+	// last cell, a link into Upgrades. On Free, one upgrade callout follows
+	// (the dashboard's ONE promo slot); on a paid plan nothing does — the
+	// 2-year renewal offer that used to sit here is gone. Footer: Upgrades.
+	function DwSite() {
+		var compare = data.planCompare || {};
+		var features = meta.features || [];
+		var shown = features.slice( 0, 5 );
+		var editUrl = data.adminUrl + 'site-editor.php';
 		return el( Fragment, null,
-			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { className: 'ms-dw-preview' },
-					el( 'div', { className: 'ms-tl-preview-frame' },
+			el( 'div', { className: 'ms-dw-body ms-dw-site' },
+				el( 'div', { className: 'ms-dw-site-id' },
+					// The thumbnail and the address both open the site: the site's
+					// face and its address are the two things a reader would try.
+					// The thumbnail says so on hover (scrim + "Visit site"), the
+					// address is a plain link.
+					el( 'a', { className: 'ms-dw-site-thumb', href: data.siteUrl, target: '_blank', rel: 'noreferrer', 'aria-label': 'Visit site' },
 						el( 'iframe', {
-							className: 'ms-tl-preview-iframe',
+							className: 'ms-dw-site-iframe',
 							title: data.siteName || data.domain || 'Site preview',
 							src: ( data.siteUrl || '/' ) + '?iframe=true',
 							tabIndex: -1,
 						} ),
-						el( 'span', { className: 'ms-tl-preview-edit' },
-							el( Button, { variant: 'primary', href: data.adminUrl + 'site-editor.php' }, 'Edit site' )
+						el( 'span', { className: 'ms-dw-site-thumb-hover', 'aria-hidden': true },
+							'Visit site',
+							icon( PATHS.external, '0 0 24 24', 16 )
 						)
 					),
-					el( 'div', { className: 'ms-dw-preview-meta' },
-						el( 'span', { className: 'ms-dw-preview-title' }, data.siteName || data.domain ),
-						el( 'a', { className: 'ms-dw-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain )
+					el( 'div', { className: 'ms-dw-site-meta' },
+						el( 'h3', { className: 'ms-dw-site-name' }, data.siteName || data.domain ),
+						el( 'a', { className: 'ms-dw-site-domain', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain ),
+						el( 'div', { className: 'ms-dw-site-actions' },
+							el( Button, { variant: 'secondary', size: 'compact', href: editUrl }, 'Edit site' ),
+							el( Button, { variant: 'tertiary', size: 'compact', href: data.siteUrl, target: '_blank', rel: 'noreferrer', icon: icon( PATHS.external, '0 0 24 24', 16 ), iconPosition: 'right' }, 'Visit site' )
+						)
 					)
-				)
+				),
+				el( 'div', { className: 'ms-dw-site-plan' },
+					el( 'div', { className: 'ms-dw-site-planrow' },
+						el( 'span', { className: 'ms-dw-site-planname' },
+							'WordPress.com ' + data.plan,
+							el( Badge, { intent: 'success' }, 'Active' )
+						),
+						el( 'span', { className: 'ms-dw-site-renew' }, meta.renew )
+					),
+					el( 'ul', { className: 'ms-plan-features ms-dw-site-features', 'aria-label': 'Included with your plan' },
+						shown.map( function ( feature, i ) {
+							return el( 'li', { key: i },
+								el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
+								el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
+							);
+						} ),
+						// Always: the list here is a sample, and the plan has far
+						// more than the handful this card carries (a count would read
+						// as the total). The link is the plan page's full feature list.
+						el( 'li', { key: 'more', className: 'is-more' },
+							el( 'a', { href: data.planPageUrl }, 'See more' )
+						)
+					)
+				),
+				isFree && compare.next
+					? el( UpsellCallout, {
+						size: 'compact',
+						icon: 'performance',
+						title: 'Do more with ' + compare.next.name,
+						desc: 'More storage, more design control, and room to grow.',
+						cta: 'Upgrade to ' + compare.next.name,
+					} )
+					: null
 			),
-			dwFooter( data.siteUrl, 'Visit site' )
+			dwFooter( data.planPageUrl, 'Upgrades', false, true )
 		);
 	}
 
@@ -12211,14 +12440,27 @@ function untangling_ms_app_js() {
 	   circle legend) is replaced by the Stats widget's KPI head + Sparkline
 	   so the two charts on the Dashboard read as one system (see
 	   NewsletterSpark). Series colors stay production's (#3057dc all,
-	   #e68b28 paid). Counts follow the rest of the prototype: 214
-	   subscribers, no paid newsletter yet. ---- */
-	var NL_COLORS = { all: '#3057dc', paid: '#e68b28' };
-	var NL_LABELS = { all: 'All', paid: 'Paid' };
+	   paid swapped to green, see NL_COLORS). Counts follow the rest of the prototype: 214
+	   subscribers, 17 of them paid — a small paid tier that grew with the
+	   list over the month, so the second line has a shape. ---- */
+	// Paid is green, not production's orange: the same green the Stats
+	// widget gives its second series (Visitors), so the two charts in the
+	// column read as one system — blue for the whole, green for the subset.
+	var NL_COLORS = { all: '#3057dc', paid: '#5ba300' };
+	var NL_LABELS = { all: 'All', paid: 'Paid', revenue: 'Monthly revenue' };
+	// One paid tier at $5/month; the money is the paid count times that, on
+	// every day of the series and in the legend. (Production has no daily
+	// revenue series: the Memberships earnings endpoint returns total, last
+	// 30 days and a next-month forecast, so a per-day amount would have to
+	// be derived like this, or summed from Stripe transactions server-side.)
+	var NL_TIER_PRICE = 5;
+	function nlMoney( n ) { return '$' + ( n * NL_TIER_PRICE ).toLocaleString(); }
 	var NL_MONTHS = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
 	var NL_ICONS = {
 		envelope: 'M3 7c0-1.1.9-2 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm2-.5h14c.3 0 .5.2.5.5v1L12 13.5 4.5 7.9V7c0-.3.2-.5.5-.5Zm-.5 3.3V17c0 .3.2.5.5.5h14c.3 0 .5-.2.5-.5V9.8L12 15.4 4.5 9.8Z',
 		payment: 'M5.5 9.5v-2h13v2h-13zm0 3v4h13v-4h-13zM4 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 011 1H5a1 1 0 01-1-1V7z',
+		// @wordpress/icons currencyDollar.
+		dollar: 'M13.7 7.2c-.9-.9-2.1-1.4-3.4-1.4v-.6c0-.2-.1-.3-.3-.3h-.7c-.2 0-.3.1-.3.3v.6c-1.9.2-3.4 1.6-3.4 3.4 0 1.8 1.4 3.2 3.4 3.4v3.6c-.9-.1-1.6-.6-2.1-1.2-.1-.1-.3-.1-.4 0l-.5.5c-.1.1-.1.3 0 .4.9.9 2 1.4 3.1 1.5v.6c0 .2.1.3.3.3h.7c.2 0 .3-.1.3-.3v-.6c1.9-.2 3.4-1.6 3.4-3.4 0-1.8-1.4-3.2-3.4-3.4V7.3c.7.1 1.3.4 1.8.9.1.1.3.1.4 0l.5-.5c.1-.1.1-.3 0-.5zM9 10.7c-.7-.2-1.1-.8-1.1-1.5s.5-1.3 1.1-1.5v3zm2.9 3.4c0 .7-.5 1.3-1.1 1.5v-3c.6.2 1.1.8 1.1 1.5z',
 	};
 	function nlIcon( name ) {
 		// @wordpress/icons envelope / payment through <Icon size={24}>.
@@ -12237,61 +12479,57 @@ function untangling_ms_app_js() {
 	// subscriberTotalsByDate, transformed: the last 30 days, sorted ascending.
 	function nlTotalsByDate() {
 		var all = [ 190, 190, 191, 192, 192, 193, 195, 195, 196, 197, 199, 199, 200, 201, 201, 202, 204, 204, 205, 206, 206, 207, 208, 209, 210, 211, 211, 212, 213, 214 ];
+		var paid = [ 9, 9, 9, 10, 10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 17 ];
 		var today = new Date();
 		today.setHours( 0, 0, 0, 0 );
 		return all.map( function ( v, i ) {
 			var d = new Date( today );
 			d.setDate( today.getDate() - ( all.length - 1 - i ) );
-			return { date: d, all: v, paid: 0 };
+			return { date: d, all: v, paid: paid[ i ] };
 		} );
 	}
-	// The chart is the Stats widget's: the same KPI head (swatch, label,
-	// total, 30-day delta) standing in for the legend, the same Sparkline
-	// (area + line, crosshair, glyphs, the Jetpack Stats tooltip), the same
-	// compact fallback when the KPIs no longer fit on one line. Two series,
-	// All and Paid, in the production widget's colors.
-	function NewsletterSpark() {
+	// The chart is the Stats widget's Sparkline (area + line, crosshair,
+	// glyphs, the Jetpack Stats tooltip) under the same KPI head, standing
+	// in for the legend. The head is where the production widget's stat row
+	// went: one line, swatch then the row's copy per series, shortened
+	// ("214 subscribers" · "17 paid subscribers"; the email count and the
+	// monthly revenue ride in the link's title and the dot's tooltip), side
+	// by side,
+	// each the link it was, to the subscriber stats. The count is the copy,
+	// so there is no separate value and no 30-day delta pill (a subscriber
+	// list is a running total, the change reads off the chart). The line
+	// never wraps: when the widget gets too narrow the copy after the count
+	// leaves for the dot's tooltip, the way Stats' labels do (useHeadMode).
+	// Production's colors.
+	function NewsletterSpark( props ) {
+		var headRef = useRef( null );
+		// The copy never shortens: the full line (count · label · detail)
+		// while it fits on one row, else one KPI per row — the same two
+		// states as the Stats head, so the two widgets behave alike. A bare
+		// "214 · 17" made the reader guess which was which.
+		var mode = useHeadMode( headRef, [ '', 'is-stacked' ], [ props.stats.all.count, props.stats.paid.count ] );
 		var rows = nlTotalsByDate();
 		var all = rows.map( function ( r ) { return r.all; } );
 		var paid = rows.map( function ( r ) { return r.paid; } );
 		var labels = rows.map( function ( r ) { return nlFormatDate( r.date, true, true ); } );
-		function delta( values ) {
-			var first = values[ 0 ], last = values[ values.length - 1 ];
-			if ( ! first || first === last ) { return null; }
-			var pct = Math.round( ( last - first ) / first * 100 );
-			return ( pct > 0 ? '+' : '' ) + pct + '%';
-		}
 		var SERIES = [
-			{ key: 'all', label: NL_LABELS.all, color: NL_COLORS.all, values: all, total: all[ all.length - 1 ] || 0, delta: delta( all ) },
-			{ key: 'paid', label: NL_LABELS.paid, color: NL_COLORS.paid, values: paid, total: paid[ paid.length - 1 ] || 0, delta: delta( paid ) },
+			{ key: 'all', label: NL_LABELS.all, color: NL_COLORS.all, icon: 'envelope', values: all, total: all[ all.length - 1 ] || 0, copy: props.stats.all },
+			{ key: 'paid', label: NL_LABELS.paid, color: NL_COLORS.paid, icon: 'payment', values: paid, total: paid[ paid.length - 1 ] || 0, copy: props.stats.paid },
 		];
-		var headRef = useRef( null );
-		var compactState = useState( false );
-		var compact = compactState[ 0 ], setCompact = compactState[ 1 ];
-		useLayoutEffect( function () {
-			var head = headRef.current;
-			if ( ! head ) { return; }
-			function measure() {
-				var kpis = head.firstElementChild;
-				head.classList.remove( 'is-compact' );
-				setCompact( kpis.scrollWidth > head.clientWidth );
-			}
-			measure();
-			if ( 'undefined' === typeof ResizeObserver ) { return; }
-			var ro = new ResizeObserver( measure );
-			ro.observe( head );
-			return function () { ro.disconnect(); };
-		}, [] );
 		return el( 'div', { className: 'untangling-dw newsletter-widget__spark' },
 			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( compact ? ' is-compact' : '' ) },
+				el( 'div', { ref: headRef, className: 'ms-dw-head is-list' + ( mode ? ' ' + mode : '' ) },
 					el( 'div', { className: 'ms-dw-kpis' },
 						SERIES.map( function ( s ) {
 							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
-								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.label, 'aria-hidden': true } ),
-								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · last 30 days' ) ),
-								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
-								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
+								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.copy.rest + ( s.copy.detail ? ' · ' + s.copy.detail : '' ), 'aria-hidden': true } ),
+								el( 'a', { className: 'ms-dw-kpi-copy', href: props.href, title: s.copy.detail || null },
+									el( 'span', { className: 'ms-dw-kpi-value' }, s.copy.count ),
+									' ',
+									el( 'span', { className: 'ms-dw-kpi-label' }, s.copy.rest ),
+									// The detail ("163 via email" · "$85/mo") always shows.
+									s.copy.detail ? el( 'span', { className: 'ms-dw-kpi-detail' }, ' (' + s.copy.detail + ')' ) : null
+								)
 							);
 						} )
 					)
@@ -12300,6 +12538,7 @@ function untangling_ms_app_js() {
 					return [
 						tipRow( 'is-all', tipNum( all[ i ] ), TIP_ICONS.people, NL_LABELS.all ),
 						tipRow( 'is-paid', tipNum( paid[ i ] ), NL_ICONS.payment, NL_LABELS.paid ),
+						tipRow( 'is-revenue', nlMoney( paid[ i ] ), NL_ICONS.dollar, NL_LABELS.revenue ),
 					];
 				} } )
 			)
@@ -12311,47 +12550,37 @@ function untangling_ms_app_js() {
 		var adminUrl = data.adminUrl;
 		var allSubscribers = 214;
 		var emailSubscribers = 163;
-		var paidSubscribers = 0;
+		var paidSubscribers = 17;
+		// Paid revenue: not in the production widget's data (the
+		// subscribers/stats endpoint carries counts only). It would come from
+		// the Memberships earnings endpoint the Earn page reads (total /
+		// last 30 days / next-month forecast, all Memberships products, no
+		// currency in the payload). Shown here as the monthly figure:
+		// 17 subscribers on the $5 tier.
+		var paidMonthly = nlMoney( paidSubscribers );
 		// isWpcomSite: every link is a plain <a>, the way DashboardLink renders
 		// them on WP.com. Stats module active, so the stats deep link shows.
 		var subscriberStatsUrl = adminUrl + 'admin.php?page=stats#!/stats/subscribers/' + site;
-		var subscribersText = nlFormatNumber( allSubscribers ) + ( 1 === allSubscribers ? ' subscriber (' : ' subscribers (' ) + nlFormatNumber( emailSubscribers ) + ' via email)';
-		var paidSubscribersText = nlFormatNumber( paidSubscribers ) + ( 1 === paidSubscribers ? ' paid subscriber' : ' paid subscribers' );
-		function stat( iconName, text ) {
-			return el( 'span', { className: 'newsletter-widget__stat-item' },
-				el( 'span', { className: 'newsletter-widget__icon' }, nlIcon( iconName ) ),
-				el( 'span', { className: 'newsletter-widget__stat-content' },
-					el( 'span', { className: 'newsletter-widget__stat-label' }, el( 'a', { href: subscriberStatsUrl }, text ) )
-				)
-			);
-		}
-		return el( 'div', { className: 'newsletter-widget' },
-			el( 'div', { className: 'newsletter-widget__header' },
-				el( 'div', { className: 'newsletter-widget__stats' },
-					stat( 'envelope', subscribersText ),
-					stat( 'payment', paidSubscribersText )
-				)
-			),
+		// The production header's two stat rows (envelope · "214 subscribers
+		// (163 via email)", payment · "0 paid subscribers", each linking to
+		// subscriber stats) are not rendered twice: the chart legend carries
+		// the same copy and the same link, split as count + rest so the count
+		// keeps the KPI weight.
+		var stats = {
+			// Shorter than production's row ("214 subscribers (163 via email)"
+			// · "17 paid subscribers ($85/mo)") so the line stays whole in a
+			// column; the detail rides along in the dot's tooltip.
+			all: { count: nlFormatNumber( allSubscribers ), rest: 1 === allSubscribers ? 'subscriber' : 'subscribers', detail: nlFormatNumber( emailSubscribers ) + ' via email' },
+			paid: { count: nlFormatNumber( paidSubscribers ), rest: 1 === paidSubscribers ? 'paid subscriber' : 'paid subscribers', detail: paidMonthly + '/mo' },
+		};
+		// Production's gray footer (the pitch + six Quick Links) is gone: the
+		// widget is a preview like the others, so it ends on one footer link,
+		// into the Newsletter page in wp-admin (internal, so the chevron).
+		return el( 'div', { className: 'untangling-app untangling-ms untangling-dw newsletter-widget' },
 			el( 'div', { className: 'newsletter-widget__chart' },
-				el( NewsletterSpark )
+				el( NewsletterSpark, { stats: stats, href: subscriberStatsUrl } )
 			),
-			el( 'div', { className: 'newsletter-widget__footer' },
-				el( 'p', { className: 'newsletter-widget__footer-msg' },
-					'Effortlessly turn posts into emails with our Newsletter feature. Expand your reach, engage readers, and monetize your writing. No coding required. ',
-					el( 'a', { href: 'https://wordpress.com/learn/courses/newsletters-101/wordpress-com-newsletter' }, 'Learn more' )
-				),
-				el( 'div', null,
-					el( 'h3', { className: 'newsletter-widget__heading' }, 'Quick Links' ),
-					el( 'ul', { className: 'newsletter-widget__footer-list' },
-						el( 'li', null, el( 'a', { href: adminUrl + 'post-new.php' }, 'Publish your next post' ) ),
-						el( 'li', null, el( 'a', { href: subscriberStatsUrl }, 'View subscriber stats' ) ),
-						el( 'li', null, el( 'a', { href: msd + '/subscribers/' + site + '#add-subscribers' }, 'Import subscribers' ) ),
-						el( 'li', null, el( 'a', { href: msd + '/subscribers/' + site }, 'Manage subscribers' ) ),
-						el( 'li', null, el( 'a', { href: msd + '/earn/' + site }, 'Monetize' ) ),
-						el( 'li', null, el( 'a', { href: adminUrl + 'admin.php?page=jetpack-newsletter' }, 'Newsletter settings' ) )
-					)
-				)
-			)
+			dwFooter( adminUrl + 'admin.php?page=jetpack-newsletter', 'Go to Newsletter', false, true )
 		);
 	}
 	var nlRoot = document.getElementById( 'newsletter-widget-app' );
@@ -12359,7 +12588,7 @@ function untangling_ms_app_js() {
 		wp.element.createRoot( nlRoot ).render( el( NewsletterWidget ) );
 	}
 
-	var DW_WIDGETS = { site: DwSitePreview, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, protection: DwProtection, hosting: DwHosting, plan: DwPlan };
+	var DW_WIDGETS = { site: DwSite, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance };
 	document.querySelectorAll( '.untangling-dw-mount' ).forEach( function ( node ) {
 		var Widget = DW_WIDGETS[ node.dataset.widget ];
 		if ( Widget && wp.element.createRoot ) {
