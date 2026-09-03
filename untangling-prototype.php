@@ -3697,10 +3697,16 @@ body.toplevel_page_untangling-hosting #wpcontent {
    It centers above the cursor — a mousemove listener feeds --untangling-tip-x. */
 /* Metrics mirror the wp.components Tooltip (12px text, 4×8 padding, 2px
    radius, content-sized up to 300px) — the component itself silently fails
-   with a delay prop in this bundle, so the bubble stays hand-rolled CSS. */
-.untangling-app .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: max-content; max-width: 300px; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle); z-index: 10; }
+   with a delay prop in this bundle, so the bubble stays hand-rolled CSS.
+   border-box so the 300px cap is the whole bubble: as content-box the padding
+   rode on top (316px) and the bubble overran narrow hosts by that much.
+   Hidden at rest with visibility, not opacity alone — a transparent bubble is
+   still laid out, and inside a dashboard widget it inflated the postbox's
+   scrollWidth at every size. visibility flips instantly on the way in and
+   waits out the opacity fade on the way out, so the fade-out still shows. */
+.untangling-app .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); box-sizing: border-box; width: max-content; max-width: 300px; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; visibility: hidden; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm) var(--wpds-motion-easing-subtle), visibility 0s linear var(--wpds-motion-duration-sm); z-index: 10; }
 .untangling-app .untangling-feature-tip:hover::after,
-.untangling-app .untangling-feature-tip:focus-visible::after { opacity: 1; }
+.untangling-app .untangling-feature-tip:focus-visible::after { visibility: visible; opacity: 1; transition-delay: 0s; }
 @media ( prefers-reduced-motion: reduce ) { .untangling-app .untangling-feature-tip::after { transition: none; } }
 .untangling-app .untangling-plan-rows { display: grid; }
 .untangling-app .untangling-plan-row { display: flex; align-items: center; justify-content: space-between; gap: var(--wpds-dimension-gap-md); padding: var(--wpds-dimension-gap-sm) 0; border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral-weak); }
@@ -7499,6 +7505,28 @@ add_action( 'admin_footer', function () {
 	.untangling-gproto-foot button { background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; text-decoration: underline; }
 	.untangling-gproto-copy { color: #3858e9; }
 	.untangling-gproto-reset { color: #b32d2e; }
+	/* Phones: the fab sat on top of every widget's right-hand control rail —
+	   chevrons, footer icons — so it docks bottom-left instead, where nothing
+	   else lives, and dims until it is wanted. The panel stops being a 94%-wide
+	   overlay pinned to a corner and becomes a full-width sheet with targets a
+	   thumb can hit; a tap outside closes it (see the script below). */
+	@media screen and ( max-width: 782px ) {
+		/* On phones the fab lives in the admin bar (left of the account avatar)
+		   instead of floating over the page: a bottom corner, left or right, sat
+		   on top of every widget's footer link or control rail as the page
+		   scrolled. The panel still opens as a bottom sheet. */
+		.untangling-gproto { left: auto; right: 52px; top: 6px; bottom: auto; }
+		.untangling-gproto-fab { width: 34px; height: 34px; box-shadow: none; }
+		.untangling-gproto-fab:hover, .untangling-gproto-fab:focus-visible { opacity: 1; }
+		/* Fixed, not absolute: the wrap shrinks to the 36px fab, so edge-to-edge
+		   has to be measured against the viewport. dvh keeps the sheet clear of
+		   the mobile browser's own bars; the vh line before it is the fallback
+		   for engines that do not know dvh. */
+		.untangling-gproto-panel { position: fixed; left: 0; right: 0; bottom: 0; width: auto; max-height: calc(100vh - 72px); max-height: calc(100dvh - 72px); border-width: 1px 0 0; border-radius: 8px 8px 0 0; }
+		.untangling-gproto-headbtns button { width: 40px; height: 40px; }
+		.untangling-gproto-seg button { padding: 12px 4px; font-size: 13px; }
+		.untangling-gproto-foot button { padding: 10px 0; }
+	}
 	</style>
 	<div class="untangling-gproto<?php echo $is_mkt ? ' is-mkt' : ''; ?>">
 		<button type="button" class="untangling-gproto-fab" aria-label="<?php esc_attr_e( 'Prototype controls' ); ?>">
@@ -7651,6 +7679,20 @@ add_action( 'admin_footer', function () {
 			if ( 'Escape' === event.key && ! panel.hidden ) {
 				show( false );
 				fab.focus();
+			}
+		} );
+		// Phones get Esc's equivalent: the panel is a full-width sheet there,
+		// sitting on the content someone was reading, with no keyboard to
+		// dismiss it from — so a tap outside the fab-and-panel wrap closes it.
+		// Desktop keeps the panel put: it is a small corner card meant to
+		// survive the reload every segment triggers, so a stray click on the
+		// page must not shut it.
+		document.addEventListener( 'click', function ( event ) {
+			if ( panel.hidden || window.innerWidth > 782 ) {
+				return;
+			}
+			if ( ! wrap.contains( event.target ) ) {
+				show( false );
 			}
 		} );
 
@@ -7963,8 +8005,12 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	$offer = untangling_upsell_offer();
 	$bar->add_node( array(
 		'id'    => 'untangling-domain-nudge',
+		// The label is its own span so the narrowest phones can drop it and keep
+		// the gem chip alone — the pill's text is what pushes core's my-account
+		// group onto a second admin-bar row down there.
 		'title' => '<span class="untangling-nudge-pill" data-tip="' . esc_attr( $offer['text'] ) . '">'
-			. ( $offer['gem'] ? untangling_upsell_diamond_svg( true ) : '' ) . esc_html( $offer['pill'] ) . '</span>',
+			. ( $offer['gem'] ? untangling_upsell_diamond_svg( true ) : '' )
+			. '<span class="untangling-nudge-label">' . esc_html( $offer['pill'] ) . '</span></span>',
 		'href'  => untangling_upsell_url( 'omnibar' ),
 	) );
 }, 1000 );
@@ -8019,9 +8065,15 @@ function untangling_upsell_omnibar_css() {
 		#wpadminbar li#wp-admin-bar-untangling-domain-nudge { display: block; }
 		#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { display: flex; align-items: center; height: 46px; padding: 0 8px; }
 		#wpadminbar .untangling-nudge-pill { font-size: 12px; line-height: 24px; }
-		/* The site name gives way before the offer does — core clips it flat,
-		   an ellipsis at least says there is more. */
-		#wpadminbar #wp-admin-bar-site-name > .ab-item { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	}
+	/* Under ~480px even this short pill costs core its my-account group, which
+	   drops to a second admin-bar row (adminbar-overflow). The gem chip alone
+	   still marks the offer, and the tooltip and the page it opens still carry
+	   the whole promise. */
+	@media screen and ( max-width: 480px ) {
+		#wpadminbar .untangling-nudge-label { display: none; }
+		#wpadminbar .untangling-nudge-pill { gap: 0; padding-inline: 4px; }
+		#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { padding: 0 4px; }
 	}
 	';
 }
@@ -8082,9 +8134,11 @@ add_action( 'admin_enqueue_scripts', function () {
 	/* Both placements are the same card, down to the margins — the only thing
 	   the variations compare is where it sits. */
 	/* Folded sidebar (36px) has no room for either card. `auto-fold` is on the
-	   body at every width, so it only counts inside the fold breakpoint. */
+	   body at every width, so it only counts inside the fold breakpoint — which
+	   bottoms out at 783px: below that core stops folding and swings out a
+	   190px responsive menu, where the card fits and should show. */
 	.folded .untangling-nudge { display: none; }
-	@media screen and ( max-width: 960px ) { .auto-fold .untangling-nudge { display: none; } }
+	@media screen and ( max-width: 960px ) and ( min-width: 783px ) { .auto-fold .untangling-nudge { display: none; } }
 	' . untangling_upsell_omnibar_css() );
 }, 11 );
 
@@ -8663,7 +8717,11 @@ add_filter( 'get_user_option_meta-box-order_dashboard', function ( $order ) {
 	foreach ( array( 'normal', 'side', 'column3', 'column4' ) as $area ) {
 		$lists[ $area ] = array_values( array_filter( explode( ',', (string) ( $order[ $area ] ?? '' ) ) ) );
 	}
-	$mismatch = ( 3 === $columns ) ? ! $lists['column3'] : (bool) ( $lists['column3'] || $lists['column4'] );
+	// At three columns a saved order can still be stale in the other direction:
+	// core's postbox JS writes every well it knows, so a populated column4 (a
+	// leftover from an older 4-column save) would strand a widget in a well
+	// this layout never shows.
+	$mismatch = ( 3 === $columns ) ? ( ! $lists['column3'] || (bool) $lists['column4'] ) : (bool) ( $lists['column3'] || $lists['column4'] );
 	if ( ! $mismatch ) {
 		return $order;
 	}
@@ -8830,11 +8888,21 @@ function untangling_fw_render_elementor() {
 // The three plugins' own dashboard styles, reduced to what their widgets use.
 function untangling_fw_css() {
 	return <<<'CSS'
-/* WooCommerce Status: the two-up status list with dashicon bullets. */
+/* Each widget body is its own container, so the narrow branches below answer
+   to the postbox's width instead of the viewport's: a three-column well at
+   1024px leaves these bodies ~255px, narrower than a 320px phone. The Woo
+   and Elementor wrappers bleed to the postbox edge, so the queried width is
+   exactly the width their content paints on. */
+.untangling-fw { container: fw-body / inline-size; }
+
+/* WooCommerce Status: the two-up status list with dashicon bullets. A grid
+   rather than Woo's own floats — at these widths cells wrap to unequal
+   heights, and floated cells then slot up into the wrong column. The list
+   loses its markers outright, where the float clearfix used to clip them. */
 .untangling-fw-woo { margin: -11px -12px -12px; }
-.untangling-fw-woo .wc_status_list { overflow: hidden; margin: 0; }
-.untangling-fw-woo .wc_status_list li { width: 50%; float: left; padding: 9px 12px 9px 40px; box-sizing: border-box; margin: 0; border-top: 1px solid #ececec; color: #757575; font-size: 12px; line-height: 1.4; position: relative; }
-.untangling-fw-woo .wc_status_list li:nth-child(-n+2) { border-top: 0; }
+.untangling-fw-woo .wc_status_list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; margin: 0; }
+.untangling-fw-woo .wc_status_list li { padding: 9px 12px 9px 40px; box-sizing: border-box; margin: 0; color: #757575; font-size: 12px; line-height: 1.4; position: relative; }
+.untangling-fw-woo .wc_status_list li:nth-child(n+3) { border-top: 1px solid #ececec; }
 .untangling-fw-woo .wc_status_list li:nth-child(odd) { border-right: 1px solid #ececec; }
 .untangling-fw-woo .wc_status_list li a { display: block; color: inherit; text-decoration: none; position: relative; }
 .untangling-fw-woo .wc_status_list li a:hover { color: #7f54b3; }
@@ -8846,14 +8914,26 @@ function untangling_fw_css() {
 .untangling-fw-woo .on-hold-orders::before { content: "\f469"; }
 .untangling-fw-woo .low-in-stock::before { content: "\f534"; }
 .untangling-fw-woo .out-of-stock::before { content: "\f153"; }
+/* One column under 320px: two cells leave only ~90px next to the 40px icon
+   gutter, and "$1,284.00" set at 18px runs straight into the divider. The
+   column divider gives way to a rule between every row; the icon keeps its
+   12px offset in both branches because the padding never changes. */
+@container fw-body (max-width: 400px) {
+	.untangling-fw-woo .wc_status_list { grid-template-columns: minmax(0, 1fr); }
+	.untangling-fw-woo .wc_status_list li:nth-child(odd) { border-right: 0; }
+	.untangling-fw-woo .wc_status_list li:nth-child(n+2) { border-top: 1px solid #ececec; }
+}
 
-/* Yoast SEO Posts Overview: score bullets. */
+/* Yoast SEO Posts Overview: score bullets. Each row is a flex line so a
+   label that wraps hangs under its own text, not back under the bullet. */
 .untangling-fw-yoast p { margin: 0 0 8px; }
 .untangling-fw-yoast .wpseo-dashboard-overview__scores { list-style: none; margin: 0 0 16px; padding: 0; }
 .untangling-fw-yoast .wpseo-dashboard-overview__scores li { margin: 0 0 6px; }
-.untangling-fw-yoast .wpseo-dashboard-overview__scores a { text-decoration: none; color: #1e1e1e; }
+.untangling-fw-yoast .wpseo-dashboard-overview__scores a { display: flex; align-items: baseline; text-decoration: none; color: #1e1e1e; }
+/* Touch: the score rows are now flex links, so give them a thumb-sized row. */
+@media (hover: none) { .untangling-fw-yoast .wpseo-dashboard-overview__scores a { padding: 3px 0; } }
 .untangling-fw-yoast .wpseo-dashboard-overview__scores a:hover { color: #a4286a; text-decoration: underline; }
-.untangling-fw-yoast .wpseo-score-icon { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin: 0 8px -1px 0; background: #888; }
+.untangling-fw-yoast .wpseo-score-icon { display: inline-block; flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%; margin: 0 8px -1px 0; background: #888; }
 .untangling-fw-yoast .wpseo-score-icon.good { background: #7ad03a; }
 .untangling-fw-yoast .wpseo-score-icon.ok { background: #ee7c1b; }
 .untangling-fw-yoast .wpseo-score-icon.bad { background: #dc3232; }
@@ -8861,9 +8941,14 @@ function untangling_fw_css() {
 
 /* Elementor Overview: header band, recently edited, news, footer. */
 .untangling-fw-elementor { margin: -11px -12px -12px; }
-.untangling-fw-elementor .e-overview__header { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #ececec; }
+/* The header wraps: under ~265px of body the logo, version and button do
+   not fit on one line, and a nowrap header pushed the button past the
+   postbox edge. The version line sizes from its content (flex-basis auto)
+   so the button is what drops to a second line. */
+.untangling-fw-elementor .e-overview__header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #ececec; }
 .untangling-fw-elementor .e-overview__logo { display: flex; }
-.untangling-fw-elementor .e-overview__versions { flex: 1; color: #1e1e1e; font-size: 13px; }
+.untangling-fw-elementor .e-overview__versions { flex: 1 1 auto; min-width: 0; color: #1e1e1e; font-size: 13px; }
+.untangling-fw-elementor .e-overview__create { flex: 0 0 auto; }
 .untangling-fw-elementor .e-overview__create .button { border-color: #d30c5c; color: #d30c5c; background: #fff; }
 .untangling-fw-elementor .e-overview__create .button:hover { background: #d30c5c; color: #fff; }
 .untangling-fw-elementor .e-heading { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #1e1e1e; }
@@ -8873,11 +8958,23 @@ function untangling_fw_css() {
 .untangling-fw-elementor .e-overview__post-link { text-decoration: none; }
 .untangling-fw-elementor .e-overview__post-link .dashicons { font-size: 14px; width: 14px; height: 14px; vertical-align: -2px; color: #757575; }
 .untangling-fw-elementor .e-overview__post-description { color: #757575; font-size: 12px; white-space: nowrap; }
-.untangling-fw-elementor .e-overview__footer ul { display: flex; margin: 0; padding: 10px 12px; }
+.untangling-fw-elementor .e-overview__footer ul { display: flex; flex-wrap: wrap; row-gap: 4px; margin: 0; padding: 10px 12px; }
 .untangling-fw-elementor .e-overview__footer li { margin: 0; padding: 0 10px; border-left: 1px solid #ececec; }
 .untangling-fw-elementor .e-overview__footer li:first-child { padding-left: 0; border-left: 0; }
 .untangling-fw-elementor .e-overview__footer a { text-decoration: none; }
 .untangling-fw-elementor .e-overview__go-pro a { color: #d30c5c; font-weight: 600; }
+/* Bare inline links are only 18px tall — under 480px of body the widget is
+   being read on a touch screen, so pad the row out to a tappable height. */
+@container fw-body (max-width: 480px) {
+	.untangling-fw-elementor .e-overview__post-link { display: inline-block; padding: 3px 0; }
+	.untangling-fw-elementor .e-overview__post { margin-bottom: 8px; }
+}
+/* Under 340px the nowrap date eats ~134px of the row and leaves the title
+   about 90px, so the two-up row stacks: title first, date under it. */
+@container fw-body (max-width: 340px) {
+	.untangling-fw-elementor .e-overview__post { display: block; }
+	.untangling-fw-elementor .e-overview__post-description { display: block; margin-top: 2px; }
+}
 CSS;
 }
 
@@ -9492,14 +9589,42 @@ function untangling_dw_css() {
 /* Core's wide-viewport media rules (3 columns at 1500-1800px, 4 above that)
    restyle .postbox-container widths past the columns-N class — column 1
    shrinks while column 2 keeps floating right, leaving a dead gutter.
-   Re-assert each chosen layout at every width above mobile. */
+   Re-assert the 1- and 2-column layouts from 800px, the width at which core
+   itself stops stacking. */
 @media only screen and (min-width: 800px) {
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 .postbox-container { width: 49.5%; }
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-2,
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-3,
 	#wpbody #wpbody-content #dashboard-widgets.columns-2 #postbox-container-4 { float: right; width: 50.5%; }
-	#wpbody #wpbody-content #dashboard-widgets.columns-3 .postbox-container { float: left; width: 33.33%; }
 	#wpbody #wpbody-content #dashboard-widgets.columns-1 .postbox-container { float: none; width: 100%; }
+}
+
+/* Three columns start at 1000px, not 800: core's `.postbox { min-width: 255px }`
+   is a hard floor, so a 33.33% column cannot honour it below ~1000 — at 800 the
+   boxes are 257px wide on a 246px pitch, they overlap by 11px and column 3 hangs
+   past the content box; at 961 the gutter is down to 1.5px. From 1000 the maths
+   works again (1024: 263px boxes, 16px gutter). Between 800 and 999 .columns-3
+   takes core's own 800-1499 two-column shape — column 1 on the left, containers
+   2 and 3 stacked on the right — which is the designed map one step narrower.
+   Core's media rule cannot do that on its own: its unscoped
+   `#dashboard-widgets.columns-3 #postbox-container-1 { width: 33% }` outranks
+   it, leaving a 257px first column beside a dead gutter, so the two-column
+   shape is re-stated below with one more id. Zeroing the postbox min-width
+   instead would break every core and plugin widget that relies on it. */
+@media only screen and (min-width: 800px) and (max-width: 999px) {
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 .postbox-container,
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-1 { float: left; width: 49.5%; }
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-2,
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-3,
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-4 { float: right; width: 50.5%; }
+}
+@media only screen and (min-width: 1000px) {
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 .postbox-container { float: left; width: 33.33%; }
+	/* Core hides the 3- and 4-column radios from 800 to 1499 (dashboard.css).
+	   The designed 3-column layout is healthy from 1000, so give that radio
+	   back its row — otherwise the saved layout has no control and no checked
+	   state at laptop widths. Inline is core's own display for these labels. */
+	#screen-options-wrap .columns-prefs .columns-prefs-3 { display: inline; }
 }
 
 /* Below 800px core means to stack everything in one column, but its own
@@ -9507,13 +9632,29 @@ function untangling_dw_css() {
    outrank that mobile rule whenever a columns-N class is present — and this
    variant always sets one (core only adds the class after a user picks a
    layout, which is why stock wp-admin gets away with it). Re-state the
-   collapse with enough specificity to win, so phones get one column. */
+   collapse with enough specificity to win, so phones get one column — capped
+   at the same 704px measure as the 1-column layout, so a 724-799px screen
+   reads at a comfortable width instead of edge to edge. */
 @media only screen and (max-width: 799px) {
+	#wpbody #wpbody-content #dashboard-widgets { display: flex; flex-direction: column; max-width: 704px; margin-left: auto; margin-right: auto; }
 	#wpbody #wpbody-content #dashboard-widgets .postbox-container,
 	#wpbody #wpbody-content #dashboard-widgets #postbox-container-1,
 	#wpbody #wpbody-content #dashboard-widgets #postbox-container-2,
 	#wpbody #wpbody-content #dashboard-widgets #postbox-container-3,
 	#wpbody #wpbody-content #dashboard-widgets #postbox-container-4 { float: none; width: 100%; }
+}
+
+/* Collapsed, the columns simply read in DOM order, and with three columns that
+   buries the checklist under Your site, Hosting and the plugin widgets. `order`
+   lifts Next steps (container 2) and then Stats + Newsletter (container 3) above
+   column 1, the same priority the 1- and 2-column maps already show; columns-1
+   and columns-2 read correctly in DOM order and are left alone. Gated at 782,
+   not 799, because that is where core disables the metabox sortables
+   (common.js maybeDisableSortables) — between 783 and 799 drag is still live
+   and a visual order that disagrees with DOM order would misplace the drops. */
+@media only screen and (max-width: 782px) {
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-2 { order: -2; }
+	#wpbody #wpbody-content #dashboard-widgets.columns-3 #postbox-container-3 { order: -1; }
 }
 
 /* One column: a single centered reading column — every widget the same
@@ -9527,9 +9668,16 @@ function untangling_dw_css() {
 body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-container { visibility: visible; outline: 3px dashed #c3c4c7; min-height: 250px; }
 
 /* Screen Options groups: columns across the panel width, checkboxes stacked
-   under each heading — a map of the page, not a tall list of short rows. */
-.untangling-dw-optgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 24px; margin: 12px 0 4px; max-width: 1400px; }
-.untangling-dw-optgroup { margin: 0; }
+   under each heading — a map of the page, not a tall list of short rows.
+   The grid lives inside core's `<fieldset class="metabox-prefs">`, and a
+   fieldset's UA `min-inline-size: min-content` makes that parent as wide as
+   its widest content instead of the panel: auto-fit then resolves to 4×170px
+   at every width and the panel scrolls sideways with half the checkboxes out
+   of reach on a phone. Release the fieldsets (outer and per-group) and let the
+   tracks fall back to the available width below 170px. */
+#screen-options-wrap .metabox-prefs { min-inline-size: 0; }
+.untangling-dw-optgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 12px 24px; margin: 12px 0 4px; max-width: 1400px; min-width: 0; }
+.untangling-dw-optgroup { margin: 0; min-inline-size: 0; }
 .untangling-dw-optgroup legend { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 6px; }
 .untangling-dw-optgroup label { display: block; margin: 0 0 8px; }
 
@@ -9562,15 +9710,17 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
 
 /* Stats → Highlights: a disclosure row under the chart (closed by default),
-   then the Jetpack widget's 7-day lists as one segmented pair + rows, and
-   the two Protect / Akismet counters on the ms-dw-pair grid. */
+   then the Jetpack widget's 7-day lists as one segmented pair + rows. */
 
 /* Site details: label/value rows split by hairlines (the settings-card model). */
 .untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
 .untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-grid-row:last-child { border-bottom: 0; }
 .untangling-dw .ms-dw-grid-label { color: #757575; flex-shrink: 0; }
-.untangling-dw .ms-dw-grid-value { text-align: right; color: #1e1e1e; }
+/* The value is the flexible half of the row: it must be allowed to shrink past
+   its content (min-width: 0) and to break inside a long unbroken token, or a
+   nowrap CTA next to a long value pushes the row wider than the postbox. */
+.untangling-dw .ms-dw-grid-value { text-align: right; color: #1e1e1e; min-width: 0; overflow-wrap: anywhere; }
 .untangling-dw .ms-dw-grid-value a { text-decoration: none; }
 .untangling-dw .ms-dw-grid-value a:hover { text-decoration: underline; }
 .untangling-dw .ms-dw-grid-row.is-block { display: block; }
@@ -9588,9 +9738,9 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    a hairline under it that bleeds into the body's side padding like the
    feed and Hosting rows. The period unit is implied by the control, so the
    label is the series name alone (the unit stays for screen readers). The
-   legend keeps its full copy at every width: when the two cannot share
-   the row, the control moves above the numbers (is-stacked, below).
-   Measured. */
+   legend keeps its full copy for as long as it fits: when the two cannot
+   share the row, the control moves above the numbers (is-stacked, below),
+   and only in the narrowest wells do the deltas go (is-brief). Measured. */
 .untangling-dw .ms-dw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 -12px; padding: 0 12px 10px; border-bottom: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-kpis { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; }
 .untangling-dw .ms-dw-kpi { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; line-height: 20px; }
@@ -9600,21 +9750,18 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-kpi-delta { align-self: center; padding: 1px 5px; border-radius: 999px; background: #f0f0f0; font-size: 11px; line-height: 14px; font-weight: 500; color: #1e1e1e; }
 /* Stacked (Stats): the control takes its own row above the numbers, at its
    content width and flush left like the legend, and the legend keeps its
-   full copy (dot · label · value · delta) under it. The legend may wrap as
-   the last resort, entries whole. */
+   full copy (dot · label · value · delta) under it, wrapping entries whole.
+   If even that does not fit, is-brief below drops the deltas. */
 .untangling-dw .ms-dw-head.is-stacked { flex-direction: column; align-items: flex-start; gap: 10px; }
 .untangling-dw .ms-dw-head.is-stacked .ms-dw-periods { order: -1; margin-left: 0; }
 .untangling-dw .ms-dw-head.is-stacked .ms-dw-kpis { flex-wrap: wrap; gap: 4px 16px; }
-/* Compact (Newsletter): the copy after the count leaves the line (kept for
-   screen readers) and the dot tells it on hover, in the wp.components
-   Tooltip's bubble (12px, 4×8 padding, 2px radius) like the plan-feature
-   tips; it hangs from the dot's left edge, not its centre, so the first
-   entry's bubble stays inside the widget. */
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect( 0, 0, 0, 0 ); white-space: nowrap; padding: 0; }
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi { gap: 6px; }
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch { position: relative; }
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi-swatch::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: -4px; width: max-content; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); z-index: 10; }
-.untangling-dw .ms-dw-head.is-compact .ms-dw-kpi:hover .ms-dw-kpi-swatch::after { opacity: 1; }
+/* Brief (Stats and Newsletter, the last rung): when even the stacked legend
+   cannot hold its entries on one line, the deltas leave — they are the least
+   of the four parts, and dropping them keeps dot · label · value together
+   instead of wrapping an entry in half. The ladder useHeadMode walks is
+   full head → is-stacked → is-stacked is-brief; there is no rung below it,
+   so the legend wraps entries whole from here on. */
+.untangling-dw .ms-dw-head.is-brief .ms-dw-kpi-delta { display: none; }
 /* Period control: the Jetpack Stats widget's SegmentedControl (#c3c4c7
    hairlines, 4px radius, brand fill on the selected item) at widget scale —
    24px tall, 11px labels, content width, on the head's right. Hover
@@ -9627,6 +9774,14 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-periods .segmented-control__item.is-selected, .untangling-dw .ms-dw-periods .segmented-control__item.is-selected:hover { background: #3858e9; color: #fff; }
 @media (prefers-reduced-motion: no-preference) {
 	.untangling-dw .ms-dw-periods .segmented-control__item { transition: background-color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease), color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+}
+/* The 24px/11px density buys horizontal room, and it is only worth paying for
+   while the control shares the head's row. Once it is stacked it owns a row of
+   its own in a narrow well — usually a phone, where these are touch targets —
+   so give it back the height and the readable label size. */
+@container dw-body (max-width: 500px) {
+	.untangling-dw .ms-dw-head.is-stacked .ms-dw-periods { height: 32px; }
+	.untangling-dw .ms-dw-head.is-stacked .ms-dw-periods .segmented-control__item { font-size: 12px; line-height: 30px; padding: 0 10px; }
 }
 
 .untangling-dw .ms-dw-spark-wrap { position: relative; }
@@ -9667,75 +9822,17 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-feed-title { display: block; font-weight: 500; color: #1e1e1e; }
 .untangling-dw .ms-dw-feed-summary { display: block; color: #757575; }
 .untangling-dw .ms-dw-feed-time { flex-shrink: 0; color: #757575; font-size: 12px; margin-top: 2px; }
+/* Narrow well (the three-column dashboard): icon, text and time on one line
+   leave the title barely 130px of measure. Wrap the time under the text
+   instead, indented to the text's own edge (20px icon + 10px gap), so the
+   title keeps the whole row. */
+@container dw-body (max-width: 300px) {
+	.untangling-dw .ms-dw-feed-row { flex-wrap: wrap; }
+	.untangling-dw .ms-dw-feed-time { flex: 0 0 calc(100% - 30px); width: auto; margin: 2px 0 0 30px; }
+}
 .untangling-dw .ms-dw-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 120px; text-align: center; color: #757575; }
 .untangling-dw .ms-dw-empty-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; }
 .untangling-dw .ms-dw-empty-icon svg { fill: #949494; }
-
-/* Backups / Scan: the OvCard drops its own shell inside the postbox. Link
-   hover follows the widget row pattern (see the Activity feed): faint brand
-   tint, heading + icons brand, description stays quiet. */
-.untangling-dw .ms-ovcard { box-shadow: none; padding: 0; }
-/* Stacked state cards (Protection: Backups + Security) bleed to the postbox
-   edges like the feed rows, and split on the same full-width hairline. */
-.untangling-dw .ms-dw-body > .ms-ovcard { margin: 0 -12px; padding: 0 12px; border-radius: 0; }
-.untangling-dw .ms-dw-body > .ms-ovcard + .ms-ovcard { border-top: 1px solid #f0f0f0; padding-top: 12px; }
-/* Two state cards side by side (Protection): equal columns, hairline between. */
-.untangling-dw .ms-dw-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 -12px; }
-.untangling-dw .ms-dw-pair > .ms-ovcard { margin: 0; padding: 0 12px; border-radius: 0; }
-.untangling-dw .ms-dw-pair > .ms-ovcard + .ms-ovcard { border-left: 1px solid #f0f0f0; }
-@container dw-body (max-width: 359px) {
-	.untangling-dw .ms-dw-pair { grid-template-columns: minmax(0, 1fr); }
-	.untangling-dw .ms-dw-pair > .ms-ovcard + .ms-ovcard { border-left: 0; border-top: 1px solid #f0f0f0; padding-top: 12px; }
-}
-/* Three cards stay side by side down to the pair's threshold: the
-   dashboard's three-column wells give each card ~110px of copy, so under
-   560px the trio drops to the body size (13px heading, 12px description,
-   tighter gutters) and lets headings wrap instead of stacking the cards. */
-.untangling-dw .ms-dw-trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@container dw-body (max-width: 559px) {
-	.untangling-dw .ms-dw-trio > .ms-ovcard { padding: 0 8px; gap: 4px; }
-	.untangling-dw .ms-dw-trio > .ms-ovcard:first-child { padding-left: 12px; }
-	.untangling-dw .ms-dw-trio > .ms-ovcard:last-child { padding-right: 12px; }
-	.untangling-dw .ms-dw-trio .ms-ovcard-label { font-size: 10px; letter-spacing: .04em; gap: 6px; }
-	.untangling-dw .ms-dw-trio .ms-ovcard-heading { font-size: 13px; line-height: 18px; text-wrap: balance; }
-	.untangling-dw .ms-dw-trio .ms-ovcard-desc { font-size: 12px; line-height: 16px; text-wrap: pretty; }
-	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard { padding-top: 12px; padding-bottom: 12px; }
-}
-@container dw-body (max-width: 359px) {
-	.untangling-dw .ms-dw-trio { grid-template-columns: minmax(0, 1fr); }
-	.untangling-dw .ms-dw-trio > .ms-ovcard, .untangling-dw .ms-dw-trio > .ms-ovcard:first-child, .untangling-dw .ms-dw-trio > .ms-ovcard:last-child { padding: 0 12px; }
-	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard, .untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard:first-child, .untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard:last-child { padding: 12px; }
-	.untangling-dw .ms-dw-trio > .ms-ovcard + .ms-ovcard { border-left: 0; border-top: 1px solid #f0f0f0; padding-top: 12px; }
-	.untangling-dw .ms-dw-issues.ms-dw-trio > .ms-ovcard + .ms-ovcard { border-top-color: color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
-}
-.untangling-dw a.ms-ovcard:hover, .untangling-dw a.ms-ovcard:focus-visible { box-shadow: none; background: none; }
-.untangling-dw a.ms-ovcard:hover .ms-ovcard-heading { color: #3858e9; }
-.untangling-dw a.ms-ovcard:hover .ms-ovcard-desc { color: #757575; }
-.untangling-dw a.ms-ovcard.is-warning:hover .ms-ovcard-desc { color: #b36100; }
-.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-desc { color: #cc1818; }
-
-/* Needs attention. The postbox title carries an "Action needed" pill; the
-   rows sit on the error surface edge to edge (the wrapper eats the body
-   padding), split on an error-tinted hairline. The heading takes the error
-   color; the description stays dark — red on a red tint reads worse, not
-   louder. The eyebrow's link glyph becomes a pill naming the fix: the whole
-   row is still the link, the pill says what clicking it does. */
-#dashboard-widgets .postbox.is-attention .untangling-dw-title::after { content: 'Action needed'; display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; }
-.untangling-dw .ms-dw-issues { margin: -12px; background: var(--wpds-color-background-surface-error-weak, #fcf0ef); }
-.untangling-dw .ms-dw-issues > .ms-ovcard { margin: 0; padding: 12px; border-radius: 0; background: transparent; box-shadow: none; transition: background .15s ease; }
-.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-left: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
-@container dw-body (max-width: 359px) {
-	.untangling-dw .ms-dw-issues > .ms-ovcard + .ms-ovcard { border-left: 0; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--wpds-color-stroke-surface-error-strong, #cc1818) 14%, transparent); }
-}
-.untangling-dw .ms-dw-issues > a.ms-ovcard:hover, .untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { background: var(--wpds-color-background-surface-error, #f6e6e3); }
-.untangling-dw .ms-dw-issues > a.ms-ovcard:focus-visible { outline: 2px solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -2px; }
-.untangling-dw .ms-ovcard.is-error .ms-ovcard-label { color: var(--wpds-color-foreground-content-error-weak, #cc1818); }
-.untangling-dw .ms-ovcard.is-error .ms-ovcard-heading,
-.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-heading { color: var(--wpds-color-foreground-content-error-weak, #cc1818); }
-.untangling-dw .ms-ovcard.is-error .ms-ovcard-desc,
-.untangling-dw a.ms-ovcard.is-error:hover .ms-ovcard-desc { color: #1e1e1e; }
-.untangling-dw .ms-ovcard-action { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--wpds-color-background-interactive-error-strong, #cc1818); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
-.untangling-dw a.ms-ovcard:hover .ms-ovcard-action { background: var(--wpds-color-background-interactive-error-strong-active, #a10f0f); }
 
 /* Your site: identity row (thumbnail · name / address / actions), then the
    plan block and the promo slot, each on a hairline. The thumbnail is the
@@ -9761,8 +9858,13 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 	.untangling-dw .ms-dw-site-thumb { width: 104px; }
 }
 @container dw-body (max-width: 300px) {
-	.untangling-dw .ms-dw-site-id { flex-direction: column; }
-	.untangling-dw .ms-dw-site-thumb { width: 100%; }
+	/* Stacked, so the row's cross axis is now the horizontal one: the
+	   flex-start above would size the meta column to its max-content and a
+	   long site name would run past the postbox. Stretch keeps it in the well. */
+	.untangling-dw .ms-dw-site-id { flex-direction: column; align-items: stretch; }
+	/* Full width turns the 10% preview into a ~296x185 mostly-blank hero. Cap
+	   it so it still reads as the site's face, left-aligned under the name. */
+	.untangling-dw .ms-dw-site-thumb { width: 100%; max-width: 160px; }
 }
 
 /* Plan block: name + Active on the left, renewal on the right (wraps under
@@ -9782,8 +9884,29 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-site-features li.is-more { padding-left: 26px; }
 .untangling-dw .ms-dw-site-features li.is-more a { color: #3858e9; text-decoration: none; }
 .untangling-dw .ms-dw-site-features li.is-more a:hover, .untangling-dw .ms-dw-site-features li.is-more a:focus-visible { text-decoration: underline; }
+/* The shared tooltip bubble is 300px wide and anchors at the label's left
+   edge — 26px into the well — so inside a postbox it runs up to ~100px past
+   the card, and because it is only faded out at rest it inflates the widget's
+   scroll width at every width. Cap it to what is left of the container from
+   that anchor. */
+.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { max-width: min(300px, calc(100cqi - 26px)); }
+/* Touch: the chips' tips only open on hover and focus, so on a phone they are
+   unreachable. This is a question of input, not of width — a device query is
+   the right test, not a container one. */
+@media (hover: none) {
+	.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { display: none; }
+}
+/* Touch: the address and the "+N more" link are 16px and 20px tall as plain
+   inline text. Pad them into a thumb-sized row without moving their neighbours —
+   keyed on input capability, not width, since a wide tablet still taps. */
+@media (hover: none) {
+	.untangling-dw a.ms-dw-site-domain, .untangling-dw .ms-dw-site-features li.is-more a { display: inline-block; padding: 4px 0; }
+}
 @container dw-body (min-width: 520px) {
 	.untangling-dw .ms-dw-site-plan .ms-plan-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	/* Two columns: a tip anchored 26px into its own column has half the well
+	   minus the 24px gutter and that indent to work with. */
+	.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { max-width: min(300px, calc(50cqi - 38px)); }
 }
 
 /* Promo slot: the ms-upsell row on every plan — icon chip, title + one
@@ -9793,11 +9916,18 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-site .ms-upsell-title { font-size: 13px; line-height: 18px; }
 .untangling-dw .ms-dw-site .ms-upsell-desc { font-size: 12px; line-height: 16px; }
 .untangling-dw .ms-dw-site .ms-upsell .components-button { flex: none; }
-/* Narrow: icon and words stay on one line (the words get a real basis, so
-   the CTA is what wraps), the CTA drops under the words, aligned with them. */
-@container dw-body (max-width: 360px) {
+/* The words carry a real basis at every width, not only in the block below:
+   the page's own `max-width: 600px` media query gives .ms-upsell-main a
+   flex-basis of 100%, which in a postbox strands the 36px icon chip alone on
+   line one. With this basis the row either fits on one line, or wraps into the
+   stack the block below draws. */
+.untangling-dw .ms-dw-site .ms-upsell-main { flex: 1 1 180px; }
+/* Narrow: icon and words stay on one line (the words hold the basis, so the
+   CTA is what wraps), the CTA drops under the words, aligned with them. The
+   threshold is the widest well where icon + words + CTA stop fitting on one
+   line — the container is the body's content box, so cq = postbox width - 24. */
+@container dw-body (max-width: 440px) {
 	.untangling-dw .ms-dw-site .ms-upsell { flex-wrap: wrap; row-gap: 8px; }
-	.untangling-dw .ms-dw-site .ms-upsell-main { flex: 1 1 180px; }
 	.untangling-dw .ms-dw-site .ms-upsell .components-button { margin-left: 48px; }
 }
 
@@ -9814,6 +9944,19 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { position: relative; display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 8px; text-align: left; font-size: 12px; line-height: 16px; color: #757575; white-space: nowrap; }
 .untangling-dw .ms-madefor.is-compact > span:last-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .untangling-dw .ms-madefor.is-compact .ms-ai { flex-shrink: 0; }
+/* Under ~420px the single line ellipsises mid-word ("…from your s…"), which is
+   every phone and every three-column well. Let it wrap instead: the sparkle
+   keeps the first line, the sentence runs on underneath and reads in full. */
+@container dw-body (max-width: 420px) {
+	.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { flex-wrap: wrap; white-space: normal; }
+	.untangling-dw .ms-madefor.is-compact > span:last-child { flex: 1 1 100%; overflow: visible; text-overflow: clip; }
+}
+/* Narrow wells wrap the task titles onto two lines; the header's centered
+   alignment then floats the status icon and the chevron off the first line. */
+@container dw-body (max-width: 400px) {
+	.untangling-dw .ms-tl-card-header { align-items: flex-start; }
+	.untangling-dw .ms-tl-chevron { margin-top: 2px; }
+}
 .untangling-dw .ms-hero { box-shadow: none; border: 1px solid #e0e0e0; padding: 16px; }
 .untangling-dw .ms-hero-title { font-size: 18px; }
 
@@ -9845,18 +9988,27 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-disclosure-panel .ms-dw-grid-row { margin: 0; padding: 9px 12px; }
 /* An action in a row value: the DS link Button dressed as the row's links
    (no underline until hover, the row's size and line), the Spinner at text
-   size while it runs. */
-.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action { display: inline-flex; align-items: center; gap: 6px; height: auto; min-height: 0; padding: 0; margin: 0; font: inherit; line-height: inherit; color: #3858e9; text-decoration: none; vertical-align: baseline; box-shadow: none; }
+   size while it runs. On phones the 20px line leaves an 18px target, so the
+   padding takes it to 24px and an equal negative margin gives that height
+   back to the row: the target grows, the baseline does not move. */
+.untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action { display: inline-flex; align-items: center; gap: 6px; height: auto; min-height: 0; padding: 3px 0; margin: -3px 0; font: inherit; line-height: inherit; color: #3858e9; text-decoration: none; vertical-align: baseline; box-shadow: none; }
 .untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:hover:not(:disabled), .untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:focus-visible { color: #3858e9; text-decoration: underline; }
 .untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:focus-visible { outline: none; box-shadow: 0 0 0 var(--wpds-border-width-focus, 1.5px) var(--wpds-color-stroke-focus, #3858e9); border-radius: 2px; }
 .untangling-dw .ms-dw-grid-value .components-button.is-link.ms-dw-row-action:disabled { color: #757575; cursor: default; opacity: 1; }
 .untangling-dw .components-spinner.ms-dw-row-spinner { width: 14px; height: 14px; margin: 0; }
 /* Snackbars from the widgets sit where the editor puts its own: bottom-left
-   of the content area, clear of the admin menu at each of its widths. */
+   of the content area, clear of the admin menu at each of its widths. On
+   phones the menu is gone but the prototype's fab is not (44px round at
+   right: 16px), so the right edge stops 76px short: a long snackbar wraps
+   instead of running under the fab. */
 .untangling-dw-snackbars { position: fixed; left: 184px; bottom: 24px; z-index: 100000; width: auto; }
 body.folded .untangling-dw-snackbars { left: 60px; }
 @media (max-width: 960px) { .untangling-dw-snackbars { left: 60px; } }
-@media (max-width: 782px) { .untangling-dw-snackbars { left: 16px; bottom: 16px; } }
+/* Phones: the snackbar is pinned on both sides — core's 600px
+   .components-snackbar max-width would otherwise run off a 320px screen. (The
+   Prototype controls fab sits in the admin bar on phones, so nothing floats
+   in the bottom corners.) */
+@media (max-width: 782px) { .untangling-dw-snackbars { left: 16px; right: 16px; bottom: 16px; } .untangling-dw-snackbars .components-snackbar { max-width: 100%; } }
 
 /* Jetpack Newsletter — modules/subscriptions/newsletter-widget/src/style.scss,
    compiled by hand: grid units 4/8/12/16, gray-100 #f0f0f0, gray-900 #1e1e1e,
@@ -9912,18 +10064,26 @@ body.folded .untangling-dw-snackbars { left: 60px; }
 /* The legend is the stat row: both series side by side on one line as
    Stats' legend entries (swatch · copy), the production row's copy as its
    link (link color like production, the count in KPI weight). The line
-   never wraps: when it does not fit, the copy after the count leaves for
-   the dots' tooltips, same as Stats (is-compact, measured). With the stat
-   row gone the chart opens the widget, so it takes over the header's 12px
-   top. */
+   never wraps: when it does not fit the head stacks, one KPI per row, and
+   when the stack still does not fit (is-brief, measured) the parenthesised
+   detail drops — it stays in the link's title and the swatch's tooltip, the
+   way Stats' labels leave for the dots. With the stat row gone the chart
+   opens the widget, so it takes over the header's 12px top. */
 .newsletter-widget__chart { padding-top: 12px; }
 .newsletter-widget__spark .ms-dw-head.is-list { padding-bottom: 8px; }
 .newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpis { margin-left: 0; }
 .newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpi { align-items: center; gap: 6px; }
-.newsletter-widget__spark .ms-dw-kpi-copy { text-decoration: none; color: var(--wp-admin-theme-color, #3858e9); }
+/* The copy is the whole KPI's link and its only tap target: on the 20px
+   line 2px of padding takes it to 24px, and stacked the rows sit 6px apart
+   so two targets never touch. */
+.newsletter-widget__spark .ms-dw-kpi-copy { display: inline-block; padding: 2px 0; text-decoration: none; color: var(--wp-admin-theme-color, #3858e9); }
 .newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-value, .newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-label { color: inherit; font-size: 13px; line-height: 20px; }
 .newsletter-widget__spark .ms-dw-kpi-detail { color: #757575; font-size: 13px; line-height: 20px; white-space: nowrap; }
-.newsletter-widget__spark .ms-dw-head.is-stacked .ms-dw-kpis { flex-direction: column; align-items: flex-start; gap: 2px; }
+/* Last resort: the detail is nowrap, so a long one ("9,163 via email") keeps
+   the stacked row wider than the postbox. Drop it from the line — the link's
+   title and the swatch's tooltip still carry it. */
+.newsletter-widget__spark .ms-dw-head.is-brief .ms-dw-kpi-detail { display: none; }
+.newsletter-widget__spark .ms-dw-head.is-stacked .ms-dw-kpis { flex-direction: column; align-items: flex-start; gap: 6px; }
 .newsletter-widget__spark .ms-dw-kpi-copy:hover { text-decoration: underline; }
 .newsletter-widget__spark .ms-dw-kpi-copy:focus-visible { outline: 1.5px solid var(--wp-admin-theme-color, #3858e9); outline-offset: 2px; box-shadow: none; border-radius: 2px; }
 CSS;
@@ -10409,6 +10569,11 @@ function untangling_ms_app_js() {
 	/* ---- the completion moment: confetti (MSD recipe), collapse, reveal ---- */
 
 	function confettiBurst() {
+		// No celebration is worth motion sickness: the completion state still
+		// lands, just without the burst (spawnSpark's guard, same reason).
+		if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+			return;
+		}
 		var canvas = document.createElement( 'canvas' );
 		canvas.className = 'ms-confetti-canvas';
 		canvas.width = window.innerWidth;
@@ -11417,7 +11582,9 @@ function untangling_ms_app_js() {
 				el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
 			),
 			el( 'p', { className: 'ms-storage-used' + ( showCta ? ' has-cta' : '' ) },
-				el( 'span', null, storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used' ),
+				// Non-breaking as in the dashboard widget's Storage row: the
+				// numbers keep their units, and "used" keeps its amount.
+				el( 'span', null, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' ),
 				showCta && el( 'a', { className: 'ms-storage-cta', href: props.ctaHref }, props.ctaLabel || 'Add storage' )
 			),
 			// storage[2] carries a caution when space is tight and a plain note
@@ -11872,7 +12039,10 @@ function untangling_ms_app_js() {
 		var hostingUrl = msd + '/sites/' + data.siteSlug;
 		function countLink( n, one, many, href ) {
 			n = n || 0;
-			return el( 'a', { href: href }, n + ' ' + ( 1 === n ? one : many ) );
+			// Non-breaking: the Content row is one line of counts, and a normal
+			// space lets a narrow well wrap it between the number and its noun
+			// ("0" alone, then "comments" on the next line).
+			return el( 'a', { href: href }, n + '\u00a0' + ( 1 === n ? one : many ) );
 		}
 		function row( label, value ) {
 			return el( 'div', { className: 'ms-dw-grid-row' },
@@ -11956,7 +12126,9 @@ function untangling_ms_app_js() {
 						var tight = storage[ 0 ] / storage[ 1 ] > 0.8;
 						return row( 'Storage', el( Fragment, null,
 							tight ? el( Fragment, null, el( 'a', { href: data.planPageUrl }, 'Add storage' ), ' · ' ) : null,
-							storage[ 0 ] + ' GB of ' + storage[ 1 ] + ' GB used'
+							// Non-breaking inside each amount and before "used": the row
+							// otherwise breaks as "50 /" + "GB used", or orphans "used".
+							storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used'
 						) );
 					} )(),
 					// On Free there is nothing to unfold: one row says where the
@@ -12140,30 +12312,35 @@ function untangling_ms_app_js() {
 			var px = pts[ 0 ][ i ][ 0 ] / width * 100;
 			var views = series[ 0 ].values[ i ];
 			var visitors = series[ 1 ] ? series[ 1 ].values[ i ] : NaN;
-			// Anchor under the lowest glyph. The bars put the bubble's arrow
-			// 15px in from its left edge and flip it near the right edge; a
-			// line's points reach both edges, so the bubble is clamped inside
-			// the chart instead and the arrow slides to stay on the glyph.
-			var lowest = Math.max.apply( null, pts.map( function ( p ) { return p[ i ][ 1 ]; } ) );
+			// Pinned to the top of the chart, tracking the glyph on x only.
+			// Anchored to the glyph the bubble (~113px, 133 on week) hangs under
+			// the lowest point and spills past the postbox, which does not clip;
+			// flipping it over the highest point walks it out of the postbox's
+			// top in a stacked head. Riding the top of .ms-dw-spark-wrap it
+			// overlays the 96px chart and stays inside the box at every width,
+			// and the vertical guide keeps marking the point — so the arrow goes
+			// (is-pinned). The bars put that arrow 15px in from the bubble's left
+			// edge and flip it near the right edge; a line's points reach both
+			// edges, so the bubble is clamped inside the chart instead, by its
+			// real width (the 230px bubble in a narrower well is the whole well).
+			var bubbleW = Math.min( 230, hover.w );
 			var xpx = px / 100 * hover.w;
-			var bubbleLeft = Math.min( Math.max( xpx - 15, 0 ), Math.max( hover.w - 230, 0 ) );
-			// The arrow is positioned against the tip box, which sits 10px right
-			// of the bubble (.popover__inner left: -10px); 12px wide, kept 6px
-			// inside the bubble's edges.
-			var arrowLeft = Math.min( Math.max( xpx - bubbleLeft - 16, -4 ), 202 );
+			var bubbleLeft = Math.min( Math.max( xpx - 15, 0 ), Math.max( hover.w - bubbleW, 0 ) );
 			overlay = el( Fragment, null,
 				el( 'span', { className: 'ms-dw-spark-guide', style: { left: px + '%' }, 'aria-hidden': true } ),
 				pts.map( function ( p, si ) {
 					return el( 'span', { key: si, className: 'ms-dw-spark-dot', style: { left: px + '%', top: p[ i ][ 1 ] / height * 100 + '%', background: series[ si ].color }, 'aria-hidden': true } );
 				} ),
 				el( 'div', {
-					className: 'popover tooltip chart__tooltip untangling-pw-tooltip ms-dw-spark-tip is-bottom-right',
-					// .popover__inner sits 10px left of the tip box (bottom-right).
-					style: { left: ( bubbleLeft + 10 ) + 'px', top: lowest / height * 100 + '%' },
+					className: 'popover tooltip chart__tooltip untangling-pw-tooltip ms-dw-spark-tip is-bottom-right is-pinned',
+					// No top: the tip keeps the stylesheet's 0 (plus its own 6px
+					// margin, which holds it off the chart's top line). The inner box
+					// sits 10px left of the tip (bottom-right) — the left offset above
+					// pays that back — and 10px lower, which pinned it does not need.
+					style: { left: ( bubbleLeft + 10 ) + 'px' },
 					role: 'presentation',
 				},
-					el( 'div', { className: 'popover__arrow', style: { left: arrowLeft + 'px' } } ),
-					el( 'div', { className: 'popover__inner' },
+					el( 'div', { className: 'popover__inner', style: { top: 0 } },
 						el( 'ul', null,
 							tipRow( 'is-date-label', null, null, ( props.labels || [] )[ i ] || '' ),
 							// Rows default to the Stats set; a caller (Newsletter) supplies its own.
@@ -12201,11 +12378,14 @@ function untangling_ms_app_js() {
 
 	// A KPI head changes shape as its row narrows: it tries each mode in
 	// order — full (dot · label · value · delta, control on the row),
-	// then the caller's fallbacks: stacked (Stats — the control moves
-	// above the numbers, the copy stays whole) or compact (Newsletter —
-	// the copy into the dot's tooltip) — and keeps the first where the
+	// then stacked (the control moves above the numbers, the copy stays
+	// whole), then stacked + brief, the last resort where an entry drops
+	// what it can spare (Stats its delta pill, Newsletter its detail, both
+	// still reachable elsewhere) — and keeps the first where the
 	// KPI line fits the head's content box and the period control, when
-	// it still shares the row, has not wrapped under it. Measured on
+	// it still shares the row, has not wrapped under it. A mode may be two
+	// classes ("is-stacked is-brief"): the probe strips every mode class
+	// before it tries the next, so the pair leaves nothing behind. Measured on
 	// the real layout: the browser decides, not an estimate, re-checked when
 	// the postbox resizes, the window resizes, fonts land, or `deps` change
 	// the numbers' width.
@@ -12287,9 +12467,11 @@ function untangling_ms_app_js() {
 		// The Jetpack Stats widget's period control, its markup and look.
 		var PERIODS = [ [ 'day', 'Days' ], [ 'week', 'Weeks' ], [ 'month', 'Months' ], [ 'year', 'Years' ] ];
 		// Full (legend and control on one row) → stacked (the control above
-		// the numbers, the legend's copy kept whole). See useHeadMode.
+		// the numbers, the legend's copy kept whole) → brief, the last resort
+		// in the narrowest wells: the delta pills go, the numbers stay. See
+		// useHeadMode.
 		var headRef = useRef( null );
-		var mode = useHeadMode( headRef, [ '', 'is-stacked' ], [ period ] );
+		var mode = useHeadMode( headRef, [ '', 'is-stacked', 'is-stacked is-brief' ], [ period ] );
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body' },
 				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( mode ? ' ' + mode : '' ) },
@@ -12508,17 +12690,23 @@ function untangling_ms_app_js() {
 	// by side,
 	// each the link it was, to the subscriber stats. The count is the copy,
 	// so there is no separate value and no 30-day delta pill (a subscriber
-	// list is a running total, the change reads off the chart). The line
-	// never wraps: when the widget gets too narrow the copy after the count
-	// leaves for the dot's tooltip, the way Stats' labels do (useHeadMode).
+	// list is a running total, the change reads off the chart). When the
+	// widget gets too narrow the entries stack one per row, and narrower
+	// still the parenthetical detail leaves for the dot's tooltip, the way
+	// Stats drops its delta pills (useHeadMode).
 	// Production's colors.
 	function NewsletterSpark( props ) {
 		var headRef = useRef( null );
-		// The copy never shortens: the full line (count · label · detail)
-		// while it fits on one row, else one KPI per row — the same two
-		// states as the Stats head, so the two widgets behave alike. A bare
-		// "214 · 17" made the reader guess which was which.
-		var mode = useHeadMode( headRef, [ '', 'is-stacked' ], [ props.stats.all.count, props.stats.paid.count ] );
+		// The count and its label never leave: the full line (count · label ·
+		// detail) while it fits on one row, else one KPI per row, and only in
+		// the narrowest wells does the parenthetical detail drop (is-brief) —
+		// it stays in the dot's tooltip and the link's title. The same ladder
+		// as the Stats head, so the two widgets behave alike. A bare
+		// "214 · 17" made the reader guess which was which. Stacked alone was
+		// not enough: one long entry ("12,214 subscribers (9,163 via email)")
+		// still overflowed the postbox in every 3-column well.
+		var mode = useHeadMode( headRef, [ '', 'is-stacked', 'is-stacked is-brief' ], [ props.stats.all.count, props.stats.paid.count ] );
+		var isBrief = -1 !== mode.indexOf( 'is-brief' );
 		var rows = nlTotalsByDate();
 		var all = rows.map( function ( r ) { return r.all; } );
 		var paid = rows.map( function ( r ) { return r.paid; } );
@@ -12534,11 +12722,13 @@ function untangling_ms_app_js() {
 						SERIES.map( function ( s ) {
 							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
 								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'data-tip': s.copy.rest + ( s.copy.detail ? ' · ' + s.copy.detail : '' ), 'aria-hidden': true } ),
-								el( 'a', { className: 'ms-dw-kpi-copy', href: props.href, title: s.copy.detail || null },
+								// The native tooltip only earns its place once the detail
+								// has left the line: while it is visible, the title repeats it.
+								el( 'a', { className: 'ms-dw-kpi-copy', href: props.href, title: ( isBrief && s.copy.detail ) || null },
 									el( 'span', { className: 'ms-dw-kpi-value' }, s.copy.count ),
 									' ',
 									el( 'span', { className: 'ms-dw-kpi-label' }, s.copy.rest ),
-									// The detail ("163 via email" · "$85/mo") always shows.
+									// The detail ("163 via email" · "$85/mo") shows until is-brief.
 									s.copy.detail ? el( 'span', { className: 'ms-dw-kpi-detail' }, ' (' + s.copy.detail + ')' ) : null
 								)
 							);
@@ -12713,7 +12903,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    grouped checklist. */
 .untangling-ms .ms-tl-tasks { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: #f6f7f7; border-radius: 8px; }
 .untangling-ms .ms-tl-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
-.untangling-ms .ms-tl-card-header { display: flex; align-items: center; gap: 8px; width: 100%; padding: 16px; background: none; border: 0; cursor: pointer; font: inherit; text-align: left; border-radius: 8px; }
+/* box-sizing because the completed card renders this header on a <div>, which
+   is content-box: width:100% + 16px padding made it 32px wider than the card. */
+.untangling-ms .ms-tl-card-header { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; padding: 16px; background: none; border: 0; cursor: pointer; font: inherit; text-align: left; border-radius: 8px; }
 .untangling-ms .ms-tl-card.is-done .ms-tl-card-header { cursor: default; }
 .untangling-ms .ms-tl-icon { flex-shrink: 0; display: inline-flex; color: #1e1e1e; }
 .untangling-ms .ms-tl-icon svg { fill: currentColor; }
@@ -12725,7 +12917,10 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-tl-card.is-open .ms-tl-chevron { transform: rotate(-90deg); }
 .untangling-ms .ms-tl-card-content { padding: 0 16px 16px; }
 .untangling-ms .ms-tl-subtitle { margin: 0 0 16px; color: #757575; font-size: 13px; }
-.untangling-ms .ms-tl-actions { display: flex; align-items: center; gap: 8px; }
+/* Wraps: in a narrow column (a 3-up dashboard well) the primary CTA plus
+   "Skip for now" have no slack, and longer labels would push out of the card.
+   The existing gap already supplies the 8px row gap once a line breaks. */
+.untangling-ms .ms-tl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* The site-preview card: a desktop-width iframe scaled to 0.25 (4x the frame),
    with an "Edit site" overlay on hover/focus. */
@@ -12883,9 +13078,14 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    Both are ignored by anything that doesn't support them. */
 .untangling-ms .ms-upsell.is-stacked .ms-upsell-title { text-wrap: balance; }
 .untangling-ms .ms-upsell.is-stacked .ms-upsell-desc { text-wrap: pretty; }
+/* Convention for this block: dashboard widget mounts carry BOTH .untangling-ms
+   and .untangling-dw, so every viewport media query here must be scoped
+   :not(.untangling-dw) or it reaches inside the widgets — where the well is a
+   column a few hundred pixels wide and the viewport says nothing about it.
+   Widget behaviour comes from the @container dw-body queries in untangling_dw_css(). */
 @media (max-width: 600px) {
-	.untangling-ms .ms-upsell { flex-wrap: wrap; gap: 12px; }
-	.untangling-ms .ms-upsell-main { flex-basis: 100%; }
+	.untangling-ms:not(.untangling-dw) .ms-upsell { flex-wrap: wrap; gap: 12px; }
+	.untangling-ms:not(.untangling-dw) .ms-upsell-main { flex-basis: 100%; }
 }
 .untangling-ms .ms-ovcard { display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px #e0e0e0; text-decoration: none; transition: box-shadow .15s ease, background .15s ease; }
 /* Hover copies the MSD's .dashboard-overview-card__link:hover verbatim: a 2%
@@ -13062,7 +13262,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plan-namerow .ms-card-title { font-size: 20px; line-height: 26px; }
 .untangling-ms .ms-plan-features { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
 @media (max-width: 782px) {
-	.untangling-ms .ms-plan-features { grid-template-columns: 1fr; }
+	.untangling-ms:not(.untangling-dw) .ms-plan-features { grid-template-columns: 1fr; }
 }
 .untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1e1e1e; }
 /* The shared tooltip centers on the cursor; in this two-column grid that
