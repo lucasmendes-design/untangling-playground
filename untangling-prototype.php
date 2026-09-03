@@ -1022,6 +1022,8 @@ add_action( 'admin_init', function () {
 			delete_user_meta( $user_id, 'meta-box-order_dashboard' );
 			delete_user_meta( $user_id, 'closedpostboxes_dashboard' );
 			delete_user_meta( $user_id, 'screen_layout_dashboard' );
+			delete_user_meta( $user_id, 'untangling_welcome_seeded' );
+			delete_user_meta( $user_id, 'untangling_pw_seeded' );
 		}
 	}
 } );
@@ -8526,6 +8528,13 @@ add_action( 'wp_dashboard_setup', function () {
 		'untangling_dw_protection' => array( untangling_dw_jetpack_title( __( 'Protection' ) ), 'protection' ),
 		'untangling_dw_hosting'    => array( __( 'Hosting' ), 'hosting' ),
 		'untangling_dw_plan'       => array( __( 'Plan' ), 'plan' ),
+		// Jetpack Newsletter, as the Jetpack plugin registers it on every
+		// WP.com site (modules/subscriptions/newsletter-widget): same id, same
+		// mount markup, same body. The title follows the other Jetpack-backed
+		// widgets here (mark + short name) instead of production's plain
+		// "Jetpack Newsletter" string. It is a WP.com feature on every plan,
+		// so it is part of the designed default, not a foreign widget.
+		'jetpack_newsletter_dashboard_widget' => array( untangling_dw_jetpack_title( __( 'Newsletter' ) ), 'newsletter' ),
 	);
 	// Walk the designed map well by well; the priority ladder (high → core →
 	// default → low) keeps each well's order. A saved drag order (user meta)
@@ -8533,14 +8542,15 @@ add_action( 'wp_dashboard_setup', function () {
 	$ladder = array( 'high', 'core', 'default', 'low' );
 	foreach ( untangling_dw_layout() as $context => $ids ) {
 		foreach ( array_values( $ids ) as $i => $id ) {
-			wp_add_dashboard_widget( $id, $titles[ $id ][0], $mount( $titles[ $id ][1] ), null, null, $context, $ladder[ min( $i, 3 ) ] );
+			$callback = 'jetpack_newsletter_dashboard_widget' === $id ? 'untangling_newsletter_render' : $mount( $titles[ $id ][1] );
+			wp_add_dashboard_widget( $id, $titles[ $id ][0], $callback, null, null, $context, $ladder[ min( $i, 3 ) ] );
 		}
 	}
 
 	// The welcome panel's job (first look at your site, next actions) is the
-	// Next steps widget now. No clean filter exists for its user-meta
-	// switch, so the render hook goes and the CSS below hides the shell.
-	remove_action( 'welcome_panel', 'wp_welcome_panel' );
+	// Next steps widget now. It stays registered, unchecked by default via
+	// the `show_welcome_panel` user-meta seed in section 8d, so Screen
+	// Options can bring it back like production.
 
 	// Core's Activity widget shares its name with our replacement. It stays
 	// available, but a re-enabled one must not read as a duplicate — in
@@ -8581,17 +8591,23 @@ function untangling_dw_core_update_version() {
 	return $parts[0] . '.' . ( (int) ( isset( $parts[1] ) ? $parts[1] : 0 ) + 1 );
 }
 
+// Jetpack_Newsletter_Dashboard_Widget::render(), verbatim: the app mounts
+// into #newsletter-widget-app inside the #wpcom wrapper.
+function untangling_newsletter_render() {
+	echo '<div id="wpcom"><div id="newsletter-widget-app"></div></div>';
+}
+
 function untangling_dw_layout( $columns = null ) {
 	$columns = $columns ?: untangling_dw_columns();
 	if ( 3 === $columns ) {
 		return array(
 			'normal'  => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_activity' ),
 			'side'    => array( 'untangling_dw_site', 'untangling_dw_next_steps' ),
-			'column3' => array( 'untangling_dw_stats', 'untangling_dw_protection', 'untangling_dw_hosting' ),
+			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_protection', 'untangling_dw_hosting' ),
 		);
 	}
 	return array(
-		'normal' => array( 'untangling_dw_site', 'untangling_dw_next_steps', 'untangling_dw_stats', 'untangling_dw_activity' ),
+		'normal' => array( 'untangling_dw_site', 'untangling_dw_next_steps', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
 		'side'   => array( 'untangling_dw_plan', 'untangling_dw_glance', 'untangling_dw_protection', 'untangling_dw_hosting' ),
 	);
 }
@@ -8670,6 +8686,9 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
 		'dashboard_quick_press',
 		'dashboard_primary',
 		'dashboard_site_health',
+		// Production's Jetpack Stats + Daily Writing Prompt (section 8d).
+		'jetpack_summary_widget',
+		'wpcom_daily_writing_prompt',
 		// Woo registers these on the two store sites; absent ids are harmless.
 		'woocommerce_dashboard_status',
 		'woocommerce_dashboard_recent_reviews',
@@ -8845,6 +8864,408 @@ function untangling_fw_css() {
 CSS;
 }
 
+/* -------------------------------------------------------------------------
+ * 8d. Production widgets the designed default leaves out. WP.com registers
+ *     Jetpack Stats (jetpack/class-jetpack-stats-dashboard-widget.php) and
+ *     Daily Writing Prompt (jetpack-newsletter Writing_Prompt_Widget) on
+ *     every site's dashboard. The prototype's own Stats widget and Next
+ *     steps cover their jobs, so both stay unchecked by default — but they
+ *     are registered with production's ids, titles, contexts, markup and
+ *     copy, so Screen Options brings either back and every layout can be
+ *     judged against the full production set. The Welcome panel gets the
+ *     same treatment through its user-meta switch (see below).
+ * ---------------------------------------------------------------------- */
+function untangling_pw_ids() {
+	return array( 'jetpack_summary_widget', 'wpcom_daily_writing_prompt' );
+}
+
+add_action( 'wp_dashboard_setup', function () {
+	if ( 'dashboard' !== untangling_get_variant() ) {
+		return;
+	}
+	// "Stats" is a product name, do not translate. normal / core, as Jetpack registers it.
+	wp_add_dashboard_widget( 'jetpack_summary_widget', 'Jetpack Stats', 'untangling_pw_render_stats' );
+	// side / high, as the newsletter package registers it.
+	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', __( 'Daily Writing Prompt' ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
+}, 20 );
+
+// Core's Welcome panel shows or hides on the `show_welcome_panel` user meta
+// (0 = hidden, and the Screen Options "Welcome" box follows it). Production
+// ships it unchecked on established accounts; the prototype seeds the same
+// default once per user, and "Reset demo" clears the seed marker so the
+// designed first look returns after someone toggled it on.
+add_action( 'load-index.php', function () {
+	if ( 'dashboard' !== untangling_get_variant() ) {
+		return;
+	}
+	$user_id = get_current_user_id();
+	if ( ! $user_id ) {
+		return;
+	}
+	if ( ! get_user_meta( $user_id, 'untangling_welcome_seeded', true ) ) {
+		update_user_meta( $user_id, 'show_welcome_panel', 0 );
+		update_user_meta( $user_id, 'untangling_welcome_seeded', 1 );
+	}
+	// `default_hidden_meta_boxes` only applies while the user has never
+	// touched Screen Options; a saved hide list ignores it, so the two
+	// production widgets would land checked for anyone who already has one.
+	// Fold them into that saved list once; a later un-hide is respected.
+	if ( ! get_user_meta( $user_id, 'untangling_pw_seeded', true ) ) {
+		$hidden = get_user_option( 'metaboxhidden_dashboard' );
+		if ( is_array( $hidden ) ) {
+			update_user_meta( $user_id, 'metaboxhidden_dashboard', array_values( array_unique( array_merge( $hidden, untangling_pw_ids() ) ) ) );
+		}
+		update_user_meta( $user_id, 'untangling_pw_seeded', 1 );
+	}
+} );
+
+// The Jetpack wordmark the production widgets sign off with
+// (@automattic/jetpack-components JetpackLogo, monochrome, 20px).
+function untangling_pw_jetpack_logo() {
+	return '<span class="untangling-pw-jplogo" aria-label="Jetpack"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" aria-hidden="true" focusable="false">'
+		. '<path fill="#000" d="M16,0C7.2,0,0,7.2,0,16s7.2,16,16,16s16-7.2,16-16S24.8,0,16,0z"/>'
+		. '<polygon fill="#fff" points="15,19 7,19 15,3 "/><polygon fill="#fff" points="17,29 17,13 25,13 "/></svg><span>Jetpack</span></span>';
+}
+
+// Jetpack Stats: the Odyssey dashboard widget (wp-calypso
+// apps/odyssey-stats/src/widget), markup, classes and copy verbatim. The
+// visx-free redraw: intervals + bar chart + legend, "7 Day Highlights"
+// (Top Posts & Pages / Top Referrers), the Protect + Akismet module cards
+// on Atomic only (Simple has neither), Jetpack footer. Numbers follow the
+// prototype's Stats widget; a Just created site gets production's empty
+// states.
+function untangling_pw_render_stats() {
+	$data        = untangling_ms_data();
+	$established = 'established' === untangling_ms_get_state();
+	$atomic      = 'atomic' === untangling_get_site_type();
+	$stats_base  = UNTANGLING_MSD_URL . '/stats';
+	$series      = array(
+		'day'   => array( 'views' => $data['stats']['views'], 'visitors' => $data['stats']['visitors'] ),
+		'week'  => array( 'views' => array( 1640, 1725, 1590, 1880, 1960, 2105, 2282 ), 'visitors' => array( 980, 1040, 955, 1130, 1185, 1290, 1392 ) ),
+		'month' => array( 'views' => array( 5420, 5880, 6130, 6710, 7240, 7860, 8410 ), 'visitors' => array( 3210, 3480, 3610, 3990, 4320, 4680, 5010 ) ),
+		'year'  => array( 'views' => array( 0, 0, 0, 0, 0, 38900, 61200 ), 'visitors' => array( 0, 0, 0, 0, 0, 23100, 36400 ) ),
+	);
+	$labels = array( 'day' => array(), 'week' => array(), 'month' => array(), 'year' => array() );
+	for ( $i = 6; $i >= 0; $i-- ) {
+		$labels['day'][]   = date_i18n( 'M j', strtotime( "-$i days" ) );
+		$labels['week'][]  = date_i18n( 'M j', strtotime( "-$i weeks" ) );
+		$labels['month'][] = date_i18n( 'M', strtotime( "-$i months" ) );
+		$labels['year'][]  = date_i18n( 'Y', strtotime( "-$i years" ) );
+	}
+	if ( ! $established ) {
+		foreach ( $series as $k => $s ) {
+			$series[ $k ] = array( 'views' => array_fill( 0, 7, 0 ), 'visitors' => array_fill( 0, 7, 0 ) );
+		}
+	}
+	$posts = $established ? get_posts( array( 'post_type' => array( 'post', 'page' ), 'post_status' => 'publish', 'numberposts' => 5, 'orderby' => 'comment_count', 'order' => 'DESC' ) ) : array();
+	$post_views = array( 412, 298, 187, 143, 96 );
+	$top_posts  = array();
+	foreach ( $posts as $i => $post ) {
+		$top_posts[] = array( 'title' => get_the_title( $post ), 'views' => $post_views[ $i ], 'href' => $stats_base, 'external' => false );
+	}
+	$top_referrers = $established ? array(
+		array( 'title' => 'WordPress.com Reader', 'views' => 236, 'href' => 'https://wordpress.com/reader', 'external' => true ),
+		array( 'title' => 'Google Search', 'views' => 189, 'href' => 'https://www.google.com', 'external' => true ),
+		array( 'title' => 'Instagram', 'views' => 74, 'href' => 'https://www.instagram.com', 'external' => true ),
+		array( 'title' => 'Bing', 'views' => 31, 'href' => 'https://www.bing.com', 'external' => true ),
+		array( 'title' => 'Mastodon', 'views' => 12, 'href' => 'https://joinmastodon.org', 'external' => true ),
+	) : array();
+	$intervals = array( 'day' => __( 'Days' ), 'week' => __( 'Weeks' ), 'month' => __( 'Months' ), 'year' => __( 'Years' ) );
+	$external  = '<svg class="stats-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.5 4.5h-7V6h4.44l-5.97 5.97 1.06 1.06L18 7.06v4.44h1.5v-7Zm-13 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3h-1.5v3a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h3V5.5h-3Z"/></svg>';
+	$column    = function ( $title, $items, $view_all, $view_all_text, $extra_class ) use ( $external ) {
+		echo '<div class="stats-widget-highlights-card stats-widget-highlights__column ' . esc_attr( $extra_class ) . '">';
+		echo '<label class="stats-widget-highlights-card__title">' . esc_html( $title ) . '</label>';
+		if ( ! $items ) {
+			echo '<p class="stats-widget-highlights-card__empty">' . esc_html__( 'No data to show' ) . '</p>';
+		} else {
+			echo '<ul class="stats-widget-highlights-card__list">';
+			foreach ( $items as $item ) {
+				echo '<li><a href="' . esc_url( $item['href'] ) . '"' . ( $item['external'] ? ' target="_blank" rel="noopener noreferrer"' : '' ) . ' title="' . esc_attr( sprintf( __( 'View detailed stats for %s' ), $item['title'] ) ) . '">';
+				echo '<div><p>' . esc_html( $item['title'] ) . '</p><span>' . esc_html( sprintf( __( '%s Views' ), number_format_i18n( $item['views'] ) ) ) . '</span></div>';
+				echo $item['external'] ? $external : '';
+				echo '</a></li>';
+			}
+			echo '</ul>';
+		}
+		echo '<div class="stats-widget-highlights-card__view-all"><a href="' . esc_url( $view_all ) . '">' . esc_html( $view_all_text ) . '</a></div>';
+		echo '</div>';
+	};
+	?>
+	<div id="dashboard_stats" class="jp-stats-widget untangling-pw-stats" data-series="<?php echo esc_attr( wp_json_encode( array( 'series' => $series, 'labels' => $labels ) ) ); ?>">
+		<div id="stats-widget-content" class="stats-widget-content">
+			<div id="stats-widget-minichart" class="stats-widget-minichart" aria-hidden="true">
+				<div class="stats-widget-minichart__chart-head">
+					<div class="segmented-control is-primary untangling-pw-intervals">
+						<?php foreach ( $intervals as $key => $label ) : ?>
+							<button type="button" class="segmented-control__item<?php echo 'day' === $key ? ' is-selected' : ''; ?>" data-period="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></button>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<div class="chart<?php echo $established ? '' : ' is-placeholder'; ?>">
+					<div class="chart__y-axis"><span class="chart__y-axis-marker"></span><span class="chart__y-axis-marker is-fifty"></span></div>
+					<div class="chart__bars"></div>
+					<div class="chart__x-axis"></div>
+					<?php if ( ! $established ) : ?>
+						<div class="stats__empty-state"><div class="empty-state-card">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 3.2c-4.8 0-8.8 3.9-8.8 8.8 0 4.8 3.9 8.8 8.8 8.8 4.8 0 8.8-3.9 8.8-8.8 0-4.8-4-8.8-8.8-8.8zm0 16c-4 0-7.2-3.3-7.2-7.2C4.8 8 8 4.8 12 4.8s7.2 3.3 7.2 7.2c0 4-3.2 7.2-7.2 7.2zM11 17h2v-6h-2v6zm0-8h2V7h-2v2z"/></svg>
+							<p class="empty-state-card-info"><?php echo wp_kses( __( 'Once stats become available, this chart will show you details about your views and visitors. <a href="https://jetpack.com/stats/" target="_blank" rel="noopener noreferrer">Learn more about stats</a>' ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ) ) ); ?></p>
+						</div></div>
+					<?php endif; ?>
+				</div>
+				<div class="chart__legend"><span class="chart__legend-option"><span class="chart__legend-color is-secondary"></span><span class="chart__legend-label"><?php esc_html_e( 'Visitors' ); ?></span></span></div>
+			</div>
+			<div class="stats-widget-wrapper">
+				<div class="stats-widget-highlights stats-widget-card" aria-label="<?php esc_attr_e( '7 Day Highlights' ); ?>">
+					<div class="stats-widget-highlights__header"><label><?php esc_html_e( '7 Day Highlights' ); ?></label></div>
+					<div class="stats-widget-highlights__tabs">
+						<div class="segmented-control is-primary untangling-pw-tabs">
+							<button type="button" class="segmented-control__item is-selected" data-tab="posts"><?php esc_html_e( 'Top Posts & Pages' ); ?></button>
+							<button type="button" class="segmented-control__item" data-tab="referrers"><?php esc_html_e( 'Top Referrers' ); ?></button>
+						</div>
+					</div>
+					<div class="stats-widget-highlights__body">
+						<?php
+						$column( __( 'Top Posts & Pages' ), $top_posts, $stats_base, __( 'View all posts & pages stats' ), 'stats-widget-highlights__column--show-in-mobile' );
+						$column( __( 'Top Referrers' ), $top_referrers, $stats_base, __( 'View all referrer stats' ), '' );
+						?>
+					</div>
+				</div>
+				<?php if ( $atomic ) : ?>
+					<div class="stats-widget-modules">
+						<div class="stats-widget-module stats-widget-card" aria-label="<?php esc_attr_e( 'Blocked login attempts' ); ?>">
+							<div class="stats-widget-module__icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M12 3.3 5.5 6v5.2c0 4 2.7 7.6 6.5 9.4 3.8-1.8 6.5-5.4 6.5-9.4V6L12 3.3Z"/></svg></div>
+							<div class="stats-widget-module__title"><?php esc_html_e( 'Blocked login attempts' ); ?></div>
+							<div class="stats-widget-module__value"><span><?php echo $established ? '128' : '0'; ?></span></div>
+						</div>
+						<div class="stats-widget-module stats-widget-card" aria-label="<?php esc_attr_e( 'Blocked spam comments' ); ?>">
+							<div class="stats-widget-module__icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><circle cx="2.5" cy="12" r="1" fill="currentColor"/><circle cx="21.5" cy="12" r="1" fill="currentColor"/><text x="12" y="17.5" text-anchor="middle" font-family="Georgia, serif" font-size="19" fill="currentColor">A</text></svg></div>
+							<div class="stats-widget-module__title"><?php esc_html_e( 'Blocked spam comments' ); ?></div>
+							<div class="stats-widget-module__value"><span><?php echo $established ? '1.2K' : '0'; ?></span></div>
+						</div>
+					</div>
+				<?php endif; ?>
+				<div class="stats-widget-footer">
+					<a href="https://jetpack.com/redirect/?source=jetpack-stats-widget-logo-link" target="_blank" rel="noreferrer noopener" aria-label="Jetpack Stats Website"><?php echo untangling_pw_jetpack_logo(); ?></a>
+					<a href="<?php echo esc_url( $stats_base ); ?>"><?php esc_html_e( 'View all stats' ); ?></a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+	( function () {
+		var root = document.getElementById( 'dashboard_stats' );
+		if ( ! root ) { return; }
+		var conf = JSON.parse( root.getAttribute( 'data-series' ) );
+		var bars = root.querySelector( '.chart__bars' );
+		var axis = root.querySelector( '.chart__x-axis' );
+		var yaxis = root.querySelector( '.chart__y-axis' );
+		var placeholder = root.querySelector( '.chart' ).classList.contains( 'is-placeholder' );
+		function fmt( n ) { return n >= 1000 ? ( Math.round( n / 100 ) / 10 ) + 'K' : String( n ); }
+		function draw( period ) {
+			var s = conf.series[ period ], labels = conf.labels[ period ];
+			var max = Math.max.apply( null, s.views ) || 1;
+			bars.innerHTML = '';
+			axis.innerHTML = '';
+			s.views.forEach( function ( v, i ) {
+				var h = placeholder ? [ 62, 100, 82, 96, 40, 100, 26 ][ i ] : Math.round( v / max * 100 );
+				var vis = placeholder ? 0 : Math.round( s.visitors[ i ] / max * 100 );
+				var bar = document.createElement( 'div' );
+				bar.className = 'chart__bar';
+				bar.innerHTML = '<div class="chart__bar-section" style="height:' + h + '%"><div class="chart__bar-section-inner" style="height:' + ( vis ? Math.round( vis / h * 100 ) : 0 ) + '%"></div></div>';
+				bar.title = placeholder ? '' : labels[ i ] + ': ' + v + ' views, ' + s.visitors[ i ] + ' visitors';
+				bars.appendChild( bar );
+				var l = document.createElement( 'span' );
+				l.className = 'chart__x-axis-label';
+				l.textContent = placeholder ? '' : labels[ i ];
+				axis.appendChild( l );
+			} );
+			yaxis.children[ 0 ].textContent = placeholder ? '' : fmt( max );
+			yaxis.children[ 1 ].textContent = placeholder ? '' : fmt( Math.round( max / 2 ) );
+		}
+		draw( 'day' );
+		root.querySelectorAll( '.untangling-pw-intervals .segmented-control__item' ).forEach( function ( btn ) {
+			btn.addEventListener( 'click', function () {
+				root.querySelectorAll( '.untangling-pw-intervals .segmented-control__item' ).forEach( function ( b ) { b.classList.remove( 'is-selected' ); } );
+				btn.classList.add( 'is-selected' );
+				draw( btn.getAttribute( 'data-period' ) );
+			} );
+		} );
+		var cols = root.querySelectorAll( '.stats-widget-highlights__column' );
+		root.querySelectorAll( '.untangling-pw-tabs .segmented-control__item' ).forEach( function ( btn, i ) {
+			btn.addEventListener( 'click', function () {
+				root.querySelectorAll( '.untangling-pw-tabs .segmented-control__item' ).forEach( function ( b ) { b.classList.remove( 'is-selected' ); } );
+				btn.classList.add( 'is-selected' );
+				cols.forEach( function ( c, j ) { c.classList.toggle( 'stats-widget-highlights__column--show-in-mobile', i === j ); } );
+			} );
+		} );
+	} )();
+	</script>
+	<?php
+}
+
+// Daily Writing Prompt: jetpack-newsletter src/writing-prompt, markup and
+// copy verbatim (@wordpress/ui Stack / Text / Button / IconButton / Link,
+// redrawn on the vendored --wpds-* tokens). The prompts are real entries
+// from the WordPress.com daily prompts feed; the answered-users row uses
+// Gravatar identicons in place of the real avatars.
+function untangling_pw_render_prompt() {
+	$prompts = array(
+		array( 'text' => 'What are your favorite 5 apps on your phone?', 'count' => 517 ),
+		array( 'text' => 'Describe your most ideal day from beginning to end.', 'count' => 342 ),
+		array( 'text' => 'What is your favorite drink?', 'count' => 288 ),
+		array( 'text' => 'List three things you would change about your neighborhood.', 'count' => 164 ),
+		array( 'text' => 'Write about a time when you didn’t take action but wish you had. What would you do differently?', 'count' => 121 ),
+	);
+	$avatars = array( 'a1b2c3d4e5f60718', '9f8e7d6c5b4a3921', '5c6d7e8f90a1b2c3' );
+	$reader  = 'https://wordpress.com/reader';
+	$left    = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20 11.2H6.8l3.7-3.7-1-1L3.9 12l5.6 5.5 1-1-3.7-3.7H20z"/></svg>';
+	$right   = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 12.8h11.2l-3.7 3.7 1 1 5.5-5.5-5.5-5.5-1 1 3.7 3.7H4z"/></svg>';
+	$ext     = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.5 4.5h-7V6h4.44l-5.97 5.97 1.06 1.06L18 7.06v4.44h1.5v-7Zm-13 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3h-1.5v3a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h3V5.5h-3Z"/></svg>';
+	?>
+	<div>
+		<div id="wpcom_daily_writing_prompt_main" class="wpcom_daily_writing_prompt untangling-app untangling-pw-prompt" data-prompts="<?php echo esc_attr( wp_json_encode( $prompts ) ); ?>" data-index="0">
+			<div class="untangling-pw-stack">
+				<div class="wpcom-daily-writing-prompt--prompt">
+					<p class="wpcom-daily-writing-prompt--prompt-text"><?php echo esc_html( $prompts[0]['text'] ); ?></p>
+					<div class="wpcom-daily-writing-prompt--prompt-nav">
+						<button type="button" class="untangling-pw-iconbutton" data-dir="-1" aria-label="<?php esc_attr_e( 'Previous prompt' ); ?>" disabled><?php echo $left; ?></button>
+						<button type="button" class="untangling-pw-iconbutton" data-dir="1" aria-label="<?php esc_attr_e( 'Next prompt' ); ?>"><?php echo $right; ?></button>
+					</div>
+				</div>
+				<div class="untangling-pw-prompt-actions">
+					<a class="untangling-pw-outline" href="<?php echo esc_url( admin_url( 'post-new.php?answer_prompt=1' ) ); ?>"><?php esc_html_e( 'Post your answer' ); ?></a>
+					<div class="wpcom-daily-writing-prompt--answered-users">
+						<span>
+							<?php foreach ( $avatars as $hash ) : ?>
+								<img alt="<?php esc_attr_e( 'User avatar' ); ?>" src="<?php echo esc_url( 'https://secure.gravatar.com/avatar/' . $hash . '?s=48&d=identicon&f=y' ); ?>" width="24" height="24" />
+							<?php endforeach; ?>
+							<span class="wpcom-daily-writing-prompt--answered-users-more">+<?php echo (int) $prompts[0]['count']; ?></span>
+						</span>
+						<a class="untangling-pw-link" href="<?php echo esc_url( $reader ); ?>" target="_blank" rel="noreferrer noopener"><?php esc_html_e( 'View responses' ); ?> <?php echo $ext; ?></a>
+					</div>
+				</div>
+				<div class="wpcom-daily-writing-prompt--branding">
+					<?php echo untangling_pw_jetpack_logo(); ?>
+					<a class="untangling-pw-link is-neutral" href="<?php echo esc_url( $reader ); ?>"><?php esc_html_e( 'Read the blogs and topics you follow' ); ?></a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+	( function () {
+		var root = document.getElementById( 'wpcom_daily_writing_prompt_main' );
+		if ( ! root ) { return; }
+		var prompts = JSON.parse( root.getAttribute( 'data-prompts' ) );
+		var text = root.querySelector( '.wpcom-daily-writing-prompt--prompt-text' );
+		var more = root.querySelector( '.wpcom-daily-writing-prompt--answered-users-more' );
+		var buttons = root.querySelectorAll( '.untangling-pw-iconbutton' );
+		var index = 0;
+		buttons.forEach( function ( btn ) {
+			btn.addEventListener( 'click', function () {
+				index = Math.max( 0, Math.min( prompts.length - 1, index + parseInt( btn.getAttribute( 'data-dir' ), 10 ) ) );
+				text.textContent = prompts[ index ].text;
+				more.textContent = '+' + prompts[ index ].count;
+				buttons[ 0 ].disabled = 0 === index;
+				buttons[ 1 ].disabled = prompts.length - 1 === index;
+			} );
+		} );
+	} )();
+	</script>
+	<?php
+}
+
+// The production widgets' own styles, reduced to what the mimics use:
+// odyssey-stats widget/*.scss and jetpack-newsletter writing-prompt/style.scss.
+function untangling_pw_css() {
+	return <<<'CSS'
+/* Jetpack Stats (Odyssey dashboard widget). */
+.untangling-pw-stats { container-type: inline-size; margin: -11px -12px -12px; border-radius: 0 0 8px 8px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; color: #101517; }
+.untangling-pw-stats .segmented-control { display: flex; height: 36px; min-width: 259px; border: 1px solid #c3c4c7; border-radius: 4px; overflow: hidden; background: #fff; }
+.untangling-pw-stats .segmented-control__item { flex: 1; border: 0; border-left: 1px solid #c3c4c7; background: #fff; color: #3c434a; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 0 8px; }
+.untangling-pw-stats .segmented-control__item:first-child { border-left: 0; }
+.untangling-pw-stats .segmented-control__item.is-selected { background: #3858e9; color: #fff; }
+.untangling-pw-stats .stats-widget-minichart { border-bottom: 1px solid #c3c4c7; background: #fff; }
+.untangling-pw-stats .stats-widget-minichart__chart-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; box-sizing: border-box; }
+.untangling-pw-stats .chart { position: relative; height: 200px; padding: 8px 40px 28px 16px; box-sizing: border-box; }
+.untangling-pw-stats .chart__y-axis { position: absolute; inset: 8px 0 28px 0; pointer-events: none; }
+.untangling-pw-stats .chart__y-axis-marker { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(220, 220, 222, 0.5); font-size: 11px; color: #646970; text-align: right; padding-right: 8px; line-height: 14px; top: 0; }
+.untangling-pw-stats .chart__y-axis-marker.is-fifty { top: 50%; }
+.untangling-pw-stats .chart__bars { position: relative; display: flex; align-items: flex-end; gap: 12px; height: 100%; }
+.untangling-pw-stats .chart__bar { flex: 1; min-width: 35px; height: 100%; display: flex; align-items: flex-end; }
+.untangling-pw-stats .chart__bar-section { width: 100%; background: #c4ccf7; display: flex; align-items: flex-end; }
+.untangling-pw-stats .chart__bar-section-inner { width: 100%; background: #2145e6; }
+.untangling-pw-stats .chart.is-placeholder { padding: 8px 16px 28px; }
+.untangling-pw-stats .chart.is-placeholder .chart__bar-section { background: #dfe3f9; }
+.untangling-pw-stats .chart.is-placeholder .chart__y-axis-marker { display: none; }
+.untangling-pw-stats .chart__x-axis { position: absolute; left: 16px; right: 40px; bottom: 6px; display: flex; gap: 12px; }
+.untangling-pw-stats .chart.is-placeholder .chart__x-axis { right: 16px; }
+.untangling-pw-stats .chart__x-axis-label { flex: 1; min-width: 35px; font-size: 11px; color: #646970; letter-spacing: -0.02em; text-align: center; white-space: nowrap; }
+.untangling-pw-stats .stats__empty-state { position: absolute; inset: 24px 24px 40px; display: flex; align-items: center; }
+.untangling-pw-stats .empty-state-card { display: flex; gap: 16px; align-items: center; width: 100%; padding: 24px; box-sizing: border-box; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; }
+.untangling-pw-stats .empty-state-card svg { flex-shrink: 0; }
+.untangling-pw-stats .empty-state-card-info { margin: 0; font-size: 14px; line-height: 20px; color: #50575e; }
+.untangling-pw-stats .chart__legend { margin: 16px 0; padding: 0; display: flex; justify-content: center; }
+.untangling-pw-stats .chart__legend-color { display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin: -3px 6px 0 0; background: #2145e6; }
+.untangling-pw-stats .chart__legend-label { font-size: 13px; line-height: 24px; color: #101517; letter-spacing: -0.02em; vertical-align: middle; }
+.untangling-pw-stats .stats-widget-wrapper { padding: 24px; background: #f6f7f7; }
+.untangling-pw-stats .stats-widget-wrapper label { cursor: auto; }
+.untangling-pw-stats .stats-widget-card { padding: 16px; color: #101517; background: #fff; box-shadow: 0 4px 40px rgba(0, 0, 0, 0.08); border-radius: 4px; }
+.untangling-pw-stats .stats-widget-highlights__header label { font-weight: 500; font-size: 16px; line-height: 26px; }
+.untangling-pw-stats .stats-widget-highlights__tabs { display: none; margin-top: 16px; }
+.untangling-pw-stats .stats-widget-highlights__body { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 24px; margin: 16px -8px 0; }
+.untangling-pw-stats .stats-widget-highlights__column { min-width: 0; }
+.untangling-pw-stats .stats-widget-highlights-card__title { display: block; font-weight: 500; font-size: 14px; line-height: 26px; margin: 0 0 16px 8px; }
+.untangling-pw-stats .stats-widget-highlights-card__empty { min-height: 40px; margin: 0 0 0 8px; color: #787c82; font-size: 14px; }
+.untangling-pw-stats .stats-widget-highlights-card__list { list-style: none; margin: 0; padding: 0; }
+.untangling-pw-stats .stats-widget-highlights-card__list li { margin: 0 0 8px; }
+.untangling-pw-stats .stats-widget-highlights-card__list li > a { display: block; position: relative; padding: 4px 26px 4px 8px; color: inherit; text-decoration: none; }
+.untangling-pw-stats .stats-widget-highlights-card__list li > a:hover { background: #f6f7f7; border-radius: 4px; }
+.untangling-pw-stats .stats-widget-highlights-card__list li > a:hover svg { display: block; }
+.untangling-pw-stats .stats-widget-highlights-card__list li svg { display: none; position: absolute; top: 12px; right: 10px; }
+.untangling-pw-stats .stats-widget-highlights-card__list li p { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: -0.24px; line-height: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-decoration: underline; }
+.untangling-pw-stats .stats-widget-highlights-card__list li span { font-size: 13px; letter-spacing: -0.24px; line-height: 20px; color: #50575e; }
+.untangling-pw-stats .stats-widget-highlights-card__view-all { margin: 16px 0 0 8px; font-weight: 600; font-size: 13px; line-height: 20px; letter-spacing: -0.24px; }
+.untangling-pw-stats .stats-widget-highlights-card__view-all a { color: inherit; text-decoration: none; }
+.untangling-pw-stats .stats-widget-modules { margin-top: 24px; display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 24px; }
+.untangling-pw-stats .stats-widget-module__icon { margin-bottom: 16px; height: 24px; }
+.untangling-pw-stats .stats-widget-module__title { font-weight: 500; font-size: 13px; line-height: 20px; letter-spacing: -0.24px; }
+.untangling-pw-stats .stats-widget-module__value { margin-top: 4px; font-size: 28px; line-height: 1; letter-spacing: -0.02em; }
+.untangling-pw-stats .stats-widget-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.untangling-pw-stats .stats-widget-footer a { display: inline-block; font-weight: 500; font-size: 13px; line-height: 20px; letter-spacing: -0.24px; text-decoration: underline; color: #101517; }
+.untangling-pw-stats .stats-widget-footer a:first-child { text-decoration: none; }
+.untangling-pw-jplogo { display: inline-flex; align-items: center; gap: 4px; color: #000; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; line-height: 20px; }
+@container (max-width: 480px) {
+	.untangling-pw-stats .stats-widget-highlights__tabs { display: block; }
+	.untangling-pw-stats .stats-widget-highlights__body { grid-template-columns: 1fr; }
+	.untangling-pw-stats .stats-widget-highlights__column { display: none; }
+	.untangling-pw-stats .stats-widget-highlights__column--show-in-mobile { display: block; }
+	.untangling-pw-stats .stats-widget-highlights-card__title { display: none; }
+	.untangling-pw-stats .stats-widget-modules { grid-template-columns: 1fr; row-gap: 24px; }
+	.untangling-pw-stats .stats-widget-minichart__chart-head .segmented-control { width: 100%; }
+}
+
+/* Daily Writing Prompt (jetpack-newsletter). */
+.untangling-pw-prompt { font-size: 13px; color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-pw-prompt .untangling-pw-stack { display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md, 16px); }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--prompt { display: flex; align-items: flex-start; gap: var(--wpds-dimension-gap-sm, 8px); }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--prompt-text { flex: 1; margin: 0; font-size: 16px; line-height: 24px; text-wrap: pretty; }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--prompt-nav { flex-shrink: 0; display: flex; align-items: center; gap: var(--wpds-dimension-gap-xs, 4px); }
+.untangling-pw-prompt .untangling-pw-iconbutton { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; background: transparent; border: 1px solid var(--wpds-color-stroke-surface-neutral, #949494); border-radius: var(--wpds-border-radius-sm, 4px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); cursor: pointer; }
+.untangling-pw-prompt .untangling-pw-iconbutton:hover:not(:disabled) { background: var(--wpds-color-background-surface-neutral-weak, #f0f0f0); }
+.untangling-pw-prompt .untangling-pw-iconbutton:disabled { color: #949494; border-color: #ddd; cursor: default; }
+.untangling-pw-prompt .untangling-pw-prompt-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--wpds-dimension-gap-sm, 8px); }
+.untangling-pw-prompt .untangling-pw-outline { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--wpds-color-stroke-brand, #3858e9); border-radius: var(--wpds-border-radius-sm, 4px); color: var(--wpds-color-foreground-content-brand, #3858e9); font-size: 13px; font-weight: 500; text-decoration: none; }
+.untangling-pw-prompt .untangling-pw-outline:hover { background: var(--wpds-color-background-surface-brand-weak, #f0f2fd); }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm, 8px); }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users img { vertical-align: middle; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users img:first-child { margin-inline-start: 0; }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users-more { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 24px; height: 24px; font-size: 0.5625rem; font-variant-numeric: tabular-nums; line-height: 1; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; background: #f0f0f0; color: #757575; }
+.untangling-pw-prompt .untangling-pw-link { display: inline-flex; align-items: center; gap: 2px; color: var(--wpds-color-foreground-content-brand, #3858e9); text-decoration: underline; font-size: 13px; }
+.untangling-pw-prompt .untangling-pw-link.is-neutral { color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--branding { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--wpds-dimension-gap-sm, 8px); padding-block-start: var(--wpds-dimension-padding-md, 16px); border-block-start: 1px solid var(--wpds-color-stroke-surface-neutral, #ddd); }
+CSS;
+}
+
 add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	if ( 'index.php' !== $hook || 'dashboard' !== untangling_get_variant() ) {
 		return;
@@ -8856,7 +9277,7 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	// The same app as the My Site page: the shared components render the
 	// widgets, and each surface's mount loop no-ops on the other.
 	wp_add_inline_script( 'untangling-ms-app', untangling_ms_app_js() );
-	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() . untangling_dw_css() . untangling_fw_css() );
+	wp_add_inline_style( 'wp-components', untangling_app_css() . untangling_ms_app_css() . untangling_dw_css() . untangling_fw_css() . untangling_pw_css() );
 } );
 
 // Screen Options, grouped. Core prints one flat run of checkboxes; the
@@ -8876,7 +9297,7 @@ add_action( 'admin_footer-index.php', function () {
 		}
 		var GROUPS = [
 			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
-			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'untangling_dw_activity' ] },
+			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ] },
 			{ title: <?php echo wp_json_encode( __( 'Protection and hosting' ) ); ?>, ids: [ 'untangling_dw_protection', 'untangling_dw_hosting' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plan' ) ); ?>, ids: [ 'untangling_dw_plan' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plugins' ) ); ?>, ids: [ 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor', 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
@@ -8938,10 +9359,6 @@ add_action( 'admin_footer-index.php', function () {
 // the checklist's current step, the one "act on this" in the design.
 function untangling_dw_css() {
 	return <<<'CSS'
-/* Curated chrome: the welcome panel's job moved into the Site + Next steps
-   widgets; its Screen Options checkbox goes with it. */
-#welcome-panel { display: none !important; }
-#adv-settings label[for="wp_welcome_panel-hide"] { display: none; }
 
 /* Core's wide-viewport media rules (3 columns at 1500-1800px, 4 above that)
    restyle .postbox-container widths past the columns-N class — column 1
@@ -9141,6 +9558,42 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-offer-text { flex: 1; }
 .untangling-dw .ms-dw-offer-title { display: block; font-weight: 500; color: #1e1e1e; }
 .untangling-dw .ms-dw-offer-desc { display: block; color: #757575; font-size: 12px; }
+
+/* Jetpack Newsletter — modules/subscriptions/newsletter-widget/src/style.scss,
+   compiled by hand: grid units 4/8/12/16, gray-100 #f0f0f0, gray-900 #1e1e1e,
+   radius medium 4px / large 8px / round 50%, elevation-x-small, font-size
+   small 12px. Nothing here is scoped to .untangling-*: the widget is not one
+   of ours, it is styled the way Jetpack styles it. */
+.newsletter-widget__header { padding: 12px; margin-bottom: 12px; }
+.newsletter-widget__heading { font-weight: var(--wpds-typography-font-weight-emphasis, 499) !important; }
+.newsletter-widget__footer { background-color: #f0f0f0; padding: 12px; }
+.newsletter-widget__footer-msg { margin: 0; margin-bottom: 12px; }
+.newsletter-widget__footer-list { margin: 0; padding-left: 12px; list-style-type: disc; columns: 2; }
+.newsletter-widget__stat-label { margin-left: 4px; text-decoration: none; }
+.newsletter-widget__stats { display: flex; gap: 12px; flex-wrap: wrap; width: 100%; }
+.newsletter-widget__stats > :first-child { margin-right: 12px; }
+.newsletter-widget__icon { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.newsletter-widget__stat-item { display: flex; align-items: center; gap: 4px; text-decoration: none; }
+.newsletter-widget__chart-container { padding: 0 12px; }
+.newsletter-widget__chart { width: 100%; box-sizing: border-box; padding: 0 12px 12px; }
+.newsletter-widget a { text-decoration: none; }
+.subscribers-chart { width: 100%; height: 200px; }
+.subscribers-chart__tooltip { background: #fff; padding: 8px; border-radius: 4px; box-shadow: 0 1px 1px rgba(0, 0, 0, .03), 0 1px 2px rgba(0, 0, 0, .02), 0 3px 3px rgba(0, 0, 0, .02), 0 4px 4px rgba(0, 0, 0, .01); font-size: 12px; color: #1e1e1e; min-width: 120px; }
+.subscribers-chart__tooltip-date { font-weight: var(--wpds-typography-font-weight-emphasis, 499); margin-bottom: 4px; }
+.subscribers-chart__tooltip-stats { display: flex; flex-direction: column; gap: 2px; }
+.subscribers-chart__tooltip-stat { display: flex; align-items: center; }
+.subscribers-chart__tooltip-indicator { width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.subscribers-chart__legend { display: flex; justify-content: center; }
+/* wp-admin overrides */
+#jetpack_newsletter_dashboard_widget .inside { padding: 0; margin: 0; }
+#jetpack_newsletter_dashboard_widget .newsletter-widget__footer { border-end-start-radius: 8px; border-end-end-radius: 8px; }
+/* visx defaults the mimic relies on: the tooltip portal (positioned against
+   the chart box here instead of the document), and LegendOrdinal's inline
+   flex rows. */
+.subscribers-chart { position: relative; }
+.subscribers-chart__tooltip { position: absolute; pointer-events: none; z-index: 10; }
+.subscribers-chart__legend .visx-legend-item { display: flex; align-items: center; margin: 5px; }
+.subscribers-chart__legend .visx-legend-label { margin: 0 0 0 4px; }
 CSS;
 }
 
@@ -10682,7 +11135,6 @@ function untangling_ms_app_js() {
 			el( CardBody, null,
 				cardTitle( 'Email' ),
 				el( 'div', { className: 'ms-upsell is-stacked' },
-					el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS.email, '0 0 24 24', 24 ) ),
 					el( 'span', { className: 'ms-upsell-main' },
 						el( 'h3', { className: 'ms-upsell-title' }, isFree ? 'Get an address at your own domain' : 'Send from ' + addr ),
 						// One line, one idea: the domain is what buys the address. The
@@ -11067,7 +11519,7 @@ function untangling_ms_app_js() {
 			el( 'div', { className: 'ms-dw-grid' },
 				row( 'Plan', el( 'a', { href: data.planPageUrl }, 'WordPress.com ' + data.plan ) ),
 				row( 'WordPress', data.wpUpdate
-					? el( Fragment, null, data.wpVersion, ' · ', el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ) )
+					? el( Fragment, null, el( 'a', { className: 'ms-dw-update', href: data.updateUrl }, 'Update to ' + data.wpUpdate ), ' · ', data.wpVersion )
 					: data.wpVersion ),
 				row( 'PHP', isFree ? data.phpVersion + ' — managed for you' : data.phpVersion ),
 				// Each count opens its core list screen, like core's At a Glance.
@@ -11449,6 +11901,236 @@ function untangling_ms_app_js() {
 			),
 			dwFooter( data.siteUrl, 'Visit site' )
 		);
+	}
+
+	/* ---- Jetpack Newsletter: the production widget (jetpack/modules/
+	   subscriptions/newsletter-widget), markup and copy verbatim. The visx
+	   XYChart is redrawn as plain SVG with the same theme: 200px tall, margins
+	   10/30/30/left-by-digits, row grid #e0e0e0, 13px #1e1e1e labels, two
+	   monotone lines (#3057dc all, #e68b28 paid), crosshair + glyph tooltip,
+	   circle legend. Counts follow the rest of the prototype: 214 subscribers,
+	   no paid newsletter yet. ---- */
+	var NL_COLORS = { all: '#3057dc', paid: '#e68b28' };
+	var NL_LABELS = { all: 'All', paid: 'Paid' };
+	var NL_MONTHS = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
+	var NL_ICONS = {
+		envelope: 'M3 7c0-1.1.9-2 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm2-.5h14c.3 0 .5.2.5.5v1L12 13.5 4.5 7.9V7c0-.3.2-.5.5-.5Zm-.5 3.3V17c0 .3.2.5.5.5h14c.3 0 .5-.2.5-.5V9.8L12 15.4 4.5 9.8Z',
+		payment: 'M5.5 9.5v-2h13v2h-13zm0 3v4h13v-4h-13zM4 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 011 1H5a1 1 0 01-1-1V7z',
+	};
+	function nlIcon( name ) {
+		// @wordpress/icons envelope / payment through <Icon size={24}>.
+		return el( C.Icon, { size: 24, icon: el( 'svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'currentColor' },
+			el( 'path', { fillRule: 'evenodd', clipRule: 'evenodd', d: NL_ICONS[ name ] } )
+		) } );
+	}
+	function nlFormatDate( d, full ) {
+		var short = NL_MONTHS[ d.getMonth() ] + ' ' + d.getDate();
+		return full ? short + ', ' + d.getFullYear() : short;
+	}
+	function nlFormatNumber( n ) {
+		return n.toLocaleString();
+	}
+	// subscriberTotalsByDate, transformed: the last 30 days, sorted ascending.
+	function nlTotalsByDate() {
+		var all = [ 190, 190, 191, 192, 192, 193, 195, 195, 196, 197, 199, 199, 200, 201, 201, 202, 204, 204, 205, 206, 206, 207, 208, 209, 210, 211, 211, 212, 213, 214 ];
+		var today = new Date();
+		today.setHours( 0, 0, 0, 0 );
+		return all.map( function ( v, i ) {
+			var d = new Date( today );
+			d.setDate( today.getDate() - ( all.length - 1 - i ) );
+			return { date: d, all: v, paid: 0 };
+		} );
+	}
+	// d3's tickStep + nice, which is what visx's linear scale with nice: true
+	// and numTicks 5 resolves to.
+	function nlTickStep( min, max, count ) {
+		var span = max - min || 1;
+		var step = Math.pow( 10, Math.floor( Math.log( span / count ) / Math.LN10 ) );
+		var error = span / count / step;
+		if ( error >= Math.sqrt( 50 ) ) {
+			step *= 10;
+		} else if ( error >= Math.sqrt( 10 ) ) {
+			step *= 5;
+		} else if ( error >= Math.sqrt( 2 ) ) {
+			step *= 2;
+		}
+		return step;
+	}
+	function nlNiceTicks( min, max, count ) {
+		var step = nlTickStep( min, max, count );
+		var lo = Math.floor( min / step ) * step;
+		var hi = Math.ceil( max / step ) * step;
+		var ticks = [];
+		for ( var v = lo; v <= hi + step / 1000; v += step ) {
+			ticks.push( Math.round( v * 1000 ) / 1000 );
+		}
+		return { ticks: ticks, min: lo, max: hi };
+	}
+
+	function SubscribersChart( props ) {
+		var data = props.data;
+		var boxRef = useRef( null );
+		var widthState = useState( 0 );
+		var width = widthState[ 0 ], setWidth = widthState[ 1 ];
+		var hoverState = useState( null );
+		var hover = hoverState[ 0 ], setHover = hoverState[ 1 ];
+		useLayoutEffect( function () {
+			function measure() {
+				if ( boxRef.current ) {
+					setWidth( boxRef.current.clientWidth );
+				}
+			}
+			measure();
+			window.addEventListener( 'resize', measure );
+			return function () { window.removeEventListener( 'resize', measure ); };
+		}, [] );
+
+		if ( ! data.length ) {
+			return el( 'div', null, 'No data available' );
+		}
+
+		var height = 200;
+		var maxValue = 0;
+		var minValue = Infinity;
+		data.forEach( function ( d ) {
+			maxValue = Math.max( maxValue, d.all, d.paid );
+			minValue = Math.min( minValue, d.all, d.paid );
+		} );
+		// calcLeftAxisMargin: 8px a digit + 10, never under 30.
+		var left = Math.max( 30, String( maxValue ).length * 8 + 10 );
+		var margin = { top: 10, right: 30, bottom: 30, left: left };
+		var innerW = Math.max( 0, width - margin.left - margin.right );
+		var innerH = height - margin.top - margin.bottom;
+		var nice = nlNiceTicks( minValue, maxValue, 5 );
+		var t0 = data[ 0 ].date.getTime();
+		var t1 = data[ data.length - 1 ].date.getTime();
+		function xOf( date ) {
+			return margin.left + ( t1 === t0 ? 0 : ( date.getTime() - t0 ) / ( t1 - t0 ) ) * innerW;
+		}
+		function yOf( v ) {
+			return margin.top + innerH - ( v - nice.min ) / ( ( nice.max - nice.min ) || 1 ) * innerH;
+		}
+		function linePath( key ) {
+			return smoothPath( data.map( function ( d ) { return [ xOf( d.date ), yOf( d[ key ] ) ]; } ) );
+		}
+		// getXAxisTickValues: 0 / 25 / 50 / 75 / 100 % of the time span.
+		var xTicks = [ 0, .25, .5, .75, 1 ].map( function ( f ) { return new Date( t0 + ( t1 - t0 ) * f ); } );
+
+		function onMove( e ) {
+			var rect = boxRef.current.getBoundingClientRect();
+			var px = e.clientX - rect.left;
+			var nearest = 0;
+			var best = Infinity;
+			data.forEach( function ( d, i ) {
+				var dist = Math.abs( xOf( d.date ) - px );
+				if ( dist < best ) {
+					best = dist;
+					nearest = i;
+				}
+			} );
+			setHover( { i: nearest, px: px, py: e.clientY - rect.top } );
+		}
+
+		var datum = hover ? data[ hover.i ] : null;
+		return el( Fragment, null,
+			el( 'div', { className: 'subscribers-chart', ref: boxRef, onMouseMove: onMove, onMouseLeave: function () { setHover( null ); } },
+				width > 0 && el( 'svg', { width: width, height: height, style: { display: 'block', background: '#fff' } },
+					// Grid: rows only, numTicks 5.
+					nice.ticks.map( function ( v ) {
+						return el( 'line', { key: 'g' + v, x1: margin.left, x2: margin.left + innerW, y1: yOf( v ), y2: yOf( v ), stroke: '#e0e0e0', strokeWidth: 1 } );
+					} ),
+					el( 'path', { d: linePath( 'all' ), fill: 'none', stroke: NL_COLORS.all, strokeWidth: 2 } ),
+					el( 'path', { d: linePath( 'paid' ), fill: 'none', stroke: NL_COLORS.paid, strokeWidth: 2 } ),
+					// Left axis: no line, no ticks, no zero.
+					nice.ticks.filter( function ( v ) { return 0 !== v; } ).map( function ( v ) {
+						return el( 'text', { key: 'y' + v, x: margin.left - 8, y: yOf( v ), textAnchor: 'end', dominantBaseline: 'middle', fill: '#1e1e1e', fontSize: 13, fontWeight: 400 }, nlFormatNumber( v ) );
+					} ),
+					// Bottom axis: five dates, 'M j'.
+					xTicks.map( function ( d, i ) {
+						return el( 'text', { key: 'x' + i, x: xOf( d ), y: height - margin.bottom + 18, textAnchor: 'middle', fill: '#1e1e1e', fontSize: 13, fontWeight: 400 }, nlFormatDate( d ) );
+					} ),
+					datum && el( 'line', { x1: xOf( datum.date ), x2: xOf( datum.date ), y1: margin.top, y2: margin.top + innerH, stroke: '#222', strokeWidth: 1 } ),
+					datum && [ 'all', 'paid' ].map( function ( key ) {
+						return el( 'circle', { key: 'glyph-' + key, cx: xOf( datum.date ), cy: yOf( datum[ key ] ), r: 4, fill: NL_COLORS[ key ], stroke: 'white', strokeWidth: 2 } );
+					} )
+				),
+				datum && el( 'div', { className: 'subscribers-chart__tooltip', style: { left: Math.min( hover.px + 10, Math.max( 0, width - 130 ) ) + 'px', top: ( hover.py + 10 ) + 'px' } },
+					el( 'div', { className: 'subscribers-chart__tooltip-date' }, nlFormatDate( datum.date, true ) ),
+					el( 'div', { className: 'subscribers-chart__tooltip-stats' },
+						el( 'div', { className: 'subscribers-chart__tooltip-stat' },
+							el( 'div', { style: { backgroundColor: NL_COLORS.all }, className: 'subscribers-chart__tooltip-indicator' } ),
+							el( 'span', null, 'All: ' + nlFormatNumber( datum.all ) )
+						),
+						el( 'div', { className: 'subscribers-chart__tooltip-stat' },
+							el( 'div', { style: { backgroundColor: NL_COLORS.paid }, className: 'subscribers-chart__tooltip-indicator' } ),
+							el( 'span', null, 'Paid: ' + nlFormatNumber( datum.paid ) )
+						)
+					)
+				)
+			),
+			el( 'div', { className: 'visx-legend subscribers-chart__legend' },
+				[ 'all', 'paid' ].map( function ( key ) {
+					return el( 'div', { key: key, className: 'visx-legend-item' },
+						el( 'svg', { width: 10, height: 10 }, el( 'circle', { cx: 5, cy: 5, r: 5, fill: NL_COLORS[ key ] } ) ),
+						el( 'div', { className: 'visx-legend-label' }, NL_LABELS[ key ] )
+					);
+				} )
+			)
+		);
+	}
+
+	function NewsletterWidget() {
+		var site = data.domain || data.siteSlug;
+		var adminUrl = data.adminUrl;
+		var allSubscribers = 214;
+		var emailSubscribers = 163;
+		var paidSubscribers = 0;
+		// isWpcomSite: every link is a plain <a>, the way DashboardLink renders
+		// them on WP.com. Stats module active, so the stats deep link shows.
+		var subscriberStatsUrl = adminUrl + 'admin.php?page=stats#!/stats/subscribers/' + site;
+		var subscribersText = nlFormatNumber( allSubscribers ) + ( 1 === allSubscribers ? ' subscriber (' : ' subscribers (' ) + nlFormatNumber( emailSubscribers ) + ' via email)';
+		var paidSubscribersText = nlFormatNumber( paidSubscribers ) + ( 1 === paidSubscribers ? ' paid subscriber' : ' paid subscribers' );
+		function stat( iconName, text ) {
+			return el( 'span', { className: 'newsletter-widget__stat-item' },
+				el( 'span', { className: 'newsletter-widget__icon' }, nlIcon( iconName ) ),
+				el( 'span', { className: 'newsletter-widget__stat-content' },
+					el( 'span', { className: 'newsletter-widget__stat-label' }, el( 'a', { href: subscriberStatsUrl }, text ) )
+				)
+			);
+		}
+		return el( 'div', { className: 'newsletter-widget' },
+			el( 'div', { className: 'newsletter-widget__header' },
+				el( 'div', { className: 'newsletter-widget__stats' },
+					stat( 'envelope', subscribersText ),
+					stat( 'payment', paidSubscribersText )
+				)
+			),
+			el( 'div', { className: 'newsletter-widget__chart' },
+				el( 'h3', { className: 'newsletter-widget__heading' }, 'Total Subscribers' ),
+				el( SubscribersChart, { data: nlTotalsByDate() } )
+			),
+			el( 'div', { className: 'newsletter-widget__footer' },
+				el( 'p', { className: 'newsletter-widget__footer-msg' },
+					'Effortlessly turn posts into emails with our Newsletter feature. Expand your reach, engage readers, and monetize your writing. No coding required. ',
+					el( 'a', { href: 'https://wordpress.com/learn/courses/newsletters-101/wordpress-com-newsletter' }, 'Learn more' )
+				),
+				el( 'div', null,
+					el( 'h3', { className: 'newsletter-widget__heading' }, 'Quick Links' ),
+					el( 'ul', { className: 'newsletter-widget__footer-list' },
+						el( 'li', null, el( 'a', { href: adminUrl + 'post-new.php' }, 'Publish your next post' ) ),
+						el( 'li', null, el( 'a', { href: subscriberStatsUrl }, 'View subscriber stats' ) ),
+						el( 'li', null, el( 'a', { href: msd + '/subscribers/' + site + '#add-subscribers' }, 'Import subscribers' ) ),
+						el( 'li', null, el( 'a', { href: msd + '/subscribers/' + site }, 'Manage subscribers' ) ),
+						el( 'li', null, el( 'a', { href: msd + '/earn/' + site }, 'Monetize' ) ),
+						el( 'li', null, el( 'a', { href: adminUrl + 'admin.php?page=jetpack-newsletter' }, 'Newsletter settings' ) )
+					)
+				)
+			)
+		);
+	}
+	var nlRoot = document.getElementById( 'newsletter-widget-app' );
+	if ( nlRoot && wp.element.createRoot ) {
+		wp.element.createRoot( nlRoot ).render( el( NewsletterWidget ) );
 	}
 
 	var DW_WIDGETS = { site: DwSitePreview, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance, protection: DwProtection, hosting: DwHosting, plan: DwPlan };
