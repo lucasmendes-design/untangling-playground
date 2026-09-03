@@ -57,5 +57,6 @@ cd untangling-playground && claude
 Then type `/untangling-setup`. It creates and seeds the six Studio sites,
 checks out the Calypso branch `prototype/untangling-ia`, reconciles the
 Studio ports with the MSD mocks, boots everything, and recaps the state from
-`HANDOVER.md`. From the next day on, `/untangling-start` is the resume
-command.
+`HANDOVER.md`. From the next day on, `/untangling-start` resumes,
+`/untangling-sync "message"` publishes, and `/untangling-start wrap` closes
+the session. See "How to work" in `HANDOVER.md`.

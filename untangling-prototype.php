@@ -989,6 +989,13 @@ add_action( 'admin_init', function () {
 	if ( isset( $_GET['untangling_ms_hosting'] ) && in_array( $_GET['untangling_ms_hosting'], array( 'ok', 'attention' ), true ) ) {
 		update_option( 'untangling_ms_hosting', $_GET['untangling_ms_hosting'] );
 	}
+	// Dashboard column count, the same user option core's Screen Options radio
+	// writes (global, unprefixed — matches wp_ajax_meta_box_order). Core hides
+	// the 3-column radio between 800 and 1499px, so without this a viewer who
+	// switched to 1 column at laptop width had no way back except a full reset.
+	if ( isset( $_GET['untangling_dw_columns'] ) && in_array( (int) $_GET['untangling_dw_columns'], array( 1, 2, 3 ), true ) && get_current_user_id() ) {
+		update_user_option( get_current_user_id(), 'screen_layout_dashboard', (int) $_GET['untangling_dw_columns'], true );
+	}
 	if ( isset( $_GET['untangling_ms_replay'] ) ) {
 		delete_option( 'untangling_ms_lp_done' );
 		delete_option( 'untangling_ms_lp_complete' );

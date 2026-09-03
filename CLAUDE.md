@@ -9,7 +9,10 @@ open next steps.
 - `/untangling-setup` — one-time machine setup: six Studio sites + the Calypso
   branch, then boots everything and recaps. Run it once on a new machine.
 - `/untangling-start` — daily resume: boots what is not running, prints the
-  live links, recaps the state.
+  live links, recaps the state. `/untangling-start wrap` closes the session:
+  updates HANDOVER.md and publishes.
+- `/untangling-sync "message"` — publish the wp-admin side: pull first, then
+  commit and push. Playground links follow within ~5 minutes.
 
 ## What lives where
 
@@ -48,7 +51,8 @@ open next steps.
 
 ## Publishing
 
-- wp-admin side: `./sync.sh "message"` commits everything and pushes `main`.
-  Playground links serve the new version within ~5 minutes.
+- wp-admin side: `/untangling-sync "message"` (or `./sync.sh "message"` in a
+  terminal) commits everything and pushes `main`. Playground links serve the
+  new version within ~5 minutes. Pull before you push; the skill does it.
 - Calypso side: commit on `prototype/untangling-ia` and push the branch.
   calypso.live rebuilds the shared preview from the same link.

@@ -104,14 +104,22 @@ MSD (Calypso branch `prototype/untangling-ia`):
 - wp-admin only, controls visible (Business/Atomic, all-in Dashboard):
   https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-quickstart.json
 
-## Publishing changes
+## How to work
 
-- wp-admin: `./sync.sh "what changed"` → pushes `main`; Playground links serve
-  it in ~5 min (verify the raw URL if in doubt).
-- MSD: commit + `git push origin prototype/untangling-ia`; calypso.live
-  rebuilds. The builder has been flaky (host OOM); visiting the link retries.
-- Woo sites in Playground: the blueprints install WooCommerce and suppress the
-  activation redirect before seeding.
+Three commands, all inside Claude Code. No terminal needed.
+
+- /untangling-start opens the day. It boots the sites and the MSD, prints the links, and tells you where the work stopped.
+- /untangling-sync "what changed" publishes the wp-admin side. It pulls first, then commits and pushes. The Playground links follow in about five minutes.
+- /untangling-start wrap closes the day. It updates this doc and publishes.
+
+The wp-admin work lives in untangling-prototype.php. Your Studio sites point to this file, therefore every edit is live on reload. Seeds and per-site configs live next to it.
+
+The MSD work lives in the Calypso branch. Commit there and push the branch, calypso.live rebuilds from it.
+
+Obs: two people push to the same repo. Pull before you push. The sync skill does it for you.
+
+Woo sites in Playground: the blueprints install WooCommerce and suppress the
+activation redirect before seeding.
 
 ## Gotchas that cost time
 
