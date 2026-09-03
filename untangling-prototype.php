@@ -9744,15 +9744,10 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .ms-dw-site { gap: 0; }
 .untangling-dw .ms-dw-site > * + * { margin: 12px -12px 0; padding: 12px 12px 0; border-top: 1px solid #f0f0f0; }
 .untangling-dw .ms-dw-site-id { display: flex; align-items: flex-start; gap: 14px; }
-.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 132px; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 6px; background: #f6f7f7; box-shadow: none; transition: border-color 120ms ease, box-shadow 120ms ease; }
-.untangling-dw .ms-dw-site-thumb:hover, .untangling-dw .ms-dw-site-thumb:focus-visible { border-color: #3858e9; box-shadow: 0 0 0 1px #3858e9; outline: none; }
+.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 132px; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 6px; background: #f6f7f7; }
 .untangling-dw .ms-dw-site-iframe { position: absolute; top: 0; left: 0; width: 1000%; min-height: 1000%; border: 0; transform: scale(.1); transform-origin: top left; pointer-events: none; }
 .untangling-dw .ms-dw-site-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 #dashboard-widgets .postbox .untangling-dw .ms-dw-site-name { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #1e1e1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.untangling-dw .ms-dw-site-thumb-hover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 500; line-height: 16px; opacity: 0; transition: opacity 120ms ease; }
-.untangling-dw .ms-dw-site-thumb-hover svg { fill: #fff; }
-.untangling-dw .ms-dw-site-thumb:hover .ms-dw-site-thumb-hover, .untangling-dw .ms-dw-site-thumb:focus-visible .ms-dw-site-thumb-hover { opacity: 1; }
-@media ( prefers-reduced-motion: reduce ) { .untangling-dw .ms-dw-site-thumb-hover { transition: none; } }
 .untangling-dw a.ms-dw-site-domain { font-size: 12px; line-height: 16px; color: #757575; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .untangling-dw a.ms-dw-site-domain:hover, .untangling-dw a.ms-dw-site-domain:focus-visible { color: #3858e9; text-decoration: underline; }
 .untangling-dw .ms-dw-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; }
@@ -12393,21 +12388,16 @@ function untangling_ms_app_js() {
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body ms-dw-site' },
 				el( 'div', { className: 'ms-dw-site-id' },
-					// The thumbnail and the address both open the site: the site's
-					// face and its address are the two things a reader would try.
-					// The thumbnail says so on hover (scrim + "Visit site"), the
-					// address is a plain link.
-					el( 'a', { className: 'ms-dw-site-thumb', href: data.siteUrl, target: '_blank', rel: 'noreferrer', 'aria-label': 'Visit site' },
+					// The thumbnail is a picture, not a control: the address and the
+					// "Visit site" button already open the site, a third way to get
+					// there only adds a hover state to learn.
+					el( 'div', { className: 'ms-dw-site-thumb', 'aria-hidden': true },
 						el( 'iframe', {
 							className: 'ms-dw-site-iframe',
 							title: data.siteName || data.domain || 'Site preview',
 							src: ( data.siteUrl || '/' ) + '?iframe=true',
 							tabIndex: -1,
-						} ),
-						el( 'span', { className: 'ms-dw-site-thumb-hover', 'aria-hidden': true },
-							'Visit site',
-							icon( PATHS.external, '0 0 24 24', 16 )
-						)
+						} )
 					),
 					el( 'div', { className: 'ms-dw-site-meta' },
 						el( 'h3', { className: 'ms-dw-site-name' }, data.siteName || data.domain ),
