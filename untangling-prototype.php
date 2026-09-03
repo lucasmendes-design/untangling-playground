@@ -8932,11 +8932,10 @@ function untangling_pw_jetpack_logo() {
 // visx-free redraw: intervals + bar chart + legend, "7 Day Highlights"
 // (Top Posts & Pages / Top Referrers), the Protect + Akismet module cards
 // on Atomic only (Simple has neither), Jetpack footer. Numbers follow the
-// prototype's Stats widget; a Just created site gets production's empty
-// states.
+// prototype's Stats widget in every site state, so the two stats widgets on
+// the Dashboard never disagree (the sibling Stats widget has no empty state).
 function untangling_pw_render_stats() {
 	$data        = untangling_ms_data();
-	$established = 'established' === untangling_ms_get_state();
 	$atomic      = 'atomic' === untangling_get_site_type();
 	$stats_base  = UNTANGLING_MSD_URL . '/stats';
 	$series      = array(
@@ -8952,24 +8951,19 @@ function untangling_pw_render_stats() {
 		$labels['month'][] = date_i18n( 'M', strtotime( "-$i months" ) );
 		$labels['year'][]  = date_i18n( 'Y', strtotime( "-$i years" ) );
 	}
-	if ( ! $established ) {
-		foreach ( $series as $k => $s ) {
-			$series[ $k ] = array( 'views' => array_fill( 0, 7, 0 ), 'visitors' => array_fill( 0, 7, 0 ) );
-		}
-	}
-	$posts = $established ? get_posts( array( 'post_type' => array( 'post', 'page' ), 'post_status' => 'publish', 'numberposts' => 5, 'orderby' => 'comment_count', 'order' => 'DESC' ) ) : array();
+	$posts = get_posts( array( 'post_type' => array( 'post', 'page' ), 'post_status' => 'publish', 'numberposts' => 5, 'orderby' => 'comment_count', 'order' => 'DESC' ) );
 	$post_views = array( 412, 298, 187, 143, 96 );
 	$top_posts  = array();
 	foreach ( $posts as $i => $post ) {
 		$top_posts[] = array( 'title' => get_the_title( $post ), 'views' => $post_views[ $i ], 'href' => $stats_base, 'external' => false );
 	}
-	$top_referrers = $established ? array(
+	$top_referrers = array(
 		array( 'title' => 'WordPress.com Reader', 'views' => 236, 'href' => 'https://wordpress.com/reader', 'external' => true ),
 		array( 'title' => 'Google Search', 'views' => 189, 'href' => 'https://www.google.com', 'external' => true ),
 		array( 'title' => 'Instagram', 'views' => 74, 'href' => 'https://www.instagram.com', 'external' => true ),
 		array( 'title' => 'Bing', 'views' => 31, 'href' => 'https://www.bing.com', 'external' => true ),
 		array( 'title' => 'Mastodon', 'views' => 12, 'href' => 'https://joinmastodon.org', 'external' => true ),
-	) : array();
+	);
 	$intervals = array( 'day' => __( 'Days' ), 'week' => __( 'Weeks' ), 'month' => __( 'Months' ), 'year' => __( 'Years' ) );
 	$external  = '<svg class="stats-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.5 4.5h-7V6h4.44l-5.97 5.97 1.06 1.06L18 7.06v4.44h1.5v-7Zm-13 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3h-1.5v3a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h3V5.5h-3Z"/></svg>';
 	$column    = function ( $title, $items, $view_all, $view_all_text, $extra_class ) use ( $external ) {
@@ -9001,16 +8995,10 @@ function untangling_pw_render_stats() {
 						<?php endforeach; ?>
 					</div>
 				</div>
-				<div class="chart<?php echo $established ? '' : ' is-placeholder'; ?>">
+				<div class="chart">
 					<div class="chart__y-axis"><span class="chart__y-axis-marker"></span><span class="chart__y-axis-marker is-fifty"></span></div>
 					<div class="chart__bars"></div>
 					<div class="chart__x-axis"></div>
-					<?php if ( ! $established ) : ?>
-						<div class="stats__empty-state"><div class="empty-state-card">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 3.2c-4.8 0-8.8 3.9-8.8 8.8 0 4.8 3.9 8.8 8.8 8.8 4.8 0 8.8-3.9 8.8-8.8 0-4.8-4-8.8-8.8-8.8zm0 16c-4 0-7.2-3.3-7.2-7.2C4.8 8 8 4.8 12 4.8s7.2 3.3 7.2 7.2c0 4-3.2 7.2-7.2 7.2zM11 17h2v-6h-2v6zm0-8h2V7h-2v2z"/></svg>
-							<p class="empty-state-card-info"><?php echo wp_kses( __( 'Once stats become available, this chart will show you details about your views and visitors. <a href="https://jetpack.com/stats/" target="_blank" rel="noopener noreferrer">Learn more about stats</a>' ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ) ) ); ?></p>
-						</div></div>
-					<?php endif; ?>
 				</div>
 				<div class="chart__legend"><span class="chart__legend-option"><span class="chart__legend-color is-secondary"></span><span class="chart__legend-label"><?php esc_html_e( 'Visitors' ); ?></span></span></div>
 			</div>
@@ -9035,12 +9023,12 @@ function untangling_pw_render_stats() {
 						<div class="stats-widget-module stats-widget-card" aria-label="<?php esc_attr_e( 'Blocked login attempts' ); ?>">
 							<div class="stats-widget-module__icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M12 3.3 5.5 6v5.2c0 4 2.7 7.6 6.5 9.4 3.8-1.8 6.5-5.4 6.5-9.4V6L12 3.3Z"/></svg></div>
 							<div class="stats-widget-module__title"><?php esc_html_e( 'Blocked login attempts' ); ?></div>
-							<div class="stats-widget-module__value"><span><?php echo $established ? '128' : '0'; ?></span></div>
+							<div class="stats-widget-module__value"><span>128</span></div>
 						</div>
 						<div class="stats-widget-module stats-widget-card" aria-label="<?php esc_attr_e( 'Blocked spam comments' ); ?>">
 							<div class="stats-widget-module__icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><circle cx="2.5" cy="12" r="1" fill="currentColor"/><circle cx="21.5" cy="12" r="1" fill="currentColor"/><text x="12" y="17.5" text-anchor="middle" font-family="Georgia, serif" font-size="19" fill="currentColor">A</text></svg></div>
 							<div class="stats-widget-module__title"><?php esc_html_e( 'Blocked spam comments' ); ?></div>
-							<div class="stats-widget-module__value"><span><?php echo $established ? '1.2K' : '0'; ?></span></div>
+							<div class="stats-widget-module__value"><span>1.2K</span></div>
 						</div>
 					</div>
 				<?php endif; ?>
@@ -9059,7 +9047,6 @@ function untangling_pw_render_stats() {
 		var bars = root.querySelector( '.chart__bars' );
 		var axis = root.querySelector( '.chart__x-axis' );
 		var yaxis = root.querySelector( '.chart__y-axis' );
-		var placeholder = root.querySelector( '.chart' ).classList.contains( 'is-placeholder' );
 		function fmt( n ) { return n >= 1000 ? ( Math.round( n / 100 ) / 10 ) + 'K' : String( n ); }
 		function draw( period ) {
 			var s = conf.series[ period ], labels = conf.labels[ period ];
@@ -9067,20 +9054,20 @@ function untangling_pw_render_stats() {
 			bars.innerHTML = '';
 			axis.innerHTML = '';
 			s.views.forEach( function ( v, i ) {
-				var h = placeholder ? [ 62, 100, 82, 96, 40, 100, 26 ][ i ] : Math.round( v / max * 100 );
-				var vis = placeholder ? 0 : Math.round( s.visitors[ i ] / max * 100 );
+				var h = Math.round( v / max * 100 );
+				var vis = Math.round( s.visitors[ i ] / max * 100 );
 				var bar = document.createElement( 'div' );
 				bar.className = 'chart__bar';
 				bar.innerHTML = '<div class="chart__bar-section" style="height:' + h + '%"><div class="chart__bar-section-inner" style="height:' + ( vis ? Math.round( vis / h * 100 ) : 0 ) + '%"></div></div>';
-				bar.title = placeholder ? '' : labels[ i ] + ': ' + v + ' views, ' + s.visitors[ i ] + ' visitors';
+				bar.title = labels[ i ] + ': ' + v + ' views, ' + s.visitors[ i ] + ' visitors';
 				bars.appendChild( bar );
 				var l = document.createElement( 'span' );
 				l.className = 'chart__x-axis-label';
-				l.textContent = placeholder ? '' : labels[ i ];
+				l.textContent = labels[ i ];
 				axis.appendChild( l );
 			} );
-			yaxis.children[ 0 ].textContent = placeholder ? '' : fmt( max );
-			yaxis.children[ 1 ].textContent = placeholder ? '' : fmt( Math.round( max / 2 ) );
+			yaxis.children[ 0 ].textContent = fmt( max );
+			yaxis.children[ 1 ].textContent = fmt( Math.round( max / 2 ) );
 		}
 		draw( 'day' );
 		root.querySelectorAll( '.untangling-pw-intervals .segmented-control__item' ).forEach( function ( btn ) {
@@ -9194,16 +9181,8 @@ function untangling_pw_css() {
 .untangling-pw-stats .chart__bar { flex: 1; min-width: 35px; height: 100%; display: flex; align-items: flex-end; }
 .untangling-pw-stats .chart__bar-section { width: 100%; background: #c4ccf7; display: flex; align-items: flex-end; }
 .untangling-pw-stats .chart__bar-section-inner { width: 100%; background: #2145e6; }
-.untangling-pw-stats .chart.is-placeholder { padding: 8px 16px 28px; }
-.untangling-pw-stats .chart.is-placeholder .chart__bar-section { background: #dfe3f9; }
-.untangling-pw-stats .chart.is-placeholder .chart__y-axis-marker { display: none; }
 .untangling-pw-stats .chart__x-axis { position: absolute; left: 16px; right: 40px; bottom: 6px; display: flex; gap: 12px; }
-.untangling-pw-stats .chart.is-placeholder .chart__x-axis { right: 16px; }
 .untangling-pw-stats .chart__x-axis-label { flex: 1; min-width: 35px; font-size: 11px; color: #646970; letter-spacing: -0.02em; text-align: center; white-space: nowrap; }
-.untangling-pw-stats .stats__empty-state { position: absolute; inset: 24px 24px 40px; display: flex; align-items: center; }
-.untangling-pw-stats .empty-state-card { display: flex; gap: 16px; align-items: center; width: 100%; padding: 24px; box-sizing: border-box; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; }
-.untangling-pw-stats .empty-state-card svg { flex-shrink: 0; }
-.untangling-pw-stats .empty-state-card-info { margin: 0; font-size: 14px; line-height: 20px; color: #50575e; }
 .untangling-pw-stats .chart__legend { margin: 16px 0; padding: 0; display: flex; justify-content: center; }
 .untangling-pw-stats .chart__legend-color { display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin: -3px 6px 0 0; background: #2145e6; }
 .untangling-pw-stats .chart__legend-label { font-size: 13px; line-height: 24px; color: #101517; letter-spacing: -0.02em; vertical-align: middle; }
