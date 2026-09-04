@@ -8556,12 +8556,14 @@ function untangling_dw_columns() {
 }
 
 // Default IA at 3 columns (the designed first look): column 1 (normal) is
-// the site itself — Your site (identity + plan), vitals, history; column 2
-// (side) is the one thing to do — Next steps, alone, so the action has the
-// page's centre; column 3 is what the site is doing — traffic, protection,
-// infrastructure. At 1–2 columns: action → traffic → history on the left,
-// site + machine on the right. Users can rearrange; untangling_dw_layout() is the one map both
-// registration and the order-snap filter read.
+// the site itself — Your site (identity + plan) and Hosting; column 2 (side)
+// is doing — Next steps, then core's Quick Draft (the one core widget in the
+// designed default: a place to write, with the recent drafts under it), so
+// the action has the page's centre; column 3 is what the site is doing —
+// traffic, subscribers, history. At 1–2 columns: action → writing → traffic
+// → history on the left, site + machine on the right. Users can rearrange;
+// untangling_dw_layout() is the one map both registration and the
+// order-snap filter read.
 // Jetpack-backed widgets carry the mark in the postbox title (mark + name),
 // the one place the credit lives — no "Powered by Jetpack" line in the body
 // or footer. The title string also feeds the Screen Options checkbox label,
@@ -8613,6 +8615,13 @@ add_action( 'wp_dashboard_setup', function () {
 	$ladder = array( 'high', 'core', 'default', 'low' );
 	foreach ( untangling_dw_layout() as $context => $ids ) {
 		foreach ( array_values( $ids ) as $i => $id ) {
+			// Core's Quick Draft is already registered by the time this fires
+			// (and wp_add_dashboard_widget() pins it to the side well), so it
+			// is moved into its designed slot rather than added again.
+			if ( 'dashboard_quick_press' === $id ) {
+				untangling_dw_relocate_box( $id, $context, $ladder[ min( $i, 3 ) ] );
+				continue;
+			}
 			$callback = 'jetpack_newsletter_dashboard_widget' === $id ? 'untangling_newsletter_render' : $mount( $titles[ $id ][1] );
 			wp_add_dashboard_widget( $id, $titles[ $id ][0], $callback, null, null, $context, $ladder[ min( $i, 3 ) ] );
 		}
@@ -8668,17 +8677,40 @@ function untangling_newsletter_render() {
 	echo '<div id="wpcom"><div id="newsletter-widget-app"></div></div>';
 }
 
+// Move an already-registered dashboard box (core's, a plugin's) into the
+// given well and priority, keeping its title, callback and args. A box that
+// was never registered (a capability the user lacks) is left alone.
+function untangling_dw_relocate_box( $id, $context, $priority ) {
+	global $wp_meta_boxes;
+	if ( empty( $wp_meta_boxes['dashboard'] ) ) {
+		return;
+	}
+	foreach ( $wp_meta_boxes['dashboard'] as $well => $priorities ) {
+		foreach ( (array) $priorities as $level => $boxes ) {
+			if ( empty( $boxes[ $id ] ) || ! is_array( $boxes[ $id ] ) ) {
+				continue;
+			}
+			$box = $boxes[ $id ];
+			// Not remove_meta_box(): that leaves a `false` marker behind, and
+			// add_meta_box() then refuses to re-add a box at core priority.
+			unset( $wp_meta_boxes['dashboard'][ $well ][ $level ][ $id ] );
+			add_meta_box( $id, $box['title'], $box['callback'], 'dashboard', $context, $priority, $box['args'] );
+			return;
+		}
+	}
+}
+
 function untangling_dw_layout( $columns = null ) {
 	$columns = $columns ?: untangling_dw_columns();
 	if ( 3 === $columns ) {
 		return array(
-			'normal'  => array( 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_activity' ),
-			'side'    => array( 'untangling_dw_next_steps' ),
-			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget' ),
+			'normal'  => array( 'untangling_dw_site', 'untangling_dw_glance' ),
+			'side'    => array( 'untangling_dw_next_steps', 'dashboard_quick_press' ),
+			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
 		);
 	}
 	return array(
-		'normal' => array( 'untangling_dw_next_steps', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
+		'normal' => array( 'untangling_dw_next_steps', 'dashboard_quick_press', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
 		'side'   => array( 'untangling_dw_site', 'untangling_dw_glance' ),
 	);
 }
@@ -8755,10 +8787,11 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
 	if ( 'dashboard' !== $screen->id || 'dashboard' !== untangling_get_variant() ) {
 		return $hidden;
 	}
+	// Quick Draft is not in this list: it is part of the designed default
+	// (column 2, under Next steps) and untangling_dw_layout() places it.
 	return array_unique( array_merge( $hidden, array(
 		'dashboard_right_now',
 		'dashboard_activity',
-		'dashboard_quick_press',
 		'dashboard_primary',
 		'dashboard_site_health',
 		// Production's Jetpack Stats + Daily Writing Prompt (section 8d).
@@ -8779,7 +8812,7 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
  *     colors, their copy — not ours), so every layout is judged with them
  *     present. They register like any plugin's widget: default context and
  *     priority, so they land where a real install would put them (column 1,
- *     between Site details and Activity, pushing the history down), and Screen Options,
+ *     under Hosting, the way any plugin's widget lands), and Screen Options,
  *     drag, and collapse all work. Just created sites have no plugins yet, so
  *     nothing registers there.
  * ---------------------------------------------------------------------- */
@@ -9524,7 +9557,7 @@ add_action( 'admin_footer-index.php', function () {
 			return;
 		}
 		var GROUPS = [
-			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps' ] },
+			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps', 'dashboard_quick_press' ] },
 			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plugins' ) ); ?>, ids: [ 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor', 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
 			{ title: <?php echo wp_json_encode( __( 'More WordPress' ) ); ?>, ids: [] },
@@ -9646,8 +9679,9 @@ function untangling_dw_css() {
 
 /* Collapsed, the columns simply read in DOM order, and with three columns that
    buries the checklist under Your site, Hosting and the plugin widgets. `order`
-   lifts Next steps (container 2) and then Stats + Newsletter (container 3) above
-   column 1, the same priority the 1- and 2-column maps already show; columns-1
+   lifts Next steps + Quick Draft (container 2) and then Stats, Newsletter and
+   Log Activity (container 3) above column 1, the same priority the 1- and
+   2-column maps already show; columns-1
    and columns-2 read correctly in DOM order and are left alone. Gated at 782,
    not 799, because that is where core disables the metabox sortables
    (common.js maybeDisableSortables) — between 783 and 799 drag is still live
