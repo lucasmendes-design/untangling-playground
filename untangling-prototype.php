@@ -3847,17 +3847,25 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 	echo '</div>';
 
 	echo '<div class="wp-list-table widefat plugin-install untangling-marketplace"><div id="the-list">';
+	// Install Now runs the same install mimic as the fullscreen catalog
+	// (admin_init persists the slug; Reset demo clears it) and returns here;
+	// an installed plugin shows the disabled Active button core uses.
+	$installed = (array) get_option( 'untangling_mkt_installed', array() );
+	$tab_url   = admin_url( 'plugin-install.php?tab=wpcom_marketplace' . ( 'all' !== $current ? '&category=' . $current : '' ) );
 	foreach ( $plugins as $p ) {
 		list( $slug, $name, $desc, $author, $icon, $tier, $rating, $num, $installs, $updated, $cat, $price ) = $p;
-		$included = untangling_plan_rank( $plan ) >= untangling_plan_rank( $tier );
-		$details  = 'https://wordpress.com/plugins/' . $slug;
-		$hidden   = ( 'all' !== $current && $cat !== $current ) ? ' style="display:none"' : '';
-		echo '<div class="plugin-card plugin-card-' . esc_attr( $slug ) . '" data-category="' . esc_attr( $cat ) . '" data-tier="' . esc_attr( $tier ) . '" data-included="' . ( $included ? '1' : '' ) . '"' . $hidden . '>';
+		$included     = untangling_plan_rank( $plan ) >= untangling_plan_rank( $tier );
+		$is_installed = $included && in_array( $slug, $installed, true );
+		$details      = 'https://wordpress.com/plugins/' . $slug;
+		$hidden       = ( 'all' !== $current && $cat !== $current ) ? ' style="display:none"' : '';
+		echo '<div class="plugin-card plugin-card-' . esc_attr( $slug ) . '" data-category="' . esc_attr( $cat ) . '" data-tier="' . esc_attr( $tier ) . '" data-included="' . ( $included ? '1' : '' ) . '" data-installed="' . ( $is_installed ? '1' : '' ) . '"' . $hidden . '>';
 		echo '<div class="plugin-card-top">';
 		echo '<div class="name column-name"><h3><a href="' . esc_url( $details ) . '" target="_blank" rel="noreferrer">' . esc_html( $name ) . '<img class="plugin-icon" src="' . esc_url( $icon ) . '" alt=""></a></h3></div>';
 		echo '<div class="action-links"><ul class="plugin-action-buttons">';
-		if ( $included ) {
-			echo '<li><a class="install-now button" href="#">' . esc_html__( 'Install Now' ) . '</a></li>';
+		if ( $is_installed ) {
+			echo '<li><button type="button" class="button button-disabled" disabled="disabled">' . esc_html__( 'Active' ) . '</button></li>';
+		} elseif ( $included ) {
+			echo '<li><a class="install-now button" href="' . esc_url( add_query_arg( 'untangling_install_plugin', $slug, $tab_url ) ) . '">' . esc_html__( 'Install Now' ) . '</a></li>';
 		} else {
 			echo '<li><a class="button button-primary untangling-upgrade" href="' . esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'type' => 'plugin', 'slug' => $slug ) ) ) . '">' . untangling_upsell_diamond() . esc_html__( 'Upgrade and Activate' ) . '</a></li>';
 		}
@@ -4386,7 +4394,33 @@ add_action( 'admin_footer-theme-install.php', function () {
 		#untangling-theme-marketplace .theme-browser .theme { margin-bottom: 4%; }
 	}
 	#untangling-theme-marketplace .untangling-filter-row { margin: 8px 0 24px; }
-	#untangling-theme-marketplace .theme { cursor: pointer; }
+	#untangling-theme-marketplace .theme { cursor: pointer; container-type: inline-size; }
+	/* Thumbnails: one crop for every source. Core leaves the img at
+	   height:auto inside its 3:2 box, so the 640×480 WP.com shots and the
+	   640×504 partner shots only lined up because overflow clipped the
+	   difference; cover + top anchoring makes the crop explicit. The grey
+	   box is the loading placeholder (remote images arrive late on
+	   Playground), and a failed image hides itself (onerror) so the box
+	   stays grey instead of showing a broken-image glyph. */
+	#untangling-theme-marketplace .theme .theme-screenshot { background: #f0f0f1; }
+	#untangling-theme-marketplace .theme .theme-screenshot img { height: 100%; object-fit: cover; object-position: top; }
+	/* Name plate on hover/focus. Core paints the actions on a translucent
+	   plate over the name; with Upgrade + Preview (212px) on a 280–345px
+	   card that swallowed even short names. Opaque plate, and the name
+	   reserves room for exactly the buttons showing: Preview only (active
+	   card), or primary + Preview. Under 400px the plate keeps just the
+	   primary button — Details & Preview on the screenshot and the overlay
+	   still preview every theme. */
+	#untangling-theme-marketplace .theme .theme-actions { background: #fff; }
+	#untangling-theme-marketplace .theme:hover .theme-name,
+	#untangling-theme-marketplace .theme:focus-within .theme-name { padding-right: 110px; }
+	#untangling-theme-marketplace .theme:has( .theme-actions .button-primary ):hover .theme-name,
+	#untangling-theme-marketplace .theme:has( .theme-actions .button-primary ):focus-within .theme-name { padding-right: 230px; }
+	@container ( max-width: 399px ) {
+		#untangling-theme-marketplace .theme:has( .theme-actions .button-primary ) .theme-actions .button:not( .button-primary ) { display: none; }
+		#untangling-theme-marketplace .theme:has( .theme-actions .button-primary ):hover .theme-name,
+		#untangling-theme-marketplace .theme:has( .theme-actions .button-primary ):focus-within .theme-name { padding-right: 130px; }
+	}
 	/* Plan-tier signal, like the tier pills on wordpress.com/themes. Always
 	   visible (not hover-revealed) so the required plan reads upfront. */
 	#untangling-theme-marketplace .untangling-tab-badge { position: absolute; top: 8px; inset-inline-end: 8px; z-index: 2; background: #fff; color: #1d2327; border-radius: 3px; padding: 4px 8px; font-size: 12px; line-height: 1.2; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
@@ -4428,6 +4462,8 @@ add_action( 'admin_footer-theme-install.php', function () {
 	#untangling-theme-overlay .wp-full-overlay-header .theme-install { float: right; margin: 7px 10px 0 0; min-height: 32px; line-height: 2.30769231; font-size: 13px; padding: 0 10px; }
 	#untangling-theme-overlay .theme-by { display: block; color: #646970; margin-top: 2px; }
 	#untangling-theme-overlay .theme-screenshot:after { content: ""; display: block; padding-top: 66.66%; }
+	#untangling-theme-overlay .theme-screenshot { background: #f0f0f1; }
+	#untangling-theme-overlay .theme-screenshot img { height: 100%; object-fit: cover; object-position: top; }
 	#untangling-theme-overlay .theme-description { margin-top: 12px; line-height: 1.6; color: #50575e; }
 	#untangling-theme-overlay .wp-full-overlay-main { background: #fff; }
 	#untangling-theme-overlay .untangling-overlay-badge { display: inline-block; margin: 10px 0 0; background: #fff; color: #1d2327; border: 1px solid #dcdcde; border-radius: 3px; padding: 4px 8px; font-size: 12px; line-height: 1.2; }
@@ -4496,7 +4532,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 					?>
 					<div class="theme" data-idx="<?php echo (int) $card_idx++; ?>" data-category="<?php echo esc_attr( $subject ); ?>" data-tier="<?php echo esc_attr( $tier_plan ); ?>" data-included="<?php echo $included ? '1' : ''; ?>" data-details="<?php echo esc_url( $detail_url ); ?>" tabindex="0">
 						<span class="untangling-tab-badge <?php echo esc_attr( $badge_class ); ?>"><?php echo esc_html( $tier_label ); ?></span>
-						<div class="theme-screenshot"><img src="<?php echo esc_url( $shot ); ?>" alt="" decoding="async"></div>
+						<div class="theme-screenshot"><img src="<?php echo esc_url( $shot ); ?>" alt="" decoding="async" loading="lazy" onerror="this.hidden = true;"></div>
 						<a class="untangling-tab-details" href="<?php echo esc_url( $detail_url ); ?>"><?php esc_html_e( 'Details & Preview' ); ?></a>
 						<div class="theme-author"><?php echo esc_html( sprintf( __( 'By %s' ), $author ) ); ?></div>
 						<div class="theme-id-container">
@@ -8163,16 +8199,9 @@ add_action( 'admin_enqueue_scripts', function () {
 		.untangling-marketplace-intro { max-width: 720px; }
 		.untangling-tier-required { color: #996800; }
 		.untangling-tier-required strong { color: inherit; }
-		/* Core reserves 128px for the action column (120px wide); the wider
-		   upgrade CTAs need more room so titles and text never run under
-		   them. Page-wide: the Simple-mode Upgrade to install swap hits every
-		   Add Plugins tab, not just Marketplace. */
-		.plugin-install-php .plugin-card .name,
-		.plugin-install-php .plugin-card .desc p { margin-right: 200px; }
 		/* The blanked Recommended-tab intro line still renders as an empty <p>. */
 		.plugin-install-php .wrap > p:empty { display: none; }
 		.plugin-install-php .tablenav .displaying-num { display: none; }
-		.plugin-install-php .plugin-card .action-links { width: 190px; }
 		/* Match core\'s compact card buttons — the admin refresh inflates
 		   .wp-core-ui .button to a 40px min-height. */
 		.plugin-install-php .plugin-card .plugin-action-buttons .button { min-height: 30px; line-height: 2.15384615; padding: 0 10px; }
@@ -8204,6 +8233,39 @@ add_action( 'admin_enqueue_scripts', function () {
 		.plugin-install-php .wrap .plugin-card .plugin-icon { position: absolute; top: 20px; left: 20px; width: 128px; height: 128px; }
 		.plugin-install-php .wrap .plugin-card .name,
 		.plugin-install-php .wrap .plugin-card .desc > p { margin-left: 148px; }
+		/* Two card layouts keyed on the width of the card itself (container query),
+		   not the viewport: core switches between its side action column and
+		   a stacked one by viewport media queries, which never see how wide a
+		   card in our 2/3-column grid really is. Page-wide, since the
+		   Simple-mode Upgrade to install swap hits every Add Plugins tab.
+		   Wide card: the action column sits beside the text and is widened
+		   from the core 120px so the Upgrade and Activate CTA fits; name and
+		   description reserve 200px for it. Narrow card (under 600px, i.e.
+		   2 columns on anything up to ~1400px windows): the stacked layout
+		   core itself uses on small viewports — buttons under the
+		   description, text spans the card. The `.wrap .plugin-card` prefix
+		   outranks both core media queries in either direction. */
+		.plugin-install-php .wrap .plugin-card { container-type: inline-size; }
+		@container ( min-width: 600px ) {
+			.plugin-install-php .wrap .plugin-card .action-links { position: absolute; top: 20px; right: 20px; width: 190px; margin-left: 0; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons { float: right; margin: 0 0 1em; text-align: right; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li { display: block; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li .button { margin-right: 0; }
+			.plugin-install-php .wrap .plugin-card .name,
+			.plugin-install-php .wrap .plugin-card .desc,
+			.plugin-install-php .wrap .plugin-card .desc > p { margin-right: 200px; }
+		}
+		@container ( max-width: 599px ) {
+			.plugin-install-php .wrap .plugin-card .action-links { position: static; margin-left: 148px; width: auto; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons { float: none; margin: 1em 0 0; text-align: left; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li { display: inline-block; vertical-align: middle; margin-bottom: 10px; }
+			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li .button { margin-right: 20px; }
+			.plugin-install-php .wrap .plugin-card h3 { margin-right: 24px; }
+			.plugin-install-php .wrap .plugin-card .name,
+			.plugin-install-php .wrap .plugin-card .desc,
+			.plugin-install-php .wrap .plugin-card .desc > p { margin-right: 0; }
+			.plugin-install-php .wrap .plugin-card .desc p:first-of-type { margin-top: 0; }
+		}
 		@media ( min-width: 1900px ) { .plugin-install-php .wrap #the-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 		@media ( max-width: 800px ) { .plugin-install-php .wrap #the-list { grid-template-columns: 1fr; } }
 		.plugin-install-php .plugin-card .name h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -9910,8 +9972,12 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    on each feature), inside the plan block — so no hairline or bleed of its
    own — with "+N more" as the last row, a link into Upgrades. One column,
    one line per row at a fixed 20px, so the rows keep the same rhythm no
-   matter how long a label is; two columns only when the well is wide
-   enough (≥ 520px) that the longest label still sits on one line. */
+   matter how long a label is; two columns as soon as the well is wide
+   enough (≥ 480px) that the longest shown label ("Payments and paid
+   subscriptions", ~200px at 13px + the 26px indent, ×2 + the 24px gutter
+   = 476px) still sits on one line — a 2-column dashboard at ~1100px or a
+   3-column one at ~1600px already qualifies, so the list stops reading as
+   a tall single column with a blank right half. */
 .untangling-dw .ms-dw-site-plan .ms-plan-features { margin: 10px 0 0; padding: 0; border-top: 0; grid-template-columns: 1fr; gap: 6px 24px; }
 .untangling-dw .ms-dw-site-features li { align-items: flex-start; line-height: 20px; }
 .untangling-dw .ms-dw-site-features .ms-plan-check { flex: none; height: 20px; align-items: center; }
@@ -9936,7 +10002,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 @media (hover: none) {
 	.untangling-dw a.ms-dw-site-domain, .untangling-dw .ms-dw-site-features li.is-more a { display: inline-block; padding: 4px 0; }
 }
-@container dw-body (min-width: 520px) {
+@container dw-body (min-width: 480px) {
 	.untangling-dw .ms-dw-site-plan .ms-plan-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	/* Two columns: a tip anchored 26px into its own column has half the well
 	   minus the 24px gutter and that indent to work with. */
