@@ -1,6 +1,6 @@
 # Handover — untangling IA prototype
 
-Updated: 2026-09-03. This is the living state doc for the prototype. Keep it
+Updated: 2026-09-15. This is the living state doc for the prototype. Keep it
 current when you finish a session (`/untangling-wrap` does that).
 
 ## What this is
@@ -35,18 +35,30 @@ controls** panel (`?untangling_variant=dashboard|drawer`, persisted per site).
 Switching navigates to that variant's home.
 
 1. **`dashboard` (default) — the all-in Dashboard.** Core `index.php` carries
-   the custom widgets, 3 columns by default:
-   col 1 = Your site (identity + plan + the ONE promo slot) → Site details →
-   Activity; col 2 = Next steps (checklist, current step elevated);
-   col 3 = Stats (KPI pair + sparkline + collapsible 7-day highlights) →
-   Newsletter → Protection (Backups + Scan, one upsell on Free) → Hosting.
-   Layout map: `untangling_dw_layout()`. Established sites also show three
-   foreign plugin widgets (WooCommerce Status, Yoast, Elementor) so layouts
-   are judged with realistic clutter. Sidebar: single top-level **Plan &
-   products** (opens `ms=plan`); core widgets hidden by default but kept in a
-   re-grouped Screen Options; welcome panel suppressed. Every widget is a
-   preview; the MSD stays the full surface. Upgrade flows exit "Back to
-   Dashboard" (`untangling_plan_flow_home_url()` is variant-aware).
+   the custom widgets, 3 columns by default (the reviewed layout as of
+   2026-09-15): col 1 = Your site (identity + plan + the ONE promo slot) →
+   Hosting (plan / WordPress / PHP / theme / content / storage + Developer
+   tools); col 2 = Daily Writing Prompt → Quick Draft (core's widget, drafts
+   read the seeds); col 3 = Stats (KPI pair + sparkline) → Newsletter → Log
+   Activity. Layout map: `untangling_dw_layout()`, read by registration and
+   the order-snap filter; Screen Options default = those seven checked, every
+   core/Jetpack extra unchecked. **There is no Next steps widget**: setup is
+   the **Site Setup** sidebar item directly below Dashboard (the production
+   launchpad page, `admin.php?page=untangling-mysite&ms=setup`, rendered by
+   `SiteSetupPage` from the existing `LaunchpadCard`; "0 of 6 completed" on a
+   fresh site, hidden once the site is Established). This follows the
+   product decision to keep Site Setup as its own page rather than a
+   Dashboard widget. Established sites also show three foreign plugin
+   widgets (WooCommerce Status, Yoast, Elementor) so layouts are judged with
+   realistic clutter. Sidebar: Dashboard → Site Setup → Upgrades (opens
+   `ms=plan`) … → Help & Learn; welcome panel suppressed. Persistence: the
+   prompt is lifted out of older saved hide lists once (`untangling_pw_seeded`
+   = 2) and core's `postboxes._pb_change` is neutralised on the Dashboard, so
+   a phone/tablet visit no longer rewrites the column count. Only the user's
+   own Screen Options / drag / Site state changes alter the view; Reset demo
+   restores it. Every widget is a preview; the MSD stays the full surface.
+   Upgrade flows exit "Back to Dashboard" (`untangling_plan_flow_home_url()`
+   is variant-aware).
 2. **`drawer` — the My Site drawer.** Top-level **My Site** menu item with
    Next steps / Plan & products / Hosting / Help & Learn, `?ms=` router on
    `admin.php?page=untangling-mysite`. Pages share an MSD PageLayout mimic
@@ -150,4 +162,12 @@ activation redirect before seeding.
   for Cast Iron / Paper Fox would read better.
 - Site-card subtitles show `localhost:PORT`; could mask with the pretty domain.
 - Playground quickstart mirrors the Studio defaults; re-sync after widget
-  changes (the trimmed widget set is synced as of 2026-09-03).
+  changes (Site Setup + the locked default layout are synced as of
+  2026-09-15).
+- Site Setup page: the "Tailored with AI" footer line under the list is a
+  prototype leftover (production has none); remove once confirmed. A "Launch
+  site" button under the site preview is under discussion.
+- On a touch device, core's postbox script used to switch the Dashboard to 1–2
+  columns and save it; that path is disabled. If a layout still "changes on
+  its own", check `screen_layout_dashboard` / `meta-box-order_dashboard` user
+  meta first, then Reset demo.

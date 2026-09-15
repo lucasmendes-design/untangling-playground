@@ -1047,9 +1047,9 @@ add_action( 'admin_init', function () {
 // not 404. Drawer: redirect it to the My Site page, keeping every other query
 // arg (persisted `untangling_*` toggles) intact and mapping the old Help &
 // Learn tab onto the drawer's `ms=help` section. Dashboard: the My Site page
-// itself is also retired except its Plan & products (sidebar: Upgrades) and
-// Help & Learn sections — everything else (next steps, hosting) lives on
-// index.php as widgets, so those hits redirect there too.
+// itself is also retired except its Plan & products (sidebar: Upgrades),
+// Help & Learn, and Site Setup (sidebar: Site Setup) sections — everything
+// else (hosting) lives on index.php as widgets, so those hits redirect there.
 add_action( 'admin_init', function () {
 	$variant = untangling_get_variant();
 	$page    = isset( $_GET['page'] ) ? $_GET['page'] : '';
@@ -1071,7 +1071,7 @@ add_action( 'admin_init', function () {
 
 	if ( 'dashboard' === $variant ) {
 		$ms = isset( $_GET['ms'] ) ? $_GET['ms'] : '';
-		$is_retired_mysite = 'untangling-mysite' === $page && ! in_array( $ms, array( 'plan', 'help' ), true );
+		$is_retired_mysite = 'untangling-mysite' === $page && ! in_array( $ms, array( 'plan', 'help', 'setup' ), true );
 		if ( 'untangling-hosting' === $page || $is_retired_mysite ) {
 			$args = $_GET;
 			unset( $args['page'], $args['ms'], $args['untangling_tab'] );
@@ -1097,11 +1097,38 @@ add_action( 'admin_menu', function () {
 
 		// Upgrades keeps its own top-level anchor, directly below Dashboard —
 		// a direct link into the retained Plan & products section (the page
-		// keeps its name; the sidebar says what you go there to do). Next steps
-		// and Hosting became index.php widgets. Help & Learn is the last item
+		// keeps its name; the sidebar says what you go there to do). Hosting
+		// became an index.php widget; Site Setup (above) stays a page. Help & Learn is the last item
 		// of the Settings group (position 81: after Settings at 80, before
 		// core's last separator at 99), a direct link into the retained help
 		// section.
+		// Site Setup keeps its own top-level item, directly below Dashboard —
+		// the production wp-admin launchpad page (jetpack-mu-wpcom
+		// ai-launchpad), not a Dashboard widget. The AI Launchpad experiment
+		// readout kept the separate entry, so the former Next steps widget is
+		// gone and this direct link opens the retained launchpad section. It
+		// retires once every task is done or skipped, as in production. The
+		// icon is the launchpad's to-do glyph (@wordpress/icons `border`),
+		// drawn as filled arcs so core's svg-painter can recolor it. Position:
+		// core hashes a colliding position (Upgrades at 2 becomes 2.33309),
+		// so 2.00001 is an explicit key that sorts right after Dashboard.
+		// admin_menu fires before admin_init writes the Prototype controls
+		// toggles, so the incoming Site state switch is honoured here directly
+		// — otherwise the item would lag one page load behind the panel.
+		$ms_state = isset( $_GET['untangling_ms_state'] ) && in_array( $_GET['untangling_ms_state'], array( 'new', 'established' ), true )
+			? $_GET['untangling_ms_state']
+			: untangling_ms_get_state();
+		if ( 'established' !== $ms_state ) {
+			add_menu_page(
+				__( 'Site Setup' ),
+				__( 'Site Setup' ),
+				'manage_options',
+				'admin.php?page=untangling-mysite&ms=setup',
+				'',
+				'data:image/svg+xml;base64,' . base64_encode( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M18.75 10.00A8.75 8.75 0 0 1 17.95 13.66L16.58 13.04A7.25 7.25 0 0 0 17.25 10.00ZM16.19 16.19A8.75 8.75 0 0 1 13.03 18.21L12.51 16.80A7.25 7.25 0 0 0 15.13 15.13ZM10.00 18.75A8.75 8.75 0 0 1 6.34 17.95L6.96 16.58A7.25 7.25 0 0 0 10.00 17.25ZM3.81 16.19A8.75 8.75 0 0 1 1.79 13.03L3.20 12.51A7.25 7.25 0 0 0 4.87 15.13ZM1.25 10.00A8.75 8.75 0 0 1 2.05 6.34L3.42 6.96A7.25 7.25 0 0 0 2.75 10.00ZM3.81 3.81A8.75 8.75 0 0 1 6.97 1.79L7.49 3.20A7.25 7.25 0 0 0 4.87 4.87ZM10.00 1.25A8.75 8.75 0 0 1 13.66 2.05L13.04 3.42A7.25 7.25 0 0 0 10.00 2.75ZM16.19 3.81A8.75 8.75 0 0 1 18.21 6.97L16.80 7.49A7.25 7.25 0 0 0 15.13 4.87Z"/></svg>' ),
+				2.00001
+			);
+		}
 		add_menu_page( __( 'Upgrades' ), __( 'Upgrades' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=plan', '', 'dashicons-cart', 2 );
 		add_menu_page( __( 'Help & Learn' ), __( 'Help & Learn' ), 'manage_options', 'admin.php?page=untangling-mysite&ms=help', '', 'dashicons-editor-help', 81 );
 
@@ -1233,19 +1260,19 @@ add_filter( 'submenu_file', function ( $submenu_file ) {
 	}
 	// My Site drawer sections are sidebar links, so the sidebar is the tab bar.
 	if ( isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page']
-		&& in_array( $_GET['ms'], array( 'plan', 'hosting', 'help' ), true ) ) {
+		&& in_array( $_GET['ms'], array( 'plan', 'hosting', 'help', 'setup' ), true ) ) {
 		return 'admin.php?page=untangling-mysite&ms=' . $_GET['ms'];
 	}
 	return $submenu_file;
 } );
 
-// Dashboard variant: Upgrades and Help & Learn are top-level direct links, so
-// the pages they open (the retained My Site plan / help sections) must
+// Dashboard variant: Site Setup, Upgrades and Help & Learn are top-level
+// direct links, so the pages they open (the retained My Site sections) must
 // highlight their item — otherwise no sidebar entry lights up on them.
 add_filter( 'parent_file', function ( $parent_file ) {
 	if ( 'dashboard' === untangling_get_variant()
 		&& isset( $_GET['page'], $_GET['ms'] ) && 'untangling-mysite' === $_GET['page']
-		&& in_array( $_GET['ms'], array( 'plan', 'help' ), true ) ) {
+		&& in_array( $_GET['ms'], array( 'plan', 'help', 'setup' ), true ) ) {
 		return 'admin.php?page=untangling-mysite&ms=' . $_GET['ms'];
 	}
 	return $parent_file;
@@ -7583,7 +7610,7 @@ add_action( 'admin_footer', function () {
 				$variant = untangling_get_variant();
 				$group( __( 'Layout' ) );
 				$variant_hints = array(
-					'dashboard' => __( 'All-in Dashboard: next steps, activity, backups, and hosting as widgets on the core Dashboard; Upgrades and Help & Learn in the sidebar.' ),
+					'dashboard' => __( 'All-in Dashboard: activity, stats, and hosting as widgets on the core Dashboard; Site Setup, Upgrades, and Help & Learn in the sidebar.' ),
 					'drawer'    => __( 'My Site drawer: a My Site item below Dashboard with Next steps, Plan & products, Hosting, and Help & Learn.' ),
 				);
 				$seg( __( 'Variant' ), 'untangling_variant', array(
@@ -7593,9 +7620,16 @@ add_action( 'admin_footer', function () {
 
 				$group( 'dashboard' === $variant ? __( 'Dashboard widgets' ) : __( 'My Site' ) );
 				$ms_state = untangling_ms_get_state();
-				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, 'new' === $ms_state
-					? __( 'Setup unfinished: Next steps leads with the launchpad.' )
-					: __( 'Setup behind you: Next steps shows growth and vitals.' ) . ( 'dashboard' === $variant ? ' ' . __( 'WooCommerce, Yoast SEO, and Elementor widgets join the dashboard.' ) : '' ) );
+				if ( 'dashboard' === $variant ) {
+					$state_hint = 'new' === $ms_state
+						? __( 'Setup unfinished: Site Setup sits below Dashboard in the sidebar.' )
+						: __( 'Setup behind you: Site Setup leaves the sidebar. WooCommerce, Yoast SEO, and Elementor widgets join the dashboard.' );
+				} else {
+					$state_hint = 'new' === $ms_state
+						? __( 'Setup unfinished: Next steps leads with the launchpad.' )
+						: __( 'Setup behind you: Next steps shows growth and vitals.' );
+				}
+				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, $state_hint );
 				// Hosting health has no real source in the prototype — no backup
 				// runs, no scanner — so the failure branch needs a switch to be
 				// demoable at all. Free plans gate both cards, so the segment
@@ -8370,7 +8404,7 @@ function untangling_render_mysite_page() {
 
 // Everything the four sections need, resolved server-side once.
 function untangling_ms_data() {
-	$section = isset( $_GET['ms'] ) && in_array( $_GET['ms'], array( 'plan', 'hosting', 'help' ), true ) ? $_GET['ms'] : 'next';
+	$section = isset( $_GET['ms'] ) && in_array( $_GET['ms'], array( 'plan', 'hosting', 'help', 'setup' ), true ) ? $_GET['ms'] : 'next';
 	$plan    = untangling_ms_get_plan();
 	$meta    = untangling_get_plan_meta( $plan );
 	// The compare card's upgrade column needs its own checkout link — the
@@ -8516,7 +8550,9 @@ function untangling_ms_data() {
 		'planCompare'  => $compare,
 		'planOverride' => (bool) get_option( 'untangling_ms_plan_override' ),
 		'state'        => untangling_ms_get_state(),
-		'lpDone'       => array_values( (array) get_option( 'untangling_ms_lp_done', array( 'design' ) ) ),
+		// Nothing done on a fresh site: the production Site Setup opens on
+		// "Choose a theme" at 0 of 6.
+		'lpDone'       => array_values( (array) get_option( 'untangling_ms_lp_done', array() ) ),
 		'lpComplete'   => (bool) get_option( 'untangling_ms_lp_complete' ),
 		'siteName'     => get_bloginfo( 'name' ),
 		'siteIcon'     => get_site_icon_url( 64 ),
@@ -8619,11 +8655,13 @@ function untangling_dw_columns() {
 
 // Default IA at 3 columns (the designed first look): column 1 (normal) is
 // the site itself — Your site (identity + plan) and Hosting; column 2 (side)
-// is doing — Next steps, then core's Quick Draft (the one core widget in the
-// designed default: a place to write, with the recent drafts under it), so
-// the action has the page's centre; column 3 is what the site is doing —
-// traffic, subscribers, history. At 1–2 columns: action → writing → traffic
-// → history on the left, site + machine on the right. Users can rearrange;
+// is writing — production's Daily Writing Prompt, then core's Quick Draft
+// (a place to write, with the recent drafts under it), so the action has the
+// page's centre; column 3 is what the site is doing — traffic, subscribers,
+// history. This is the reviewed default (2026-09-15): Your site / Hosting ·
+// Daily Writing Prompt / Quick Draft · Stats / Newsletter / Log Activity. Setup is not a widget: Site Setup is its own sidebar page, per
+// the AI Launchpad experiment readout. At 1–2 columns: writing → traffic →
+// history on the left, site + machine on the right. Users can rearrange;
 // untangling_dw_layout() is the one map both registration and the
 // order-snap filter read.
 // Jetpack-backed widgets carry the mark in the postbox title (mark + name),
@@ -8656,7 +8694,6 @@ add_action( 'wp_dashboard_setup', function () {
 		// what it includes, the ONE promo slot) in a single postbox — the
 		// former Site preview and Plan widgets, redesigned as one.
 		'untangling_dw_site'       => array( __( 'Your site' ), 'site' ),
-		'untangling_dw_next_steps' => array( __( 'Next steps' ), 'next' ),
 		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
 		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Log Activity' ) ), 'activity' ),
 		// Hosting (was Site details): core's At a glance extended with what the site runs
@@ -8680,7 +8717,7 @@ add_action( 'wp_dashboard_setup', function () {
 			// Core's Quick Draft is already registered by the time this fires
 			// (and wp_add_dashboard_widget() pins it to the side well), so it
 			// is moved into its designed slot rather than added again.
-			if ( 'dashboard_quick_press' === $id ) {
+			if ( in_array( $id, array( 'dashboard_quick_press', 'wpcom_daily_writing_prompt' ), true ) ) {
 				untangling_dw_relocate_box( $id, $context, $ladder[ min( $i, 3 ) ] );
 				continue;
 			}
@@ -8690,7 +8727,7 @@ add_action( 'wp_dashboard_setup', function () {
 	}
 
 	// The welcome panel's job (first look at your site, next actions) is the
-	// Next steps widget now. It stays registered, unchecked by default via
+	// Your site widget + the Site Setup page now. It stays registered, unchecked by default via
 	// the `show_welcome_panel` user-meta seed in section 8d, so Screen
 	// Options can bring it back like production.
 
@@ -8767,12 +8804,12 @@ function untangling_dw_layout( $columns = null ) {
 	if ( 3 === $columns ) {
 		return array(
 			'normal'  => array( 'untangling_dw_site', 'untangling_dw_glance' ),
-			'side'    => array( 'untangling_dw_next_steps', 'dashboard_quick_press' ),
+			'side'    => array( 'wpcom_daily_writing_prompt', 'dashboard_quick_press' ),
 			'column3' => array( 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
 		);
 	}
 	return array(
-		'normal' => array( 'untangling_dw_next_steps', 'dashboard_quick_press', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
+		'normal' => array( 'wpcom_daily_writing_prompt', 'dashboard_quick_press', 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ),
 		'side'   => array( 'untangling_dw_site', 'untangling_dw_glance' ),
 	);
 }
@@ -8856,9 +8893,9 @@ add_filter( 'default_hidden_meta_boxes', function ( $hidden, $screen ) {
 		'dashboard_activity',
 		'dashboard_primary',
 		'dashboard_site_health',
-		// Production's Jetpack Stats + Daily Writing Prompt (section 8d).
+		// Production's Jetpack Stats (section 8d). Its sibling, the Daily
+		// Writing Prompt, is part of the designed default (column 2, first).
 		'jetpack_summary_widget',
-		'wpcom_daily_writing_prompt',
 		// Woo registers these on the two store sites; absent ids are harmless.
 		'woocommerce_dashboard_status',
 		'woocommerce_dashboard_recent_reviews',
@@ -9094,9 +9131,11 @@ add_action( 'wp_dashboard_setup', function () {
 	}
 	// "Stats" is a product name, do not translate. normal / core, as Jetpack registers it.
 	wp_add_dashboard_widget( 'jetpack_summary_widget', 'Jetpack Stats', 'untangling_pw_render_stats' );
-	// side / high, as the newsletter package registers it.
+	// side / high, as the newsletter package registers it; the designed layout
+	// (untangling_dw_layout, priority 10) then moves it to the top of column 2,
+	// which is why this runs early.
 	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', __( 'Daily Writing Prompt' ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
-}, 20 );
+}, 5 );
 
 // Core's Welcome panel shows or hides on the `show_welcome_panel` user meta
 // (0 = hidden, and the Screen Options "Welcome" box follows it). Production
@@ -9116,15 +9155,19 @@ add_action( 'load-index.php', function () {
 		update_user_meta( $user_id, 'untangling_welcome_seeded', 1 );
 	}
 	// `default_hidden_meta_boxes` only applies while the user has never
-	// touched Screen Options; a saved hide list ignores it, so the two
-	// production widgets would land checked for anyone who already has one.
-	// Fold them into that saved list once; a later un-hide is respected.
-	if ( ! get_user_meta( $user_id, 'untangling_pw_seeded', true ) ) {
+	// touched Screen Options; a saved hide list ignores it, so Jetpack Stats
+	// would land checked for anyone who already has one. Fold it into that
+	// saved list once; a later un-hide is respected. Seed version 2
+	// (2026-09-15) also lifts the Daily Writing Prompt out of lists the
+	// version-1 seed hid it in, so the reviewed default reaches every user
+	// meta already on the six sites.
+	if ( 2 !== (int) get_user_meta( $user_id, 'untangling_pw_seeded', true ) ) {
 		$hidden = get_user_option( 'metaboxhidden_dashboard' );
 		if ( is_array( $hidden ) ) {
-			update_user_meta( $user_id, 'metaboxhidden_dashboard', array_values( array_unique( array_merge( $hidden, untangling_pw_ids() ) ) ) );
+			$hidden = array_values( array_diff( $hidden, array( 'wpcom_daily_writing_prompt' ) ) );
+			update_user_meta( $user_id, 'metaboxhidden_dashboard', array_values( array_unique( array_merge( $hidden, array( 'jetpack_summary_widget' ) ) ) ) );
 		}
-		update_user_meta( $user_id, 'untangling_pw_seeded', 1 );
+		update_user_meta( $user_id, 'untangling_pw_seeded', 2 );
 	}
 } );
 
@@ -9593,6 +9636,13 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 	if ( 'index.php' !== $hook || 'dashboard' !== untangling_get_variant() ) {
 		return;
 	}
+	// Core's postbox.js rewrites the saved column count on touch devices
+	// (orientationchange → _pb_change → _pb_edit(1|2) → the same ajax the
+	// Screen Options radio uses), so one look on a phone or tablet turned
+	// the designed 3-column Dashboard into 1 or 2 columns on the desktop
+	// afterwards. Narrow viewports already collapse through CSS; only the
+	// user's own Screen Options choice should change the persisted pref.
+	wp_add_inline_script( 'postbox', 'if ( window.postboxes ) { window.postboxes._pb_change = function () {}; }', 'after' );
 	wp_enqueue_style( 'wp-components' );
 	wp_register_script( 'untangling-ms-app', '', array( 'wp-element', 'wp-components', 'wp-i18n' ), '0.1.0', true );
 	wp_enqueue_script( 'untangling-ms-app' );
@@ -9619,7 +9669,7 @@ add_action( 'admin_footer-index.php', function () {
 			return;
 		}
 		var GROUPS = [
-			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'untangling_dw_next_steps', 'dashboard_quick_press' ] },
+			{ title: <?php echo wp_json_encode( __( 'Site' ) ); ?>, ids: [ 'untangling_dw_site', 'untangling_dw_glance', 'dashboard_quick_press' ] },
 			{ title: <?php echo wp_json_encode( __( 'Traffic and activity' ) ); ?>, ids: [ 'untangling_dw_stats', 'jetpack_newsletter_dashboard_widget', 'untangling_dw_activity' ] },
 			{ title: <?php echo wp_json_encode( __( 'Plugins' ) ); ?>, ids: [ 'untangling_fw_woo', 'untangling_fw_yoast', 'untangling_fw_elementor', 'woocommerce_dashboard_status', 'woocommerce_dashboard_recent_reviews', 'wc_admin_dashboard_setup' ] },
 			{ title: <?php echo wp_json_encode( __( 'More WordPress' ) ); ?>, ids: [] },
@@ -10644,7 +10694,7 @@ function untangling_ms_app_js() {
 
 		return el( 'div', { className: 'ms-tl' + ( props.leaving ? ' is-leaving' : '' ) },
 			el( 'header', { className: 'ms-tl-heading' },
-				el( 'h1', { className: 'ms-tl-title' }, 'Get the most out of WordPress' ),
+				el( 'h1', { className: 'ms-tl-title' }, isCommerce ? 'Let’s get your store ready to launch' : 'Let’s get your blog ready to launch' ),
 				el( 'p', { className: 'ms-tl-progress' }, count + ' of ' + LP_TASKS.length + ' completed' )
 			),
 			el( 'div', { className: 'ms-tl-columns' },
@@ -11089,6 +11139,19 @@ function untangling_ms_app_js() {
 			isNew
 				? el( NewState, { onComplete: onComplete, leaving: 'leaving' === phase } )
 				: el( EstablishedState )
+		);
+	}
+
+	// Site Setup: the production wp-admin launchpad page as its own screen —
+	// the sidebar item below Dashboard in the dashboard variant. The tailored
+	// list carries its own heading, so no Shell header. Completing the last
+	// task celebrates and stays complete; the sidebar entry retires on the
+	// next load, as in production.
+	function SiteSetupPage() {
+		return el( Shell, {},
+			el( 'div', { className: 'ms-new' },
+				el( LaunchpadCard, { onComplete: confettiBurst } )
+			)
 		);
 	}
 
@@ -12249,111 +12312,6 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Next steps: the launchpad (just created) or the living pool
-	// (established), same data and persistence as the My Site page — minus
-	// the page heading, the two-column layout, and the preview column; the
-	// postbox title already names it, and the admin bar links the site. The
-	// open step is the dashboard's only elevation: the one "act on this".
-	function DwLaunchpad( props ) {
-		var doneState = useState( lpInitialDone );
-		var done = doneState[ 0 ], setDone = doneState[ 1 ];
-		var openState = useState( function () { return firstIncomplete( lpInitialDone() ); } );
-		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
-
-		function complete( id ) {
-			if ( done[ id ] ) {
-				return;
-			}
-			var next = Object.assign( {}, done );
-			next[ id ] = true;
-			setDone( next );
-			setOpenId( firstIncomplete( next ) );
-			var doneCount = LP_TASKS.filter( function ( t ) { return next[ t.id ]; } ).length;
-			var isComplete = doneCount === LP_TASKS.length;
-			lpPersist( next, isComplete );
-			if ( isComplete && props.onComplete ) {
-				props.onComplete();
-			}
-		}
-
-		// No "N of M completed" line: the checklist shows its own progress
-		// (struck-through done steps, the open step elevated), and the
-		// postbox title already names it.
-		return el( 'div', null,
-			el( 'div', { className: 'ms-tl-tasks', 'aria-label': 'Launchpad checklist' },
-				LP_TASKS.map( function ( task ) {
-					return el( TailoredTaskCard, {
-						key: task.id,
-						task: task,
-						done: !! done[ task.id ],
-						open: openId === task.id,
-						onToggle: function () { setOpenId( openId === task.id ? null : task.id ); },
-						onComplete: function () { complete( task.id ); },
-					} );
-				} )
-			),
-			el( MadeForLine, { compact: true } )
-		);
-	}
-
-	function DwChecklistEstablished() {
-		var handledState = useState( upnextHandled );
-		var handled = handledState[ 0 ], setHandled = handledState[ 1 ];
-		function pendingOf( ids ) {
-			return DO_STEPS.filter( function ( s ) { return ids.indexOf( s.id ) === -1; } );
-		}
-		var openState = useState( function () {
-			var first = pendingOf( upnextHandled() )[ 0 ];
-			return first ? first.id : '';
-		} );
-		var openId = openState[ 0 ], setOpenId = openState[ 1 ];
-		function onHandle( id ) {
-			var next = handled.concat( [ id ] );
-			setHandled( next );
-			upnextSave( next );
-			var first = pendingOf( next )[ 0 ];
-			setOpenId( first ? first.id : '' );
-			if ( ! pendingOf( next ).length ) {
-				confettiBurst();
-			}
-		}
-		function onReset() {
-			setHandled( [] );
-			upnextSave( [] );
-			setOpenId( DO_STEPS.length ? DO_STEPS[ 0 ].id : '' );
-		}
-		var pending = pendingOf( handled );
-		return el( 'div', null,
-			el( 'div', { className: 'ms-tl-tasks ms-next-flow', 'aria-label': 'Next steps' },
-				! pending.length && el( CaughtUpCard, { onReset: onReset } ),
-				DO_STEPS.map( function ( step ) {
-					var isDone = handled.indexOf( step.id ) !== -1;
-					return el( NextStepCard, {
-						key: step.id,
-						step: step,
-						done: isDone,
-						open: ! isDone && openId === step.id,
-						onToggle: function () { setOpenId( openId === step.id ? '' : step.id ); },
-						onHandle: onHandle,
-					} );
-				} )
-			),
-			el( MadeForLine, { compact: true } )
-		);
-	}
-
-	function DwChecklist() {
-		var phaseState = useState( 'established' === data.state ? 'established' : 'launchpad' );
-		var phase = phaseState[ 0 ], setPhase = phaseState[ 1 ];
-		function onComplete() {
-			confettiBurst();
-			window.setTimeout( function () { setPhase( 'established' ); }, 1100 );
-		}
-		return el( 'div', { className: 'ms-dw-body' },
-			'established' === phase ? el( DwChecklistEstablished ) : el( DwLaunchpad, { onComplete: onComplete } )
-		);
-	}
-
 	// Stats: two KPIs, the underlined one drives the sparkline (Ghost's KPI
 	// strip). Numbers are the last 7 days, deltas vs the week before.
 	// One chart for both series, hover after the Jetpack Stats widget the
@@ -12636,7 +12594,7 @@ function untangling_ms_app_js() {
 
 	/* ---- router ---- */
 
-	var PAGES = { next: NextStepsPage, plan: PlanPage, hosting: HostingPage, help: HelpPage };
+	var PAGES = { next: NextStepsPage, setup: SiteSetupPage, plan: PlanPage, hosting: HostingPage, help: HelpPage };
 
 	function App() {
 		var Page = PAGES[ data.section ] || NextStepsPage;
@@ -12889,7 +12847,7 @@ function untangling_ms_app_js() {
 		wp.element.createRoot( nlRoot ).render( el( NewsletterWidget ) );
 	}
 
-	var DW_WIDGETS = { site: DwSite, next: DwChecklist, stats: DwStats, activity: DwActivity, glance: DwGlance };
+	var DW_WIDGETS = { site: DwSite, stats: DwStats, activity: DwActivity, glance: DwGlance };
 	document.querySelectorAll( '.untangling-dw-mount' ).forEach( function ( node ) {
 		var Widget = DW_WIDGETS[ node.dataset.widget ];
 		if ( Widget && wp.element.createRoot ) {
