@@ -703,6 +703,8 @@ function untangling_get_site_type() {
 		if ( $_GET['untangling_site_type'] !== get_option( 'untangling_site_type', untangling_default_site_type() ) ) {
 			delete_option( 'untangling_ms_plan_override' );
 			delete_option( 'untangling_ms_storage_addon' );
+			delete_option( 'untangling_ms_credit_topup' );
+			delete_option( 'untangling_ms_credit_last' );
 		}
 		update_option( 'untangling_site_type', $_GET['untangling_site_type'] );
 	}
@@ -756,6 +758,27 @@ function untangling_get_plan_filter() {
 		update_option( 'untangling_plan_filter', $_GET['untangling_plan_filter'] );
 	}
 	return get_option( 'untangling_plan_filter', 'included' );
+}
+
+/**
+ * Partner themes on Business/Commerce: 'subscription' sells each partner
+ * theme as its own monthly subscription (production behaviour, the default);
+ * 'included' treats them as part of the plan (the earlier prototype shortcut).
+ * Switch with ?untangling_partner_themes=subscription|included (persisted).
+ */
+function untangling_get_partner_themes() {
+	if ( defined( 'UNTANGLING_FORCE_PARTNER_THEMES' ) ) {
+		return UNTANGLING_FORCE_PARTNER_THEMES;
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_partner_themes'] ) && in_array( $_GET['untangling_partner_themes'], array( 'subscription', 'included' ), true ) ) {
+		update_option( 'untangling_partner_themes', $_GET['untangling_partner_themes'] );
+	}
+	return get_option( 'untangling_partner_themes', 'subscription' );
+}
+
+// Partner theme subscriptions bought through the checkout mimic (slugs).
+function untangling_mkt_subscribed_slugs() {
+	return (array) get_option( 'untangling_mkt_subscribed', array() );
 }
 
 /**
@@ -935,6 +958,9 @@ function untangling_plan_filter_dropdown( $tiers ) {
 // Marketplace persists activate/install mimics (never the real theme — the
 // six sites keep their seeded look), Prototype controls reset everything.
 add_action( 'admin_init', function () {
+	// The theme surfaces read this toggle while rendering the page body, so
+	// persist a switch here, before any of them run.
+	untangling_get_partner_themes();
 	if ( isset( $_GET['untangling_set_plan'] ) && in_array( $_GET['untangling_set_plan'], array( 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
 		update_option( 'untangling_plan_override', $_GET['untangling_set_plan'] );
 	}
@@ -945,6 +971,11 @@ add_action( 'admin_init', function () {
 		$installed   = (array) get_option( 'untangling_mkt_installed', array() );
 		$installed[] = sanitize_key( $_GET['untangling_install_plugin'] );
 		update_option( 'untangling_mkt_installed', array_values( array_unique( $installed ) ) );
+	}
+	if ( isset( $_GET['untangling_subscribe_theme'] ) ) {
+		$subscribed   = untangling_mkt_subscribed_slugs();
+		$subscribed[] = sanitize_key( $_GET['untangling_subscribe_theme'] );
+		update_option( 'untangling_mkt_subscribed', array_values( array_unique( $subscribed ) ) );
 	}
 	// Launchpad progress: the accordion persists done/skipped tasks with a
 	// background GET so the sidebar submenu and page tabs can drop the
@@ -989,6 +1020,22 @@ add_action( 'admin_init', function () {
 	if ( isset( $_GET['untangling_ms_hosting'] ) && in_array( $_GET['untangling_ms_hosting'], array( 'ok', 'attention' ), true ) ) {
 		update_option( 'untangling_ms_hosting', $_GET['untangling_ms_hosting'] );
 	}
+	if ( isset( $_GET['untangling_ms_credits'] ) && in_array( $_GET['untangling_ms_credits'], array( 'ok', 'low' ), true ) ) {
+		update_option( 'untangling_ms_credits', $_GET['untangling_ms_credits'] );
+	}
+	if ( isset( $_GET['untangling_ms_credits_cta'] ) && in_array( $_GET['untangling_ms_credits_cta'], array( 'buttons', 'links' ), true ) ) {
+		update_option( 'untangling_ms_credits_cta', $_GET['untangling_ms_credits_cta'] );
+	}
+	// A bought pack stacks on the site's top-up balance (packs never expire).
+	// The value is the checkout's timestamp, remembered so a reload of the
+	// confirmation page does not buy the pack twice.
+	if ( isset( $_GET['untangling_ms_add_credits'] ) ) {
+		$token = sanitize_key( $_GET['untangling_ms_add_credits'] );
+		if ( $token && $token !== get_option( 'untangling_ms_credit_last' ) ) {
+			update_option( 'untangling_ms_credit_last', $token );
+			update_option( 'untangling_ms_credit_topup', (int) get_option( 'untangling_ms_credit_topup', 0 ) + untangling_ai_credits_pack()['credits'] );
+		}
+	}
 	// Dashboard column count, the same user option core's Screen Options radio
 	// writes (global, unprefixed — matches wp_ajax_meta_box_order). Core hides
 	// the 3-column radio between 800 and 1499px, so without this a viewer who
@@ -1008,6 +1055,7 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_site_type' );
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
+		delete_option( 'untangling_mkt_subscribed' );
 		delete_option( 'untangling_lp_done' );
 		delete_option( 'untangling_lp_complete' );
 		delete_option( 'untangling_ms_plan_override' );
@@ -1016,10 +1064,15 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_ms_state' );
 		delete_option( 'untangling_ms_storage_addon' );
 		delete_option( 'untangling_ms_hosting' );
+		delete_option( 'untangling_ms_credits' );
+		delete_option( 'untangling_ms_credits_cta' );
+		delete_option( 'untangling_ms_credit_topup' );
+		delete_option( 'untangling_ms_credit_last' );
 		delete_option( 'untangling_hosting_design' );
 		delete_option( 'untangling_upsell' );
 		delete_option( 'untangling_marketplace' );
 		delete_option( 'untangling_plan_filter' );
+		delete_option( 'untangling_partner_themes' );
 		delete_option( 'untangling_variant' );
 		// The dashboard variant's designed first look lives partly in user
 		// meta (Screen Options hides, drag order, collapsed boxes) — a full
@@ -4229,8 +4282,8 @@ function untangling_themes_banner() {
 	$assets  = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-themes/images';
 	$is_tabs = 'tabs' === untangling_get_marketplace_mode();
 	// V3: the discovery banner becomes the plans upsell (same lavender panel,
-	// mirroring the dark plugins hero). Business/Commerce already include
-	// every theme tier, so they skip it.
+	// mirroring the dark plugins hero). Business/Commerce have no plan left to
+	// upsell (partner themes sell per card), so they skip it.
 	if ( $is_tabs && untangling_plan_rank( untangling_get_plan() ) >= untangling_plan_rank( 'Business' ) ) {
 		return;
 	}
@@ -4377,7 +4430,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 	$plan_filter    = untangling_get_plan_filter();
 	$included_count = 0;
 	foreach ( $themes as $t ) {
-		if ( $rank >= untangling_plan_rank( untangling_theme_tier_plan( $t[2] ) ) ) {
+		if ( untangling_theme_state( $t[2], $t[0], $plan, $t[6] )['owned'] ) {
 			$included_count++;
 		}
 	}
@@ -4519,28 +4572,48 @@ add_action( 'admin_footer-theme-install.php', function () {
 				$card_idx     = 0;
 				foreach ( $themes as $t ) {
 					list( $slug, $name, $tier, $shot, $subject, $recommended, $price ) = $t;
-					$tier_plan  = untangling_theme_tier_plan( $tier );
-					$included   = $rank >= untangling_plan_rank( $tier_plan );
-					$is_active  = $slug === $active_slug;
+					$st         = untangling_theme_state( $tier, $slug, $plan, $price );
+					$tier_plan  = $st['tier_plan'];
+					$included   = $st['owned'];
+					$is_active  = 'active' === $st['state'];
 					$author     = isset( $details[ $slug ] ) ? $details[ $slug ][0] : 'Automattic';
 					$demo       = isset( $details[ $slug ] ) ? $details[ $slug ][1] : '';
 					$desc       = isset( $details[ $slug ] ) ? $details[ $slug ][2] : '';
 					$detail_url = untangling_marketplace_url( 'themes', array( 'ustep' => 'details', 'slug' => $slug ) );
-					$cta_url    = $included
-						? add_query_arg( 'untangling_activate_theme', $slug, $tab_url )
-						: untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
-					if ( $is_active ) {
-						$tier_label  = '✓ ' . __( 'Active' );
-						$badge_class = 'is-active-badge';
-					} elseif ( $included ) {
-						$tier_label  = __( 'Included with plan' );
-						$badge_class = '';
-					} elseif ( $price ) {
-						$tier_label  = sprintf( __( 'US$%s/mo + %s plan' ), $price, $tier_plan );
-						$badge_class = 'is-tier-badge';
-					} else {
-						$tier_label  = sprintf( __( '%s plan' ), $tier_plan );
-						$badge_class = 'is-tier-badge';
+					// The black tier badge and the diamond both mean "needs a higher
+					// plan"; a partner subscription on Business is paid but not gated,
+					// so it keeps the plain white badge.
+					$gated = 'locked' === $st['state'];
+					switch ( $st['state'] ) {
+						case 'active':
+							$tier_label  = '✓ ' . __( 'Active' );
+							$badge_class = 'is-active-badge';
+							$cta_label   = '';
+							$cta_url     = '';
+							break;
+						case 'subscribed':
+							$tier_label  = __( 'Subscribed' );
+							$badge_class = '';
+							$cta_label   = __( 'Activate' );
+							$cta_url     = add_query_arg( 'untangling_activate_theme', $slug, $tab_url );
+							break;
+						case 'subscribe':
+							$tier_label  = sprintf( __( 'US$%s/mo · Partner' ), $price );
+							$badge_class = '';
+							$cta_label   = __( 'Subscribe' );
+							$cta_url     = untangling_theme_subscribe_url( $slug );
+							break;
+						case 'included':
+							$tier_label  = __( 'Included with plan' );
+							$badge_class = '';
+							$cta_label   = __( 'Install' );
+							$cta_url     = add_query_arg( 'untangling_activate_theme', $slug, $tab_url );
+							break;
+						default:
+							$tier_label  = $price ? sprintf( __( 'US$%s/mo + %s plan' ), $price, $tier_plan ) : sprintf( __( '%s plan' ), $tier_plan );
+							$badge_class = 'is-tier-badge';
+							$cta_label   = __( 'Upgrade' );
+							$cta_url     = untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
 					}
 					$overlay_data[] = array(
 						'name'   => $name,
@@ -4552,9 +4625,9 @@ add_action( 'admin_footer-theme-install.php', function () {
 						'demo'   => $demo ? add_query_arg( array( 'demo' => 'true', 'iframe' => 'true', 'theme_preview' => 'true' ), $demo ) : '',
 						'tier'   => $tier_label,
 						'badge'  => $badge_class,
-						'cta'    => $is_active ? '' : ( $included ? __( 'Install' ) : __( 'Upgrade' ) ),
-						'ctaUrl' => $is_active ? '' : $cta_url,
-						'gated'  => ! $is_active && ! $included,
+						'cta'    => $cta_label,
+						'ctaUrl' => $cta_url,
+						'gated'  => $gated,
 					);
 					?>
 					<div class="theme" data-idx="<?php echo (int) $card_idx++; ?>" data-category="<?php echo esc_attr( $subject ); ?>" data-tier="<?php echo esc_attr( $tier_plan ); ?>" data-included="<?php echo $included ? '1' : ''; ?>" data-details="<?php echo esc_url( $detail_url ); ?>" tabindex="0">
@@ -4567,7 +4640,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 							<div class="theme-actions">
 								<?php // WP 7.0 cards use the 32px compact size; default buttons are 40px and overflow the name plate. ?>
 								<?php if ( ! $is_active ) : ?>
-									<a class="button button-primary button-compact" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Install' ) : __( 'Upgrade' ) ); ?></a>
+									<a class="button button-primary button-compact" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $gated ? untangling_upsell_diamond() : '' ) . esc_html( $cta_label ); ?></a>
 								<?php endif; ?>
 								<?php if ( $demo ) : ?>
 									<a class="button button-compact" href="<?php echo esc_url( $demo ); ?>" target="_blank" rel="noreferrer"><?php esc_html_e( 'Preview' ); ?></a>
@@ -5118,6 +5191,45 @@ function untangling_theme_tier_plan( $tier ) {
 	return isset( $map[ $tier ] ) ? $map[ $tier ] : 'Business';
 }
 
+// One answer for every theme surface (grid, details, Add Themes tab):
+//   active     — the mimic-activated theme
+//   subscribed — partner theme with a paid subscription, ready to activate
+//   included   — the plan covers it, ready to activate
+//   subscribe  — partner theme on Business/Commerce without a subscription
+//   locked     — needs a higher plan
+// 'owned' is the old "included" boolean: in the 'included' toggle mode partner
+// themes never need a subscription, so nothing changes there.
+function untangling_theme_state( $tier, $slug, $plan, $price = '' ) {
+	$tier_plan = untangling_theme_tier_plan( $tier );
+	$eligible  = untangling_plan_rank( $plan ) >= untangling_plan_rank( $tier_plan );
+	$needs_sub = 'partner' === $tier && 'subscription' === untangling_get_partner_themes();
+	$owned     = $eligible && ( ! $needs_sub || in_array( $slug, untangling_mkt_subscribed_slugs(), true ) );
+	if ( $slug === get_option( 'untangling_mkt_active_theme', '' ) ) {
+		$state = 'active';
+	} elseif ( $owned && $needs_sub ) {
+		$state = 'subscribed';
+	} elseif ( $owned ) {
+		$state = 'included';
+	} elseif ( $eligible && $needs_sub ) {
+		$state = 'subscribe';
+	} else {
+		$state = 'locked';
+	}
+	return array(
+		'state'     => $state,
+		'owned'     => $owned,
+		'eligible'  => $eligible,
+		'needs_sub' => $needs_sub,
+		'tier_plan' => $tier_plan,
+		'price'     => $price,
+	);
+}
+
+// Checkout for a partner theme the plan already allows: no pricing step.
+function untangling_theme_subscribe_url( $slug ) {
+	return untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'type' => 'theme', 'slug' => $slug, 'flow' => 'subscribe' ) );
+}
+
 // Real per-theme details from the public API (rest/v1.2/themes/{slug}):
 // author, demo URL, full description, top feature tags. Used by the theme
 // details step; harvested 2026-07-31.
@@ -5162,7 +5274,7 @@ function untangling_marketplace_find_item( $type, $slug ) {
 	} else {
 		foreach ( untangling_marketplace_themes() as $t ) {
 			if ( $t[0] === $slug ) {
-				return array( 'name' => $t[1], 'image' => $t[3], 'tier' => untangling_theme_tier_plan( $t[2] ), 'price' => $t[6] );
+				return array( 'name' => $t[1], 'image' => $t[3], 'tier' => untangling_theme_tier_plan( $t[2] ), 'raw_tier' => $t[2], 'price' => $t[6] );
 			}
 		}
 	}
@@ -5178,6 +5290,85 @@ function untangling_marketplace_find_item( $type, $slug ) {
 // production Add-ons page dropdown.
 function untangling_storage_addon_pricing() {
 	return array( 50 => 50.00, 100 => 83.33, 150 => 125.00, 200 => 166.67, 250 => 208.33, 300 => 250.00, 350 => 291.67 );
+}
+
+// AI credits — the monthly allowance each plan grants the WordPress Agent
+// (the per-plan proposal that is the working plan for Dotcom) and the one-off
+// top-up pack. Free gets no allowance: the Agent is a paid-plan feature.
+function untangling_ai_credits_allowance( $plan = null ) {
+	$allowance = array( 'Free' => 0, 'Personal' => 15000, 'Premium' => 40000, 'Business' => 80000, 'Commerce' => 100000 );
+	$plan      = $plan ? $plan : untangling_get_plan();
+	return isset( $allowance[ $plan ] ) ? $allowance[ $plan ] : 0;
+}
+
+function untangling_ai_credits_pack() {
+	return array( 'credits' => 100000, 'price' => 20.00 );
+}
+
+// Short credit numbers, the way the balance UI writes them: amounts under
+// 1,000 in full, from 1,000 up one decimal k with the zero trimmed
+// ("10.8k", "15k", "100k").
+function untangling_format_credits( $n ) {
+	$n = (int) $n;
+	if ( $n < 1000 ) {
+		return (string) $n;
+	}
+	$k = round( $n / 1000, 1 );
+	return ( floor( $k ) == $k ? (string) (int) $k : number_format_i18n( $k, 1 ) ) . 'k';
+}
+
+// Demo switch for the credits meter: 'ok' = mid-month usage, 'low' = the
+// combined balance under the 10k notice line.
+function untangling_ms_credits_state() {
+	if ( defined( 'UNTANGLING_FORCE_MS_CREDITS' ) ) {
+		return UNTANGLING_FORCE_MS_CREDITS;
+	}
+	$state = get_option( 'untangling_ms_credits' );
+	return in_array( $state, array( 'ok', 'low' ), true ) ? $state : 'ok';
+}
+
+// Two treatments for the card's actions: 'buttons' (the pair on their own
+// row) and 'links' (text links beside the balance — lighter, for a card that
+// should not outweigh the plan above it).
+function untangling_ms_credits_cta() {
+	if ( defined( 'UNTANGLING_FORCE_MS_CREDITS_CTA' ) ) {
+		return UNTANGLING_FORCE_MS_CREDITS_CTA;
+	}
+	$cta = get_option( 'untangling_ms_credits_cta' );
+	return in_array( $cta, array( 'buttons', 'links' ), true ) ? $cta : 'buttons';
+}
+
+// Everything the AI credits card needs. Plan credits burn first and reset
+// monthly; purchased packs never expire and only drain once the month's plan
+// credits are gone, so the low-balance rule watches the combined balance
+// (plan left + packs), never a percentage.
+function untangling_ms_credits_data( $plan ) {
+	$allowance = untangling_ai_credits_allowance( $plan );
+	$state     = untangling_ms_credits_state();
+	$topup     = (int) get_option( 'untangling_ms_credit_topup', 0 );
+	// Mid-month usage per plan (72% left on Personal is the design's worked
+	// example); the low state leaves 2.5k so the notice line shows on every
+	// tier until a pack lifts the combined balance back over 10k.
+	$left_ok   = array( 'Personal' => 10800, 'Premium' => 28400, 'Business' => 61000, 'Commerce' => 74000 );
+	$left      = 'low' === $state ? min( 2500, $allowance ) : ( isset( $left_ok[ $plan ] ) ? $left_ok[ $plan ] : 0 );
+	// The plan period resets on the 17th — the design's "Resets 17 Oct".
+	$reset_day = 17;
+	$reset     = (int) current_time( 'j' ) < $reset_day
+		? mktime( 0, 0, 0, (int) current_time( 'n' ), $reset_day, (int) current_time( 'Y' ) )
+		: mktime( 0, 0, 0, (int) current_time( 'n' ) + 1, $reset_day, (int) current_time( 'Y' ) );
+	return array(
+		'allowance' => $allowance,
+		'left'      => $left,
+		'topup'     => $topup,
+		'combined'  => $left + $topup,
+		'threshold' => 10000,
+		'isLow'     => $allowance > 0 && ( $left + $topup ) < 10000,
+		'resets'    => date_i18n( 'j M', $reset ),
+		'pack'      => untangling_ai_credits_pack(),
+		'state'     => $state,
+		'cta'       => untangling_ms_credits_cta(),
+		'addUrl'    => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'credits', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
+	);
 }
 
 function untangling_plan_pricing() {
@@ -5461,12 +5652,20 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 	}
 	foreach ( untangling_marketplace_themes() as $t ) {
 		list( $slug, $name, $tier, $shot, $subject, $recommended, $price ) = $t;
-		$tier_plan = untangling_theme_tier_plan( $tier );
-		$included  = $rank >= untangling_plan_rank( $tier_plan );
-		$is_active = $slug === $active_slug;
-		$cta_url   = $included
-			? add_query_arg( 'untangling_activate_theme', $slug, $return_url )
-			: untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
+		$st        = untangling_theme_state( $tier, $slug, $plan, $price );
+		$state     = $st['state'];
+		$tier_plan = $st['tier_plan'];
+		$is_active = 'active' === $state;
+		if ( 'locked' === $state ) {
+			$cta_url   = untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
+			$cta_label = __( 'Unlock theme' );
+		} elseif ( 'subscribe' === $state ) {
+			$cta_url   = untangling_theme_subscribe_url( $slug );
+			$cta_label = __( 'Subscribe' );
+		} else {
+			$cta_url   = add_query_arg( 'untangling_activate_theme', $slug, $return_url );
+			$cta_label = __( 'Activate' );
+		}
 		?>
 		<article class="untangling-mkt-theme-card<?php echo $is_active ? ' is-current' : ''; ?>" data-name="<?php echo esc_attr( strtolower( $name . ' ' . $slug ) ); ?>" data-subject="<?php echo esc_attr( $subject ); ?>" data-recommended="<?php echo $recommended ? '1' : ''; ?>" data-mine="<?php echo $is_active ? '1' : ''; ?>" data-tier="<?php echo esc_attr( $tier ); ?>">
 			<?php
@@ -5483,7 +5682,7 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 						// diamond, the longer label overruns the 180px button
 						// and wraps to two lines.
 						?>
-						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock theme' ) ); ?></a>
+						<a class="untangling-mkt-shot-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( 'locked' === $state ? untangling_upsell_diamond() : '' ) . esc_html( $cta_label ); ?></a>
 					<?php endif; ?>
 					<a class="untangling-mkt-shot-cta is-ghost" href="<?php echo esc_url( $details_url ); ?>"><?php esc_html_e( 'Theme details' ); ?></a>
 				</div>
@@ -5493,7 +5692,12 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 				<span class="untangling-mkt-theme-meta">
 				<?php if ( $is_active ) : ?>
 					<span class="untangling-mkt-badge is-activebadge">✓ <?php esc_html_e( 'Active' ); ?></span>
-				<?php elseif ( $included ) : ?>
+				<?php elseif ( 'subscribed' === $state ) : ?>
+					<span class="untangling-mkt-badge is-included"><?php esc_html_e( 'Subscribed' ); ?></span>
+				<?php elseif ( 'subscribe' === $state ) : ?>
+					<span class="untangling-mkt-pricenote"><?php echo esc_html( 'US$' . $price . '/month' ); ?></span>
+					<span class="untangling-mkt-badge is-tier"><?php esc_html_e( 'Partner' ); ?></span>
+				<?php elseif ( 'included' === $state ) : ?>
 					<span class="untangling-mkt-badge is-included"><?php esc_html_e( 'Included with plan' ); ?></span>
 				<?php elseif ( $price ) : ?>
 					<span class="untangling-mkt-pricenote"><?php echo esc_html( 'US$' . $price . '/month' ); ?></span>
@@ -5677,32 +5881,37 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 	}
 	list( , $name, $tier, $shot, , , $price ) = $row;
 	list( $author, $demo, $desc, $features )  = $details[ $slug ];
-	$tier_plan = untangling_theme_tier_plan( $tier );
-	$included  = untangling_plan_rank( $plan ) >= untangling_plan_rank( $tier_plan );
-	$is_active = $slug === get_option( 'untangling_mkt_active_theme', '' );
+	$st        = untangling_theme_state( $tier, $slug, $plan, $price );
+	$state     = $st['state'];
+	$tier_plan = $st['tier_plan'];
+	$is_active = 'active' === $state;
 
-	if ( $in_admin ) {
-		// Production Atomic details: short pill, no ★.
-		if ( 'free' === $tier ) {
-			$pill = __( 'Free' );
-		} elseif ( $included ) {
-			$pill = __( 'Included with your plan' );
-		} elseif ( $price ) {
-			$pill = sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan );
-		} else {
-			$pill = sprintf( __( 'Available on %s' ), $tier_plan );
-		}
-	} elseif ( 'free' === $tier ) {
-		$pill = __( 'Free theme' );
+	// Pills: [ label, extra class ]. Production Atomic details (in-admin) use
+	// the short labels and no ★; the fullscreen shell stars the first pill.
+	if ( 'free' === $tier ) {
+		$pills = array( array( $in_admin ? __( 'Free' ) : __( 'Free theme' ), '' ) );
+	} elseif ( $st['owned'] && $st['needs_sub'] ) {
+		$pills = array( array( __( 'Partner' ), 'is-partner' ), array( __( 'Subscribed' ), 'is-subscribed' ) );
+	} elseif ( $st['owned'] ) {
+		$pills = array( array( __( 'Included with your plan' ), '' ) );
+	} elseif ( 'subscribe' === $state ) {
+		$pills = array( array( sprintf( __( 'Available for US$%s/month' ), $price ), '' ), array( __( 'Partner' ), 'is-partner' ) );
 	} elseif ( $price ) {
-		$pill = sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan );
+		$pills = array( array( sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan ), '' ) );
 	} else {
-		$pill = sprintf( __( 'Available on %s' ), $tier_plan );
+		$pills = array( array( sprintf( __( 'Available on %s' ), $tier_plan ), '' ) );
 	}
 	$browse_url = $in_admin ? untangling_themes_screen_url() : untangling_marketplace_url( 'themes' );
-	$cta_url    = $included
-		? add_query_arg( 'untangling_activate_theme', $slug, $browse_url )
-		: untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
+	if ( 'locked' === $state ) {
+		$cta_url   = untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'type' => 'theme', 'slug' => $slug ) );
+		$cta_label = __( 'Unlock theme' );
+	} elseif ( 'subscribe' === $state ) {
+		$cta_url   = untangling_theme_subscribe_url( $slug );
+		$cta_label = __( 'Subscribe' );
+	} else {
+		$cta_url   = add_query_arg( 'untangling_activate_theme', $slug, $browse_url );
+		$cta_label = __( 'Activate' );
+	}
 	?>
 	<nav class="untangling-mkt-crumbs">
 		<a href="<?php echo esc_url( $browse_url ); ?>"><?php esc_html_e( 'Themes' ); ?></a>
@@ -5711,7 +5920,11 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 	</nav>
 	<div class="untangling-mkt-detail">
 		<div class="untangling-mkt-detail-info">
-			<span class="untangling-mkt-detail-tierpill"><?php echo ( $in_admin ? '' : '★ ' ) . esc_html( $pill ); ?></span>
+			<div class="untangling-mkt-detail-pills">
+				<?php foreach ( $pills as $i => $pill ) : ?>
+					<span class="untangling-mkt-detail-tierpill<?php echo $pill[1] ? ' ' . esc_attr( $pill[1] ) : ''; ?>"><?php echo ( $in_admin || $i ? '' : '★ ' ) . esc_html( $pill[0] ); ?></span>
+				<?php endforeach; ?>
+			</div>
 			<div class="untangling-mkt-detail-head">
 				<div>
 					<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $name ); ?></h1>
@@ -5722,7 +5935,7 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 					<?php if ( $is_active ) : ?>
 						<span class="untangling-mkt-button is-disabled">✓ <?php esc_html_e( 'Active' ); ?></span>
 					<?php else : ?>
-						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( $included ? '' : untangling_upsell_diamond() ) . esc_html( $included ? __( 'Activate' ) : __( 'Unlock theme' ) ); ?></a>
+						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( 'locked' === $state ? untangling_upsell_diamond() : '' ) . esc_html( $cta_label ); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -6136,22 +6349,45 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	$storage_pricing = untangling_storage_addon_pricing();
 	$addon_gb        = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] && isset( $storage_pricing[ (int) $_GET['gb'] ] ) ) ? (int) $_GET['gb'] : 0;
 
+	// AI credits pack checkout (addon=credits): one 100k pack, one-off, no
+	// plan change — the Upgrades card's "Add credits".
+	$credits_pack = untangling_ai_credits_pack();
+	$is_credits   = ! $item && isset( $_GET['addon'] ) && 'credits' === $_GET['addon'];
+
 	// Two-year renewal checkout (flow=renew, the Atomic sidebar nudge): the
 	// plan already owned, 24 months up front, 20% off — itemized in the cart.
-	$is_renew       = ! $item && ! $addon_gb && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
+	$is_renew       = ! $item && ! $addon_gb && ! $is_credits && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
 	$renew_discount = 0;
 
-	$plan_price = $addon_gb ? $storage_pricing[ $addon_gb ] : $pricing[ $new_plan ][0];
+	$plan_price = $is_credits ? $credits_pack['price'] : ( $addon_gb ? $storage_pricing[ $addon_gb ] : $pricing[ $new_plan ][0] );
 	if ( $is_renew ) {
 		$plan_price     = $pricing[ $new_plan ][0] * 24;
 		$renew_discount = round( $plan_price * 0.2, 2 );
+	}
+	// Partner theme subscription (flow=subscribe): the plan already allows the
+	// theme, so the cart carries only the theme. Falls back to the plan+theme
+	// cart if the toggle or plan changed under the visitor mid-flow.
+	$is_partner   = $item && 'theme' === $type && isset( $item['raw_tier'] ) && 'partner' === $item['raw_tier'] && 'subscription' === untangling_get_partner_themes();
+	$is_subscribe = $is_partner && isset( $_GET['flow'] ) && 'subscribe' === $_GET['flow'] && untangling_plan_rank( $plan ) >= untangling_plan_rank( 'Business' );
+	if ( $is_subscribe ) {
+		$plan_price = 0;
 	}
 	$item_price = $item && $item['price'] ? (float) $item['price'] : 0;
 	$total      = $plan_price + $item_price - $renew_discount;
 	$user       = wp_get_current_user();
 	$is_ms      = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// ctx=ms = the My Site drawer's flow: persist into its namespaced plan key.
-	if ( $addon_gb ) {
+	if ( $is_subscribe ) {
+		// No plan change — only the subscription is persisted.
+		$done_args = array( 'ustep' => 'done', 'flow' => 'subscribe', 'untangling_subscribe_theme' => $slug );
+	} elseif ( $is_credits ) {
+		// The pack lands on the site whichever surface sold it; the timestamp
+		// keeps a reloaded confirmation from buying it again.
+		$done_args = array( 'ustep' => 'done', 'addon' => 'credits', 'untangling_ms_add_credits' => (string) time() );
+		if ( $is_ms ) {
+			$done_args['ctx'] = 'ms';
+		}
+	} elseif ( $addon_gb ) {
 		$done_args = array( 'ustep' => 'done', 'addon' => 'storage', 'gb' => $addon_gb );
 		if ( $is_ms ) {
 			$done_args['untangling_ms_add_storage'] = $addon_gb;
@@ -6164,6 +6400,11 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		$done_args = $is_ms
 			? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
 			: array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+		// The plan upsell cart already charged the partner theme's line, so
+		// the visitor lands on Subscribed → Activate, not on another checkout.
+		if ( $is_partner ) {
+			$done_args['untangling_subscribe_theme'] = $slug;
+		}
 	}
 	if ( $item ) {
 		$done_args['type'] = $type;
@@ -6219,8 +6460,11 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		</div>
 		<aside class="untangling-mkt-summary">
 			<h2><?php esc_html_e( 'Order summary' ); ?></h2>
+			<?php if ( ! $is_subscribe ) : ?>
 			<div class="untangling-mkt-sumrow">
-				<?php if ( $addon_gb ) : ?>
+				<?php if ( $is_credits ) : ?>
+					<span class="who"><span><?php echo esc_html( sprintf( __( 'AI credits — %s pack' ), untangling_format_credits( $credits_pack['credits'] ) ) ); ?><small><?php esc_html_e( 'One-off. Never expires.' ); ?></small></span></span>
+				<?php elseif ( $addon_gb ) : ?>
 					<span class="who"><span><?php echo esc_html( sprintf( __( 'Storage add-on +%d GB' ), $addon_gb ) ); ?><small><?php esc_html_e( 'Per month, billed yearly' ); ?></small></span></span>
 				<?php elseif ( $is_renew ) : ?>
 					<span class="who"><span><?php echo esc_html( sprintf( __( 'WordPress.com %s — renewal' ), $new_plan ) ); ?><small><?php esc_html_e( 'Two years, billed once' ); ?></small></span></span>
@@ -6229,6 +6473,7 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 				<?php endif; ?>
 				<span><?php echo esc_html( 'US$' . number_format_i18n( $plan_price, 2 ) ); ?></span>
 			</div>
+			<?php endif; ?>
 			<?php if ( $is_renew ) : ?>
 				<div class="untangling-mkt-sumrow">
 					<span class="who"><span><?php esc_html_e( 'Two-year renewal discount' ); ?><small><?php esc_html_e( '20% off, applied to this order' ); ?></small></span></span>
@@ -6239,7 +6484,7 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 				<div class="untangling-mkt-sumrow">
 					<span class="who">
 						<?php if ( 'plugin' === $type ) : ?><img src="<?php echo esc_url( $item['image'] ); ?>" alt=""><?php endif; ?>
-						<span><?php echo esc_html( $item['name'] ); ?><small><?php echo 'plugin' === $type ? esc_html__( 'Marketplace plugin' ) : esc_html__( 'Theme' ); ?></small></span>
+						<span><?php echo esc_html( $item['name'] ); ?><small><?php echo 'plugin' === $type ? esc_html__( 'Marketplace plugin' ) : ( $is_subscribe ? esc_html__( 'Partner theme · Billed monthly' ) : esc_html__( 'Theme' ) ); ?></small></span>
 					</span>
 					<span><?php echo $item_price ? esc_html( 'US$' . number_format_i18n( $item_price, 2 ) ) : esc_html__( 'Included' ); ?></span>
 				</div>
@@ -6272,20 +6517,33 @@ function untangling_marketplace_done_step( $type ) {
 	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
 	$plan  = $is_ms ? untangling_ms_get_plan() : untangling_get_plan();
 	$addon_gb = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] ) ? (int) $_GET['gb'] : 0;
+	$is_credits = ! $item && isset( $_GET['addon'] ) && 'credits' === $_GET['addon'];
 	$is_renew = ! $item && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
 	$mkt   = 'plugin' === $type ? 'plugins' : 'themes';
 	$install_name = '';
 	if ( ! $item && isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
 		$install_name = isset( $_GET['pname'] ) ? sanitize_text_field( wp_unslash( $_GET['pname'] ) ) : '';
 	}
+	// Partner theme bought on its own (the plan already allowed it) — the
+	// subscription was persisted by untangling_subscribe_theme on this request.
+	$is_partner   = $item && 'theme' === $type && isset( $item['raw_tier'] ) && 'partner' === $item['raw_tier'] && 'subscription' === untangling_get_partner_themes();
+	$is_subscribe = $is_partner && isset( $_GET['flow'] ) && 'subscribe' === $_GET['flow'];
+	if ( $is_subscribe ) {
+		$theme_details = untangling_marketplace_theme_details();
+		$theme_author  = isset( $theme_details[ $slug ] ) ? $theme_details[ $slug ][0] : '';
+	}
 	?>
 	<div class="untangling-mkt-done">
 		<span class="untangling-mkt-done-check">
 			<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true"><path fill="currentColor" d="M9 16.2l-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5z"/></svg>
 		</span>
-		<h1 class="untangling-mkt-brandfont"><?php esc_html_e( 'You’re all set!' ); ?></h1>
+		<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $is_subscribe ? __( 'Congrats on your new theme!' ) : __( 'You’re all set!' ) ); ?></h1>
 		<p>
-			<?php if ( $addon_gb ) : ?>
+			<?php if ( $is_subscribe ) : ?>
+				<?php echo esc_html( $theme_author ? sprintf( __( '%1$s by %2$s is now part of your site. Activate it whenever you’re ready.' ), $item['name'], $theme_author ) : sprintf( __( '%s is now part of your site. Activate it whenever you’re ready.' ), $item['name'] ) ); ?>
+			<?php elseif ( $is_credits ) : ?>
+				<?php echo esc_html( sprintf( __( '%1$s AI credits are now on %2$s. They never expire, and the WordPress Agent uses them once this month’s plan credits run out.' ), untangling_format_credits( untangling_ai_credits_pack()['credits'] ), get_bloginfo( 'name' ) ) ); ?>
+			<?php elseif ( $addon_gb ) : ?>
 				<?php echo esc_html( sprintf( __( '%1$d GB of extra storage is now active on %2$s.' ), $addon_gb, get_bloginfo( 'name' ) ) ); ?>
 			<?php elseif ( $is_renew ) : ?>
 				<?php echo esc_html( sprintf( __( 'The %1$s plan is renewed for two more years on %2$s, with the 20%% discount applied.' ), $plan, get_bloginfo( 'name' ) ) ); ?>
@@ -6296,14 +6554,22 @@ function untangling_marketplace_done_step( $type ) {
 					<?php echo esc_html( sprintf( __( '%s is registered and set as your primary address — it can take a few minutes to start working everywhere.' ), $claim ) ); ?>
 				<?php endif; ?>
 			<?php endif; ?>
-			<?php if ( $item ) : ?>
-				<?php echo esc_html( sprintf( 'theme' === $type ? __( '%s is now included in your plan — head back to the Marketplace to activate it.' ) : __( '%s is now included in your plan — head back to the Marketplace to install it.' ), $item['name'] ) ); ?>
+			<?php if ( $item && ! $is_subscribe ) : ?>
+				<?php if ( $is_partner ) : ?>
+					<?php echo esc_html( sprintf( __( '%s is now part of your site — head back to the Marketplace to activate it.' ), $item['name'] ) ); ?>
+				<?php else : ?>
+					<?php echo esc_html( sprintf( 'theme' === $type ? __( '%s is now included in your plan — head back to the Marketplace to activate it.' ) : __( '%s is now included in your plan — head back to the Marketplace to install it.' ), $item['name'] ) ); ?>
+				<?php endif; ?>
 			<?php elseif ( $install_name ) : ?>
 				<?php echo esc_html( sprintf( __( '%s is now included in your plan — head back to Add Plugins to install it.' ), $install_name ) ); ?>
 			<?php endif; ?>
 		</p>
 		<div class="untangling-mkt-done-actions">
-			<?php if ( $install_name ) : ?>
+			<?php if ( $is_subscribe ) : ?>
+				<?php $themes_home = untangling_themes_home_url(); ?>
+				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( add_query_arg( 'untangling_activate_theme', $slug, $themes_home ) ); ?>"><?php esc_html_e( 'Activate this design' ); ?></a>
+				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( $themes_home ); ?>"><?php esc_html_e( 'Back to Marketplace' ); ?></a>
+			<?php elseif ( $install_name ) : ?>
 				<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( admin_url( 'plugin-install.php' ) ); ?>"><?php esc_html_e( 'Back to Add Plugins' ); ?></a>
 				<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( admin_url() ); ?>"><?php esc_html_e( 'Go to WP Admin' ); ?></a>
 			<?php elseif ( $item ) : ?>
@@ -6932,7 +7198,10 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-crumbs .is-current { color: var(--mkt-gray-100); }
 	.untangling-mkt-detail { display: grid; grid-template-columns: 1fr; gap: 48px; }
 	@media ( min-width: 960px ) { .untangling-mkt-detail { grid-template-columns: minmax( 0, 480px ) 1fr; gap: 64px; } }
-	.untangling-mkt-detail-tierpill { display: inline-flex; align-items: center; gap: 6px; background: var(--mkt-gray-100); color: #fff; border-radius: 4px; font-size: 12px; font-weight: 500; line-height: 1; padding: 6px 10px; margin-bottom: 16px; }
+	.untangling-mkt-detail-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+	.untangling-mkt-detail-tierpill { display: inline-flex; align-items: center; gap: 6px; background: var(--mkt-gray-100); color: #fff; border-radius: 4px; font-size: 12px; font-weight: 500; line-height: 1; padding: 6px 10px; }
+	.untangling-mkt-detail-tierpill.is-partner { background: var(--mkt-gray-0); color: var(--mkt-gray-60); }
+	.untangling-mkt-detail-tierpill.is-subscribed { background: var(--mkt-blue-tint); color: var(--mkt-blue); }
 	.untangling-mkt-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 	.untangling-mkt-detail-head h1 { font-size: 44px; line-height: 1.1; margin: 0; font-weight: 400; color: var(--mkt-gray-100); }
 	.untangling-mkt-detail-by { margin: 6px 0 0; font-size: 16px; color: var(--mkt-gray-60); }
@@ -7327,6 +7596,18 @@ function untangling_themes_screen_url( $args = array() ) {
 	return add_query_arg( array_merge( array( 'page' => 'untangling-themes' ), $args ), admin_url( 'themes.php' ) );
 }
 
+// The themes grid the visitor browses in the current Marketplace version.
+function untangling_themes_home_url() {
+	switch ( untangling_get_marketplace_mode() ) {
+		case 'fullscreen':
+			return untangling_marketplace_url( 'themes' );
+		case 'split':
+			return untangling_themes_screen_url();
+		default:
+			return admin_url( 'theme-install.php?untangling_browse=marketplace' );
+	}
+}
+
 function untangling_render_themes_screen() {
 	$plan       = untangling_get_plan();
 	$is_details = isset( $_GET['ustep'] ) && 'details' === $_GET['ustep'];
@@ -7506,7 +7787,10 @@ add_action( 'admin_footer', function () {
 	$plan     = untangling_get_plan();
 	$override = (bool) get_option( 'untangling_plan_override' );
 	$ms_plan_override = (bool) get_option( 'untangling_ms_plan_override' );
-	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_hosting' );
+	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_hosting' ) || get_option( 'untangling_ms_credits' ) || get_option( 'untangling_ms_credit_topup' );
+	// A theme subscription is the one Marketplace purchase with no plan change
+	// behind it, so it has to surface the Reset button on its own.
+	$mkt_dirty = (bool) get_option( 'untangling_mkt_subscribed' );
 
 	// One control: label, segments, and the line explaining the current choice.
 	// The hint is hidden by default — seven of them stacked made the panel taller
@@ -7638,6 +7922,17 @@ add_action( 'admin_footer', function () {
 				$seg( __( 'Hosting state' ), 'untangling_ms_hosting', array( 'ok' => __( 'All good' ), 'attention' => __( 'Needs attention' ) ), $ms_hosting, 'attention' === $ms_hosting
 					? __( 'Hosting: a failed backup and threats found — both cards turn red.' )
 					: __( 'Hosting: backups current and no threats — both cards turn green.' ) );
+				// The credits meter has no real ledger behind it, so the low
+				// state needs a switch to be demoable. Free has no allowance
+				// and shows the offer row whatever the switch says.
+				$ms_credits = untangling_ms_credits_state();
+				$seg( __( 'AI credits' ), 'untangling_ms_credits', array( 'ok' => __( 'Healthy' ), 'low' => __( 'Running low' ) ), $ms_credits, 'low' === $ms_credits
+					? __( 'Credits: under 10k left in total — the Upgrades card shows the low-balance line. A bought pack clears it.' )
+					: __( 'Credits: a mid-month balance on the Upgrades card. Free sites see the offer instead.' ) );
+				$ms_credits_cta = untangling_ms_credits_cta();
+				$seg( __( 'Credits actions' ), 'untangling_ms_credits_cta', array( 'buttons' => __( 'Buttons' ), 'links' => __( 'Links' ) ), $ms_credits_cta, 'links' === $ms_credits_cta
+					? __( 'Add credits and Upgrade as text links beside the balance — the lighter card.' )
+					: __( 'Add credits and Upgrade as a button pair under the meter.' ) );
 				$group( __( 'wp-admin' ) );
 				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type, __( 'Simple = Free plan · Atomic = Business plan in My Site.' ) );
 				// Placement of the upsell nudge. What it sells follows the
@@ -7667,6 +7962,15 @@ add_action( 'admin_footer', function () {
 					'tabs'       => __( 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.' ),
 				);
 				$seg( __( 'Version' ), 'untangling_marketplace', array( 'fullscreen' => __( 'Fullscreen' ), 'split' => __( 'Split' ), 'tabs' => __( 'Tabs' ) ), $mode, $mode_hints[ $mode ] );
+				// Partner themes on Business/Commerce: sold per theme (production)
+				// or bundled with the plan (the earlier shortcut). Applies to all
+				// three versions.
+				$partner       = untangling_get_partner_themes();
+				$partner_hints = array(
+					'subscription' => __( 'Partner themes need a monthly subscription on Business and Commerce, as in production.' ),
+					'included'     => __( 'Partner themes come with Business and Commerce.' ),
+				);
+				$seg( __( 'Partner themes' ), 'untangling_partner_themes', array( 'subscription' => __( 'Subscription' ), 'included' => __( 'Included' ) ), $partner, $partner_hints[ $partner ] );
 				if ( 'tabs' === $mode ) {
 					$filter_hints = array(
 						'included' => __( '“Included with my plan” links on both Marketplace tabs.' ),
@@ -7679,7 +7983,7 @@ add_action( 'admin_footer', function () {
 			</div>
 			<div class="untangling-gproto-foot">
 				<button type="button" class="untangling-gproto-copy"><?php esc_html_e( 'Copy link to this view' ); ?></button>
-				<?php if ( $override || $ms_dirty ) : ?>
+				<?php if ( $override || $ms_dirty || $mkt_dirty ) : ?>
 					<button type="button" class="untangling-gproto-reset" title="<?php echo esc_attr( $override
 						? sprintf( __( 'Plan override in effect: %s' ), $plan )
 						: ( $ms_plan_override
@@ -8010,11 +8314,13 @@ add_action( 'admin_bar_menu', function ( $bar ) {
  * same button, different words.
  * ---------------------------------------------------------------------- */
 
-// The sidebar card wants the glyph cropped tight; the omnibar pill renders the
-// full 24-grid frame at 16px, whose ~3px intrinsic whitespace the pill's
-// asymmetric padding counts on (matches the MSD masterbar chip).
+// The sidebar card wants the glyph cropped tight; the omnibar pill gets a
+// 1-unit breathing crop (the 24-grid `upsell` icon carries ~5 units of
+// padding a side, so the full frame at 16px only showed a ~9×8px diamond,
+// the height of a capital letter — core's .ab-icon lands 16–18px, the
+// omnibar Launch chip 15px). Cropped, the 16px box renders ~14×12px.
 function untangling_upsell_diamond_svg( $full = false ) {
-	$viewbox = $full ? '0 0 24 24' : '4.4 5.4 15.2 13.2';
+	$viewbox = $full ? '4 5 16 14' : '4.4 5.4 15.2 13.2';
 	return '<svg class="untangling-nudge-gem" viewBox="' . $viewbox . '" aria-hidden="true"><path d="M18.9397 9.87999L15.4197 6.06999L15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999L17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999L14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999L9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49L6.61973 10.6ZM12.0397 15.87L10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24L14.9697 10.6Z"/></svg>';
 }
 
@@ -8109,9 +8415,9 @@ function untangling_upsell_omnibar_css() {
 	/* Flex-centre the 24px pill in the 32px row — as an inline box it would
 	   ride core\'s baseline and sit a couple of pixels high. */
 	#wpadminbar #wp-admin-bar-untangling-domain-nudge .ab-item { display: flex; align-items: center; height: 32px; padding: 0 8px; overflow: visible; }
-	/* The upsell glyph carries ~3px of intrinsic whitespace at 16px, so the
-	   icon-side padding and gap are smaller to read as visually even. */
-	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding-block: 0; padding-inline: 4px 8px; border-radius: 4px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
+	/* Gem viewBox is cropped to the glyph (+1 unit) → ~14×12px diamond in the
+	   16px box; icon-side padding a touch smaller than the text side to read even. */
+	#wpadminbar .untangling-nudge-pill { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding-block: 0; padding-inline: 6px 8px; border-radius: 4px; background: var(--nudge-pill-bg); box-shadow: inset 0 0 0 1px var(--nudge-pill-ring); color: var(--nudge-pill-text); font-size: 12px; font-weight: 500; line-height: 24px; white-space: nowrap; transition: background .12s linear, box-shadow .12s linear, color .12s linear; }
 	#wpadminbar .untangling-nudge-pill .untangling-nudge-gem { width: 16px; height: 16px; fill: var(--nudge-gem); transition: fill .12s linear; }
 	/* Hover lifts the same pill instead of flooding it solid — the rest of the
 	   admin bar brightens on hover, it does not invert, and a solid blue block
@@ -8576,6 +8882,7 @@ function untangling_ms_data() {
 		'storageAddon'    => $storage_addon,
 		'storagePricing'  => untangling_storage_addon_pricing(),
 		'storageAddonUrl' => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'storage', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
+		'credits'         => untangling_ms_credits_data( $plan ),
 		'signals'      => array(
 			'comment'    => $signal_comment,
 			'lastPost'   => $signal_post,
@@ -11681,6 +11988,92 @@ function untangling_ms_app_js() {
 		);
 	}
 
+	// AI credits — one wide card under the plan, in the shape of the Agent's
+	// balance popover (i3 designs, 30 Sep): a monthly-plan bar with the reset
+	// date and short numbers ("10.8k of 15k credits left"), a muted top-ups row
+	// only when the site owns packs, and one lead button chosen by plan —
+	// Personal/Premium push the upgrade, Business/Commerce push packs. The
+	// low-balance line follows the combined balance (plan + packs), never a
+	// percentage, so a site with plenty of top-ups never sees it. Free has no
+	// allowance and gets the offer row instead of a meter.
+	function fmtCredits( n ) {
+		n = Number( n ) || 0;
+		if ( n < 1000 ) {
+			return String( Math.round( n ) );
+		}
+		var k = Math.round( n / 100 ) / 10;
+		return ( k % 1 ? k.toFixed( 1 ) : String( Math.round( k ) ) ) + 'k';
+	}
+
+	function CreditsCardMs() {
+		var c = data.credits;
+		if ( ! c ) {
+			return null;
+		}
+		var body;
+		if ( ! c.allowance ) {
+			body = el( 'div', { className: 'ms-upsell ms-credits-free' },
+				el( 'span', { className: 'ms-upsell-icon' }, icon( PATHS.tip, '0 0 24 24', 24 ) ),
+				el( 'span', { className: 'ms-upsell-main' },
+					el( 'h3', { className: 'ms-upsell-title' }, 'AI credits come with every paid plan' ),
+					el( 'p', { className: 'ms-upsell-desc' }, 'Spend them in the WordPress Agent to write, edit, and build. Personal includes 15k a month, Premium 40k, Business 80k, and Commerce 100k.' )
+				),
+				el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.plansUrl }, 'See plans' )
+			);
+		} else {
+			var pct = Math.max( 0, Math.min( 100, Math.round( ( c.left / c.allowance ) * 100 ) ) );
+			var pushPlan = 'Personal' === data.plan || 'Premium' === data.plan;
+			var isTop = 'Commerce' === data.plan;
+			var useLinks = 'links' === c.cta;
+			var fineprint = fmtCredits( c.pack.credits ) + ' credits for US$' + Math.round( Number( c.pack.price ) ) + '. One-off, never expire.';
+			var leftLine = fmtCredits( c.left ) + ' of ' + fmtCredits( c.allowance ) + ' credits left';
+			var actions;
+			if ( useLinks ) {
+				// Links: the lead action first, both in the plan-row link style,
+				// on the balance line itself. The pack price lives in the
+				// checkout, so the line stays one idea long.
+				var upgradeLink = el( 'a', { key: 'upgrade', className: 'ms-credits-link', href: data.plansUrl }, 'Upgrade' );
+				var addLink = el( 'a', { key: 'add', className: 'ms-credits-link', href: c.addUrl, title: fineprint }, 'Add credits' );
+				actions = el( 'span', { className: 'ms-credits-links' },
+					pushPlan ? [ upgradeLink, addLink ] : [ addLink, isTop ? null : upgradeLink ]
+				);
+			} else {
+				// Buttons: primary sits on the right, so the pair is ordered by plan.
+				var upgrade = el( Button, { key: 'upgrade', variant: pushPlan ? 'primary' : 'secondary', __next40pxDefaultSize: true, href: data.plansUrl }, 'Upgrade' );
+				var add = el( Button, { key: 'add', variant: pushPlan ? 'secondary' : 'primary', __next40pxDefaultSize: true, href: c.addUrl }, 'Add credits' );
+				actions = el( 'div', { className: 'ms-credits-actions' },
+					el( 'p', { className: 'ms-storage-fineprint' }, fineprint ),
+					el( 'div', { className: 'ms-credits-buttons' }, pushPlan ? [ add, upgrade ] : [ isTop ? null : upgrade, add ] )
+				);
+			}
+			body = el( 'div', { className: 'ms-credits' + ( c.isLow ? ' is-low' : '' ) + ( useLinks ? ' is-links' : '' ) },
+				el( 'div', { className: 'ms-credits-meta' },
+					el( 'span', { className: 'ms-credits-label' }, 'Monthly plan' ),
+					el( 'span', { className: 'ms-credits-reset' }, 'Resets ' + c.resets, el( 'strong', null, pct + '%' ) )
+				),
+				el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Monthly plan credits' },
+					el( 'div', { className: 'ms-storage-fill' + ( c.isLow ? ' is-low' : '' ), style: { width: pct + '%' } } )
+				),
+				el( 'div', { className: 'ms-credits-leftrow' },
+					el( 'p', { className: 'ms-credits-left' }, leftLine ),
+					useLinks ? actions : null
+				),
+				c.topup > 0 && el( 'div', { className: 'ms-credits-topups' },
+					el( 'span', null, 'Top-ups' ),
+					el( 'span', null, fmtCredits( c.topup ) + ' credits left' )
+				),
+				c.isLow && el( 'p', { className: 'ms-credits-notice' }, fmtCredits( c.combined ) + ' credits left in total. Add credits or upgrade to keep the WordPress Agent going.' ),
+				useLinks ? null : actions
+			);
+		}
+		return el( Card, { className: 'ms-span2' },
+			el( CardBody, null,
+				cardTitle( 'AI credits', c.allowance && c.isLow ? el( Badge, { intent: 'error' }, 'Running low' ) : null ),
+				body
+			)
+		);
+	}
+
 	// Every plan with a tier above it gets the compare card — the upgrade story
 	// is the same job on Free and on Business, only the pair changes. Commerce
 	// has nothing above it, so it keeps the feature-checklist card, where
@@ -11924,6 +12317,7 @@ function untangling_ms_app_js() {
 		},
 			el( 'div', { className: 'ms-grid' },
 				el( PlanCardMs ),
+				el( CreditsCardMs ),
 				// Storage sits beside Domains: both are "what this site has
 				// right now". Email and Billing make the second row.
 				el( DomainsCardMs ),
@@ -13379,6 +13773,35 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-storage-buy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .untangling-ms .ms-storage-buy-row .components-base-control { flex: 1 1 200px; }
 .untangling-ms .ms-storage-fineprint { margin: 8px 0 0; font-size: 12px; color: #757575; }
+/* AI credits — one wide card: meter left, buttons right. The bar reuses the
+   storage meter's track and fill so the two read as one family; the low state
+   goes to the error red (a threshold crossed), not the storage amber (room
+   running out). */
+.untangling-ms .ms-credits { margin-top: 12px; }
+.untangling-ms .ms-credits-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; color: #757575; }
+.untangling-ms .ms-credits-label { font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-credits-reset { display: inline-flex; gap: 10px; white-space: nowrap; }
+.untangling-ms .ms-credits-reset strong { font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-credits-leftrow { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.untangling-ms .ms-credits-left { margin: 0; font-size: 13px; font-weight: 500; color: #1e1e1e; }
+/* Links treatment: the two actions ride on the balance line, in the same
+   link style as the Domains card's "Free for a year on paid plans". */
+.untangling-ms .ms-credits-links { display: inline-flex; gap: 16px; font-size: 13px; }
+.untangling-ms .ms-credits-link { color: #3858e9; text-decoration: none; }
+.untangling-ms .ms-credits-link:hover { text-decoration: underline; }
+.untangling-ms .ms-credits-topups { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 13px; color: #757575; }
+.untangling-ms .ms-credits-notice { margin: 8px 0 0; font-size: 13px; color: #cc1818; }
+.untangling-ms .ms-storage-fill.is-low { background: #cc1818; }
+.untangling-ms .ms-credits.is-low .ms-credits-left { color: #cc1818; }
+/* Buttons treatment: a row under the meter — fine print left, the pair right,
+   the same shape as the Storage card's picker row. */
+.untangling-ms .ms-credits-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+.untangling-ms .ms-credits-actions .ms-storage-fineprint { margin: 0; }
+.untangling-ms .ms-credits-buttons { display: flex; gap: 8px; margin-left: auto; }
+.untangling-ms .ms-credits-free { padding: 12px 0 4px; }
+@media (max-width: 782px) {
+	.untangling-ms .ms-credits-buttons { margin-left: 0; }
+}
 .untangling-ms .ms-domains { list-style: none; margin: 8px 0 0; padding: 0; }
 .untangling-ms .ms-domain-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap; }
 .untangling-ms .ms-domain-row:last-child { border-bottom: none; }

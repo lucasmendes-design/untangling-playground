@@ -7,7 +7,11 @@ upgrade flow. Use the floating **Prototype controls** panel (bottom-right of
 every wp-admin screen) to switch variants live.
 
 **Try it:**
-[Open in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint.json)
+[Open in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-quickstart.json)
+(Business plan, Prototype controls visible, lands on the Dashboard)
+
+Themes Marketplace entry, same site, lands on Add Themes → Marketplace tab:
+[Open the Themes Marketplace](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-themes.json)
 
 Notes:
 
@@ -34,6 +38,8 @@ halves of the prototype link to each other.
 - `blueprint.json` — the Playground blueprint that assembles the site.
 - `blueprint-quickstart.json` / `quickstart-config.php` — the wp-admin-only
   quick start (Prototype controls visible, standalone mode).
+- `blueprint-themes.json` — the same quick start landing on the Themes
+  Marketplace tab (partner theme subscription state on a Business site).
 - `blueprint-<site>.json` / `config-<site>.php` / `seed-<site>.json` — the six
   per-site blueprints for the combined demo.
 - `studio/<slug>/0-untangling-config.php` — local Studio identities for the

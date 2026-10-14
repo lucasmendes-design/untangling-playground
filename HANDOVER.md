@@ -69,12 +69,25 @@ Switching navigates to that variant's home.
 Other panel controls: Site state (Just created | Established), Hosting state
 (All good | Needs attention), Site type (Atomic | Simple), Upsell placement
 (None | Menu top | Menu foot | Omnibar), Plugins & themes version
-(Fullscreen | Split | Tabs), Plan filter (Included | Dropdown), "Copy link to
-this view", and "Reset demo" (clears variant, options and the dashboard's
-Screen Options / order user meta so the designed first look returns).
+(Fullscreen | Split | Tabs), Partner themes (Subscription | Included), Plan
+filter (Included | Dropdown), "Copy link to this view", and "Reset demo"
+(clears variant, options, theme subscriptions and the dashboard's Screen
+Options / order user meta so the designed first look returns).
 
 Designed defaults: Dashboard · Just created · All good · Atomic · Upsell None ·
-Tabs · Included.
+Tabs · Subscription · Included.
+
+Partner themes (the six priced third-party themes in the catalog) follow the
+`Partner themes` toggle on Business and Commerce sites. `Subscription` is the
+production behaviour: the card shows the monthly price and a `Subscribe`
+action, the theme view shows `Available for US$X/month` + `Partner`, the
+checkout carries only the theme (no plan row), the confirmation says "Congrats
+on your new theme" with `Activate this design`, and afterwards the theme reads
+`Subscribed` with an `Activate` action. `Included` is the earlier shortcut
+where those themes come with the plan. On lower plans nothing changes: the
+plan upsell checkout still carries the theme line and marks it subscribed.
+Subscriptions persist in `untangling_mkt_subscribed` (reset clears it); the
+single-theme checkout is `ustep=checkout&type=theme&slug=<slug>&flow=subscribe`.
 
 Retired, never demo or link: `admin.php?page=untangling-hosting` (redirects),
 the old `untangling_variant=submenu|plain` and `untangling_header=` switches.
@@ -115,6 +128,9 @@ MSD (Calypso branch `prototype/untangling-ia`):
 - Whole flow, blogger persona: same URL with `persona=blogger`.
 - wp-admin only, controls visible (Business/Atomic, all-in Dashboard):
   https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-quickstart.json
+- Same site, landing on Add Themes → Marketplace tab (partner theme
+  subscription state):
+  https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-themes.json
 
 ## How to work
 

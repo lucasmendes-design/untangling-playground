@@ -1,0 +1,55 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Untangling IA — Themes Marketplace",
+		"author": "lucasmendes-design"
+	},
+	"preferredVersions": {
+		"php": "8.2",
+		"wp": "latest"
+	},
+	"login": true,
+	"landingPage": "/wp-admin/theme-install.php?untangling_browse=marketplace",
+	"steps": [
+		{
+			"step": "mkdir",
+			"path": "/wordpress/wp-content/mu-plugins"
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/0-untangling-config.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/quickstart-config.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-prototype.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-prototype.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/zz-untangling-seeder.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-seeder.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-seed.json",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/seed-aperture.json"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'untangling_site_type', 'atomic' ); update_option( 'untangling_marketplace', 'tabs' ); update_option( 'untangling_plan_filter', 'included' ); update_option( 'untangling_partner_themes', 'subscription' ); update_option( 'untangling_upsell', 'none' ); update_option( 'blogname', 'Aperture Diaries' ); untangling_seed_run( false );"
+		}
+	]
+}
