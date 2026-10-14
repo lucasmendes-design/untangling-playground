@@ -762,7 +762,7 @@ function untangling_get_plan_filter() {
 
 /**
  * Partner themes on Business/Commerce: 'subscription' sells each partner
- * theme as its own monthly subscription (production behaviour, the default);
+ * theme as its own subscription, annual by default (production behaviour);
  * 'included' treats them as part of the plan (the earlier prototype shortcut).
  * Switch with ?untangling_partner_themes=subscription|included (persisted).
  */
@@ -973,9 +973,13 @@ add_action( 'admin_init', function () {
 		update_option( 'untangling_mkt_installed', array_values( array_unique( $installed ) ) );
 	}
 	if ( isset( $_GET['untangling_subscribe_theme'] ) ) {
+		$sub_slug     = sanitize_key( $_GET['untangling_subscribe_theme'] );
 		$subscribed   = untangling_mkt_subscribed_slugs();
-		$subscribed[] = sanitize_key( $_GET['untangling_subscribe_theme'] );
+		$subscribed[] = $sub_slug;
 		update_option( 'untangling_mkt_subscribed', array_values( array_unique( $subscribed ) ) );
+		$terms              = (array) get_option( 'untangling_mkt_subscribed_terms', array() );
+		$terms[ $sub_slug ] = untangling_theme_term();
+		update_option( 'untangling_mkt_subscribed_terms', $terms );
 	}
 	// Launchpad progress: the accordion persists done/skipped tasks with a
 	// background GET so the sidebar submenu and page tabs can drop the
@@ -1056,6 +1060,7 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
 		delete_option( 'untangling_mkt_subscribed' );
+		delete_option( 'untangling_mkt_subscribed_terms' );
 		delete_option( 'untangling_lp_done' );
 		delete_option( 'untangling_lp_complete' );
 		delete_option( 'untangling_ms_plan_override' );
@@ -4598,7 +4603,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 							$cta_url     = add_query_arg( 'untangling_activate_theme', $slug, $tab_url );
 							break;
 						case 'subscribe':
-							$tier_label  = sprintf( __( 'US$%s/mo · Partner' ), $price );
+							$tier_label  = sprintf( __( 'US$%s/mo, billed annually · Partner' ), number_format_i18n( untangling_theme_term_prices( $price )['year_per_month'], 2 ) );
 							$badge_class = '';
 							$cta_label   = __( 'Subscribe' );
 							$cta_url     = untangling_theme_subscribe_url( $slug );
@@ -5225,9 +5230,36 @@ function untangling_theme_state( $tier, $slug, $plan, $price = '' ) {
 	);
 }
 
+// Partner theme billing terms. The catalog carries the monthly price; the
+// annual product is twelve months with 20% off (production sells both and
+// pre-selects annual whenever the plan itself is annual).
+function untangling_theme_term( $term = null ) {
+	if ( null === $term ) {
+		$term = isset( $_GET['term'] ) ? $_GET['term'] : 'year';
+	}
+	return 'month' === $term ? 'month' : 'year';
+}
+
+function untangling_theme_term_prices( $monthly ) {
+	$monthly = (float) $monthly;
+	return array(
+		'month'          => $monthly,
+		'year'           => round( $monthly * 12 * 0.8, 2 ),
+		'year_per_month' => round( $monthly * 0.8, 2 ),
+		'year_full'      => round( $monthly * 12, 2 ),
+		'save_pct'       => 20,
+	);
+}
+
+// The term a subscribed partner theme was bought on (annual by default).
+function untangling_theme_subscribed_term( $slug ) {
+	$terms = (array) get_option( 'untangling_mkt_subscribed_terms', array() );
+	return isset( $terms[ $slug ] ) ? untangling_theme_term( $terms[ $slug ] ) : 'year';
+}
+
 // Checkout for a partner theme the plan already allows: no pricing step.
-function untangling_theme_subscribe_url( $slug ) {
-	return untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'type' => 'theme', 'slug' => $slug, 'flow' => 'subscribe' ) );
+function untangling_theme_subscribe_url( $slug, $term = 'year' ) {
+	return untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'type' => 'theme', 'slug' => $slug, 'flow' => 'subscribe', 'term' => untangling_theme_term( $term ) ) );
 }
 
 // Real per-theme details from the public API (rest/v1.2/themes/{slug}):
@@ -5695,7 +5727,7 @@ function untangling_theme_grid_cards( $plan, $return_url = '' ) {
 				<?php elseif ( 'subscribed' === $state ) : ?>
 					<span class="untangling-mkt-badge is-included"><?php esc_html_e( 'Subscribed' ); ?></span>
 				<?php elseif ( 'subscribe' === $state ) : ?>
-					<span class="untangling-mkt-pricenote"><?php echo esc_html( 'US$' . $price . '/month' ); ?></span>
+					<span class="untangling-mkt-pricenote"><?php echo esc_html( sprintf( __( 'US$%s/mo, billed annually' ), number_format_i18n( untangling_theme_term_prices( $price )['year_per_month'], 2 ) ) ); ?></span>
 					<span class="untangling-mkt-badge is-tier"><?php esc_html_e( 'Partner' ); ?></span>
 				<?php elseif ( 'included' === $state ) : ?>
 					<span class="untangling-mkt-badge is-included"><?php esc_html_e( 'Included with plan' ); ?></span>
@@ -5895,7 +5927,7 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 	} elseif ( $st['owned'] ) {
 		$pills = array( array( __( 'Included with your plan' ), '' ) );
 	} elseif ( 'subscribe' === $state ) {
-		$pills = array( array( sprintf( __( 'Available for US$%s/month' ), $price ), '' ), array( __( 'Partner' ), 'is-partner' ) );
+		$pills = array( array( sprintf( __( 'Available for US$%s/month, billed annually' ), number_format_i18n( untangling_theme_term_prices( $price )['year_per_month'], 2 ) ), '' ), array( __( 'Partner' ), 'is-partner' ) );
 	} elseif ( $price ) {
 		$pills = array( array( sprintf( __( 'US$%1$s/month, or included in %2$s' ), $price, $tier_plan ), '' ) );
 	} else {
@@ -5929,16 +5961,50 @@ function untangling_marketplace_details_step( $plan, $in_admin = false ) {
 				<div>
 					<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $name ); ?></h1>
 					<p class="untangling-mkt-detail-by"><?php echo esc_html( sprintf( __( 'by %s' ), $author ) ); ?></p>
+					<?php if ( $st['owned'] && $st['needs_sub'] && $price ) : ?>
+						<?php $sub_term = untangling_theme_subscribed_term( $slug ); $tp = untangling_theme_term_prices( $price ); ?>
+						<p class="untangling-mkt-detail-renews"><?php echo esc_html( 'month' === $sub_term ? sprintf( __( 'Renews monthly at US$%s' ), number_format_i18n( $tp['month'], 2 ) ) : sprintf( __( 'Renews yearly at US$%s' ), number_format_i18n( $tp['year'], 2 ) ) ); ?></p>
+					<?php endif; ?>
 				</div>
 				<div class="untangling-mkt-detail-actions">
 					<a class="untangling-mkt-button is-secondary" href="<?php echo esc_url( $demo ); ?>" target="_blank" rel="noreferrer"><?php esc_html_e( 'Preview' ); ?><?php if ( $in_admin ) : ?> <svg class="untangling-mkt-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><?php endif; ?></a>
 					<?php if ( $is_active ) : ?>
 						<span class="untangling-mkt-button is-disabled">✓ <?php esc_html_e( 'Active' ); ?></span>
 					<?php else : ?>
-						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>"><?php echo ( 'locked' === $state ? untangling_upsell_diamond() : '' ) . esc_html( $cta_label ); ?></a>
+						<a class="untangling-mkt-button is-primary" href="<?php echo esc_url( $cta_url ); ?>" data-subscribe-cta><?php echo ( 'locked' === $state ? untangling_upsell_diamond() : '' ) . esc_html( $cta_label ); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
+			<?php if ( 'subscribe' === $state && $price ) : ?>
+				<?php
+				// Same radio pair as the plugin details price box; annual first,
+				// with the monthly rate shown as the pricier way to pay.
+				$tp = untangling_theme_term_prices( $price );
+				?>
+				<div class="untangling-mkt-plugdetail-billing untangling-mkt-theme-billing" data-theme-billing>
+					<label><input type="radio" name="untangling-theme-term" value="year" checked> <?php echo esc_html( sprintf( __( 'Annually — US$%1$s/month, billed annually as US$%2$s' ), number_format_i18n( $tp['year_per_month'], 2 ), number_format_i18n( $tp['year'], 2 ) ) ); ?> <em><?php echo esc_html( sprintf( __( 'Save %d%%' ), $tp['save_pct'] ) ); ?></em></label>
+					<label><input type="radio" name="untangling-theme-term" value="month"> <?php echo esc_html( sprintf( __( 'Monthly — US$%s/month, billed monthly' ), number_format_i18n( $tp['month'], 2 ) ) ); ?></label>
+				</div>
+				<script>
+				( function () {
+					var box = document.querySelector( '[data-theme-billing]' );
+					var cta = document.querySelector( '[data-subscribe-cta]' );
+					var pill = document.querySelector( '.untangling-mkt-detail-pills .untangling-mkt-detail-tierpill' );
+					if ( ! box || ! cta ) { return; }
+					var labels = <?php echo wp_json_encode( array(
+						'year'  => ( $in_admin ? '' : '★ ' ) . sprintf( __( 'Available for US$%s/month, billed annually' ), number_format_i18n( $tp['year_per_month'], 2 ) ),
+						'month' => ( $in_admin ? '' : '★ ' ) . sprintf( __( 'Available for US$%s/month, billed monthly' ), number_format_i18n( $tp['month'], 2 ) ),
+					) ); ?>;
+					box.addEventListener( 'change', function ( e ) {
+						var term = e.target.value === 'month' ? 'month' : 'year';
+						var url = new URL( cta.href, location.href );
+						url.searchParams.set( 'term', term );
+						cta.href = url.toString();
+						if ( pill ) { pill.textContent = labels[ term ]; }
+					} );
+				} )();
+				</script>
+			<?php endif; ?>
 			<?php if ( $in_admin ) : ?>
 			<div class="untangling-mkt-detail-styles">
 				<h2><?php esc_html_e( 'Styles' ); ?></h2>
@@ -6372,14 +6438,18 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	if ( $is_subscribe ) {
 		$plan_price = 0;
 	}
-	$item_price = $item && $item['price'] ? (float) $item['price'] : 0;
-	$total      = $plan_price + $item_price - $renew_discount;
-	$user       = wp_get_current_user();
-	$is_ms      = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
+	// Partner themes are priced per term (annual by default); everything else
+	// in the cart is the flat catalog price.
+	$term        = untangling_theme_term();
+	$term_prices = $is_partner && $item['price'] ? untangling_theme_term_prices( $item['price'] ) : null;
+	$item_price  = $term_prices ? $term_prices[ $term ] : ( $item && $item['price'] ? (float) $item['price'] : 0 );
+	$total       = $plan_price + $item_price - $renew_discount;
+	$user        = wp_get_current_user();
+	$is_ms       = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// ctx=ms = the My Site drawer's flow: persist into its namespaced plan key.
 	if ( $is_subscribe ) {
 		// No plan change — only the subscription is persisted.
-		$done_args = array( 'ustep' => 'done', 'flow' => 'subscribe', 'untangling_subscribe_theme' => $slug );
+		$done_args = array( 'ustep' => 'done', 'flow' => 'subscribe', 'untangling_subscribe_theme' => $slug, 'term' => $term );
 	} elseif ( $is_credits ) {
 		// The pack lands on the site whichever surface sold it; the timestamp
 		// keeps a reloaded confirmation from buying it again.
@@ -6404,6 +6474,7 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		// the visitor lands on Subscribed → Activate, not on another checkout.
 		if ( $is_partner ) {
 			$done_args['untangling_subscribe_theme'] = $slug;
+			$done_args['term']                       = $term;
 		}
 	}
 	if ( $item ) {
@@ -6480,11 +6551,69 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 					<span class="untangling-mkt-sumfree"><?php echo esc_html( '−US$' . number_format_i18n( $renew_discount, 2 ) ); ?></span>
 				</div>
 			<?php endif; ?>
-			<?php if ( $item ) : ?>
+			<?php if ( $item && $term_prices ) : ?>
+				<?php
+				// Partner theme line: the term is switchable here, as in production
+				// checkout (One year / One month). Annual shows the twelve-month
+				// price struck through next to what is actually charged.
+				$term_labels = array(
+					'year'  => __( 'Partner theme · Billed annually' ),
+					'month' => __( 'Partner theme · Billed monthly' ),
+				);
+				?>
+				<div class="untangling-mkt-sumrow is-theme-term" data-theme-term-row>
+					<span class="who">
+						<span>
+							<?php echo esc_html( $item['name'] ); ?><small data-term-label><?php echo esc_html( $term_labels[ $term ] ); ?></small>
+							<select class="untangling-mkt-term" data-term-select aria-label="<?php esc_attr_e( 'Pick a product term' ); ?>">
+								<option value="year"<?php selected( 'year', $term ); ?>><?php echo esc_html( sprintf( __( 'One year — US$%s' ), number_format_i18n( $term_prices['year'], 2 ) ) ); ?></option>
+								<option value="month"<?php selected( 'month', $term ); ?>><?php echo esc_html( sprintf( __( 'One month — US$%s' ), number_format_i18n( $term_prices['month'], 2 ) ) ); ?></option>
+							</select>
+						</span>
+					</span>
+					<span class="untangling-mkt-sumfree" data-term-amount>
+						<?php if ( 'year' === $term ) : ?>
+							<s><?php echo esc_html( 'US$' . number_format_i18n( $term_prices['year_full'], 2 ) ); ?></s> <?php echo esc_html( 'US$' . number_format_i18n( $term_prices['year'], 2 ) ); ?> <em class="untangling-mkt-save"><?php echo esc_html( sprintf( __( 'Save %d%%' ), $term_prices['save_pct'] ) ); ?></em>
+						<?php else : ?>
+							<?php echo esc_html( 'US$' . number_format_i18n( $term_prices['month'], 2 ) ); ?>
+						<?php endif; ?>
+					</span>
+				</div>
+				<script>
+				( function () {
+					var sel = document.querySelector( '[data-term-select]' );
+					if ( ! sel ) { return; }
+					var P = <?php echo wp_json_encode( array(
+						'prices'  => $term_prices,
+						'labels'  => $term_labels,
+						'base'    => $plan_price - $renew_discount,
+						'save'    => sprintf( __( 'Save %d%%' ), $term_prices['save_pct'] ),
+						'pay'     => __( 'Pay US$%s' ),
+					) ); ?>;
+					var money = function ( n ) { return 'US$' + Number( n ).toFixed( 2 ).replace( /\B(?=(\d{3})+(?!\d))/g, ',' ); };
+					var esc = function ( s ) { return s.replace( /[&<>]/g, function ( c ) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ c ]; } ); };
+					sel.addEventListener( 'change', function () {
+						var term = sel.value === 'month' ? 'month' : 'year';
+						document.querySelector( '[data-term-label]' ).textContent = P.labels[ term ];
+						var amount = document.querySelector( '[data-term-amount]' );
+						amount.innerHTML = term === 'year'
+							? '<s>' + esc( money( P.prices.year_full ) ) + '</s> ' + esc( money( P.prices.year ) ) + ' <em class="untangling-mkt-save">' + esc( P.save ) + '</em>'
+							: esc( money( P.prices.month ) );
+						var total = P.base + P.prices[ term ];
+						document.querySelector( '.untangling-mkt-sumtotal span:last-child' ).textContent = money( total );
+						var pay = document.querySelector( '.untangling-mkt-button.is-pay' );
+						pay.textContent = P.pay.replace( '%s', money( total ).replace( 'US$', '' ) );
+						var url = new URL( pay.href, location.href );
+						url.searchParams.set( 'term', term );
+						pay.href = url.toString();
+					} );
+				} )();
+				</script>
+			<?php elseif ( $item ) : ?>
 				<div class="untangling-mkt-sumrow">
 					<span class="who">
 						<?php if ( 'plugin' === $type ) : ?><img src="<?php echo esc_url( $item['image'] ); ?>" alt=""><?php endif; ?>
-						<span><?php echo esc_html( $item['name'] ); ?><small><?php echo 'plugin' === $type ? esc_html__( 'Marketplace plugin' ) : ( $is_subscribe ? esc_html__( 'Partner theme · Billed monthly' ) : esc_html__( 'Theme' ) ); ?></small></span>
+						<span><?php echo esc_html( $item['name'] ); ?><small><?php echo 'plugin' === $type ? esc_html__( 'Marketplace plugin' ) : esc_html__( 'Theme' ); ?></small></span>
 					</span>
 					<span><?php echo $item_price ? esc_html( 'US$' . number_format_i18n( $item_price, 2 ) ) : esc_html__( 'Included' ); ?></span>
 				</div>
@@ -6531,6 +6660,10 @@ function untangling_marketplace_done_step( $type ) {
 	if ( $is_subscribe ) {
 		$theme_details = untangling_marketplace_theme_details();
 		$theme_author  = isset( $theme_details[ $slug ] ) ? $theme_details[ $slug ][0] : '';
+		$tp            = untangling_theme_term_prices( $item['price'] );
+		$renews        = 'month' === untangling_theme_term()
+			? sprintf( __( 'Renews monthly at US$%s.' ), number_format_i18n( $tp['month'], 2 ) )
+			: sprintf( __( 'Renews yearly at US$%s.' ), number_format_i18n( $tp['year'], 2 ) );
 	}
 	?>
 	<div class="untangling-mkt-done">
@@ -6540,7 +6673,7 @@ function untangling_marketplace_done_step( $type ) {
 		<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $is_subscribe ? __( 'Congrats on your new theme!' ) : __( 'You’re all set!' ) ); ?></h1>
 		<p>
 			<?php if ( $is_subscribe ) : ?>
-				<?php echo esc_html( $theme_author ? sprintf( __( '%1$s by %2$s is now part of your site. Activate it whenever you’re ready.' ), $item['name'], $theme_author ) : sprintf( __( '%s is now part of your site. Activate it whenever you’re ready.' ), $item['name'] ) ); ?>
+				<?php echo esc_html( ( $theme_author ? sprintf( __( '%1$s by %2$s is now part of your site.' ), $item['name'], $theme_author ) : sprintf( __( '%s is now part of your site.' ), $item['name'] ) ) . ' ' . $renews . ' ' . __( 'Activate it whenever you’re ready.' ) ); ?>
 			<?php elseif ( $is_credits ) : ?>
 				<?php echo esc_html( sprintf( __( '%1$s AI credits are now on %2$s. They never expire, and the WordPress Agent uses them once this month’s plan credits run out.' ), untangling_format_credits( untangling_ai_credits_pack()['credits'] ), get_bloginfo( 'name' ) ) ); ?>
 			<?php elseif ( $addon_gb ) : ?>
@@ -7242,6 +7375,12 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-plugdetail-price strong { font-size: 40px; font-weight: 400; color: var(--mkt-gray-100); }
 	.untangling-mkt-plugdetail-price span { font-size: 14px; color: var(--mkt-gray-50); }
 	.untangling-mkt-plugdetail-billing { display: flex; gap: 24px; margin-top: 16px; font-size: 14px; color: var(--mkt-gray-80); }
+	.untangling-mkt-theme-billing { flex-direction: column; gap: 8px; margin: 20px 0 8px; }
+	.untangling-mkt-detail-renews { margin: 4px 0 0; font-size: 13px; color: var(--mkt-gray-50); }
+	.untangling-mkt-sumrow.is-theme-term .who > span { display: flex; flex-direction: column; }
+	.untangling-mkt-term { margin-top: 8px; font-size: 13px; max-width: 220px; }
+	.untangling-mkt-sumrow .untangling-mkt-sumfree { white-space: nowrap; }
+	.untangling-mkt-save { font-style: normal; color: #008a20; font-size: 12px; margin-left: 4px; }
 	.untangling-mkt-plugdetail-billing label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 	.untangling-mkt-plugdetail-billing em { font-style: normal; color: #008a20; }
 	.untangling-mkt-plugdetail-buy .untangling-mkt-button.is-block { display: flex; width: 100%; box-sizing: border-box; margin-top: 20px; }
@@ -7967,7 +8106,7 @@ add_action( 'admin_footer', function () {
 				// three versions.
 				$partner       = untangling_get_partner_themes();
 				$partner_hints = array(
-					'subscription' => __( 'Partner themes need a monthly subscription on Business and Commerce, as in production.' ),
+					'subscription' => __( 'Partner themes need their own subscription on Business and Commerce, annual by default, as in production.' ),
 					'included'     => __( 'Partner themes come with Business and Commerce.' ),
 				);
 				$seg( __( 'Partner themes' ), 'untangling_partner_themes', array( 'subscription' => __( 'Subscription' ), 'included' => __( 'Included' ) ), $partner, $partner_hints[ $partner ] );

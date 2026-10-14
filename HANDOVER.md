@@ -79,15 +79,24 @@ Tabs · Subscription · Included.
 
 Partner themes (the six priced third-party themes in the catalog) follow the
 `Partner themes` toggle on Business and Commerce sites. `Subscription` is the
-production behaviour: the card shows the monthly price and a `Subscribe`
-action, the theme view shows `Available for US$X/month` + `Partner`, the
-checkout carries only the theme (no plan row), the confirmation says "Congrats
-on your new theme" with `Activate this design`, and afterwards the theme reads
-`Subscribed` with an `Activate` action. `Included` is the earlier shortcut
-where those themes come with the plan. On lower plans nothing changes: the
-plan upsell checkout still carries the theme line and marks it subscribed.
-Subscriptions persist in `untangling_mkt_subscribed` (reset clears it); the
-single-theme checkout is `ustep=checkout&type=theme&slug=<slug>&flow=subscribe`.
+production behaviour: each partner theme is sold on its own, annual by
+default. The card shows `US$7.20/mo, billed annually` and a `Subscribe`
+action; the theme view shows `Available for US$7.20/month, billed annually` +
+`Partner` and an Annually / Monthly radio (annual first with `Save 20%`,
+monthly as the pricier way to pay); the checkout carries only the theme (no
+plan row) with a `One year / One month` select, the twelve-month price struck
+through next to the annual charge, and the total and Pay button following the
+choice; the confirmation says "Congrats on your new theme" with the renewal
+line (`Renews yearly at US$86.40` or `Renews monthly at US$9.00`) and
+`Activate this design`; afterwards the theme reads `Subscribed` with an
+`Activate` action and its renewal line. Price rule: the catalog carries the
+monthly price, annual = twelve months with 20% off. `Included` is the earlier
+shortcut where those themes come with the plan. On lower plans nothing
+changes except the plan upsell checkout also carries the theme line (annual by
+default, same select) and marks it subscribed. Subscriptions persist in
+`untangling_mkt_subscribed` + `untangling_mkt_subscribed_terms` (reset clears
+both); the single-theme checkout is
+`ustep=checkout&type=theme&slug=<slug>&flow=subscribe&term=year|month`.
 
 Retired, never demo or link: `admin.php?page=untangling-hosting` (redirects),
 the old `untangling_variant=submenu|plain` and `untangling_header=` switches.
