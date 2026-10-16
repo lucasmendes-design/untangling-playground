@@ -1,6 +1,6 @@
 # Handover — untangling IA prototype
 
-Updated: 2026-09-15. This is the living state doc for the prototype. Keep it
+Updated: 2026-10-16. This is the living state doc for the prototype. Keep it
 current when you finish a session (`/untangling-wrap` does that).
 
 ## What this is
@@ -178,8 +178,39 @@ activation redirect before seeding.
 - No system `php`/`wp` on a Mac: use `studio wp --path <site> ...` or the
   Studio bundled php for `-l`.
 
+## Pricing page (2026-10-16)
+
+The fullscreen pricing page (`admin.php?page=untangling-marketplace&ustep=pricing`,
+every Upgrade / See plans / Compare plans CTA lands there) now mirrors the
+pricing grid redesign that wp-calypso ships behind an experiment (the
+`.plans-grid-next.is-plans-grid-redesign-experiment` rules in
+`packages/plans-grid-next`, July 2026), without the Enterprise column:
+
+- Data: `untangling_plan_grid()` — production copy per plan (tagline, `$price`
+  + struck original, Save %, storage, CTA label and style, static badges,
+  feature rows as `[ label, pill, tooltip ]`). `untangling_plan_pricing()`
+  still feeds checkout prices.
+- Render: the loop in `untangling_marketplace_pricing_step()`; the ladder
+  filtering (current plan + the tiers that unlock the item or need), the
+  hero and the checkout URLs are unchanged.
+- Styles: the `.untangling-mkt-plan*` block in `untangling_marketplace_styles()`
+  — one bordered row of 280px-max columns, 40px CTAs (filled on
+  Premium/Business, outlined elsewhere), cloud storage row as the first
+  feature row, green checks, "Most popular" / "Best value" badges on the top
+  rule. Tooltips on the Save pill ("$48/year vs. $108 paying monthly") and on
+  every feature (the production feature descriptions).
+- Behaviour: item and need entries keep the contextual dark pill on the
+  required column; the current plan shows a disabled "Current plan";
+  "Add more" opens the storage add-on checkout (50 GB pack); "Compare plans"
+  opens wordpress.com/pricing in a new tab.
+- Gotcha: wp-admin core gives every `li` a 6px bottom margin; the grid
+  resets it.
+
 ## Open next steps
 
+- Pricing page: "Start Free" (design) vs "Start with Free" (Calypso) is
+  undecided; the legacy "Choose a plan" modal and the two-column compare
+  cards (My Site drawer, WordPress.com page) still carry the old look.
 - MSD `/plans` deep link has no logged-in landing yet.
 - wp-admin workspace flyout is visual only, no bridge to the MSD persona.
 - Notifications bell and Help in wp-admin are placeholders.
