@@ -6255,6 +6255,158 @@ function untangling_claim_domain_price( $domain ) {
 	return isset( $prices[ $tld ] ) ? $prices[ $tld ] : 13;
 }
 
+// The fullscreen pricing grid, mirroring Calypso's pricing grid redesign
+// (ExPlat calypso_pricing_differentiation_202607, arm six_plan_new_design:
+// the new column design with the production copy). Feature labels are the
+// production strings from calypso-products; the inline pills follow
+// getPricingDifferentiationFeatureBadgeText. Enterprise is left out on
+// purpose. `price` is the monthly US$ amount billed annually; `original`
+// is the undiscounted monthly price behind the Save % pill.
+function untangling_plan_grid() {
+	// Rows are [ label, pill, tooltip ]; the tooltips are the features'
+	// getDescription( { isExperimentVariant: true } ) strings, which is what
+	// the redesigned grid shows on hover (Plans2023Tooltip).
+	$domain_tip  = sprintf( __( 'Get a custom domain – like %s – free for the first year.' ), untangling_get_domain_upsell() );
+	$builder_tip = __( 'Skip the blank screen — create and launch a WordPress.com website in minutes by chatting with AI.' );
+	$unlimited   = array( __( 'Unlimited pages, posts, users, and visitors' ), '', __( 'Grow your site without limits — unlimited content, users, and traffic.' ) );
+	$domain      = array( __( 'Free domain for one year' ), '', $domain_tip );
+	$no_ads      = array( __( 'No ads for visitors' ), '', __( 'Free sites display WordPress.com ads to visitors. Upgrade to Personal to turn them off.' ) );
+	$builder_lim = array( __( 'Guided website builder (usage limits apply)' ), '', $builder_tip );
+	$builder     = array( __( 'Create your site with a guided website builder' ), '', $builder_tip );
+	$themes_some = array( __( 'Dozens of premium themes' ), '', __( 'Install select premium themes from the WordPress.com marketplace.' ) );
+	$themes_all  = array( __( 'All premium themes' ), '', __( 'Install any premium theme from the WordPress.com marketplace.' ) );
+	$plugins     = array( __( 'Extend your site with WordPress plugins' ), '', __( 'Install any of over 60,000 plugins from the WordPress.com marketplace, or upload a plugin directly to your site.' ) );
+	$stats       = array( __( 'Premium stats and analytics' ), '', __( 'Access all stats & analytics, including UTM tracking and device insights.' ) );
+	$payments    = array( __( 'Add payment buttons' ), '', __( 'Collect payments and donations with PayPal and Stripe.' ) );
+	$support     = array( __( 'Free support' ), '', __( 'Get support from our expert, friendly Happiness team.' ) );
+	$support_247 = array( __( 'Free 24/7 priority expert support' ), '', __( 'Your support questions answered first by our expert, friendly Happiness team.' ) );
+	$videopress  = array( __( 'Use VideoPress with 250 GB dedicated storage' ), '', __( 'Showcase your video beautifully with the high-quality, ad-free VideoPress player.' ) );
+	$assistant   = array( __( 'Built-in site assistant' ), '', __( 'Use the WordPress AI Assistant to generate content, design, and manage your site — all without leaving WordPress.' ) );
+	$biz_email   = array( __( 'Free business email account for one year' ), '', __( 'Build and grow your online presence with a professional email address at your domain name, powered by Titan' ) );
+	$email_mkt   = array( __( 'Email marketing' ), '', __( 'Create and automate beautiful emails to 500 subscribers right from your WordPress dashboard, with the MailPoet Business plan.' ) );
+	$ads_credit  = array( __( 'Free advertising credits worth $200' ), '', __( 'Promote your content with Blaze ads.' ) );
+	$backups     = array( __( 'Real-time backups and one-click restores' ), '', __( 'Protect against disaster with easy backups and restores.' ) );
+	$dev_tools   = array( __( 'SFTP/SSH, WP-CLI, Git commands, and GitHub Deployments' ), '', __( 'Access your site via SSH and manage it with WP-CLI. Deploy from GitHub with a few clicks.' ) );
+
+	return array(
+		'Free'     => array(
+			'tagline'   => __( 'Start your WordPress journey.' ),
+			'price'     => 0,
+			'original'  => 0,
+			'save'      => 0,
+			'storage'   => '1 GB',
+			'add_more'  => false,
+			'cta'       => __( 'Start Free' ),
+			'cta_style' => 'outline',
+			'badge'     => '',
+			'features'  => array( $unlimited ),
+		),
+		'Personal' => array(
+			'tagline'   => __( 'Build your presence with a site you can customize.' ),
+			'price'     => 4,
+			'original'  => 9,
+			'save'      => 55,
+			'storage'   => '6 GB',
+			'add_more'  => false,
+			'cta'       => __( 'Get Personal' ),
+			'cta_style' => 'outline',
+			'badge'     => '',
+			'features'  => array(
+				$unlimited,
+				array( $domain[0], __( 'Free' ), $domain_tip ),
+				$no_ads,
+				$builder_lim,
+				$themes_some,
+				$support,
+				$plugins,
+			),
+		),
+		'Premium'  => array(
+			'tagline'   => __( 'Accept payments on your site and reach more people.' ),
+			'price'     => 8,
+			'original'  => 18,
+			'save'      => 55,
+			'storage'   => '13 GB',
+			'add_more'  => false,
+			'cta'       => __( 'Get Premium' ),
+			'cta_style' => 'primary',
+			'badge'     => __( 'Most popular' ),
+			'features'  => array(
+				$unlimited,
+				$domain,
+				$no_ads,
+				$builder_lim,
+				$themes_some,
+				$support,
+				$plugins,
+				$stats,
+				array( $payments[0], __( 'New' ), $payments[2] ),
+				array( __( 'Upload videos' ), '', __( 'Host your videos on your own site.' ) ),
+			),
+		),
+		'Business' => array(
+			'tagline'   => __( 'Grow your business with powerful tools and priority support.' ),
+			'price'     => 25,
+			'original'  => 40,
+			'save'      => 37,
+			'storage'   => '50 GB',
+			'add_more'  => true,
+			'cta'       => __( 'Get Business' ),
+			'cta_style' => 'primary',
+			'badge'     => __( 'Best value' ),
+			'features'  => array(
+				$unlimited,
+				$domain,
+				$no_ads,
+				$builder,
+				$themes_all,
+				$support_247,
+				$plugins,
+				$stats,
+				$payments,
+				$videopress,
+				$assistant,
+				array( $biz_email[0], __( 'Email' ), $biz_email[2] ),
+				array( $email_mkt[0], __( 'New' ), $email_mkt[2] ),
+				$ads_credit,
+				$backups,
+				$dev_tools,
+			),
+		),
+		'Commerce' => array(
+			'tagline'   => __( 'Run an online store and keep more of what you earn.' ),
+			'price'     => 45,
+			'original'  => 70,
+			'save'      => 35,
+			'storage'   => '50 GB',
+			'add_more'  => true,
+			'cta'       => __( 'Get Commerce' ),
+			'cta_style' => 'outline',
+			'badge'     => '',
+			'features'  => array(
+				$unlimited,
+				$domain,
+				$no_ads,
+				$builder,
+				array( __( 'Premium store themes' ), '', __( 'Jumpstart your store’s design with a professionally designed theme.' ) ),
+				$support_247,
+				$plugins,
+				$stats,
+				$payments,
+				$videopress,
+				$assistant,
+				$biz_email,
+				$email_mkt,
+				$ads_credit,
+				$backups,
+				$dev_tools,
+				array( __( 'Ecommerce tools and WooCommerce experience' ), '', __( 'Enjoy a hosting solution tailored to enhance the performance and security of sites running WooCommerce.' ) ),
+				array( __( 'Sell in 60+ countries' ), '', __( 'Grow globally by accepting 135+ currencies.' ) ),
+			),
+		),
+	);
+}
+
 function untangling_marketplace_pricing_step( $plan, $type ) {
 	$slug = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
 	$item = untangling_marketplace_find_item( $type, $slug );
@@ -6307,13 +6459,13 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 		} else {
 			echo esc_html( $item
 				? sprintf( __( 'Unlock %1$s with the %2$s plan or higher. You’re currently on the %3$s plan.' ), $item['name'], $item['tier'], $plan )
-				: sprintf( __( 'More storage, premium themes, and expert support as you grow. You’re currently on the %s plan.' ), $plan )
+				: sprintf( __( 'Whatever site you’re building, there’s a plan to make it happen sooner. You’re currently on the %s plan.' ), $plan )
 			);
 		}
 		?></p>
 	</div>
-	<div class="untangling-mkt-plans">
-		<?php foreach ( untangling_plan_pricing() as $name => $info ) : ?>
+	<div class="untangling-mkt-plans is-redesign">
+		<?php foreach ( untangling_plan_grid() as $name => $col ) : ?>
 			<?php
 			$prank      = untangling_plan_rank( $name );
 			$is_current = $name === $plan;
@@ -6322,11 +6474,14 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			if ( $prank < $floor_rank || ( ( $item || $ctx ) && ! $is_current && $prank < $tier_rank ) ) {
 				continue;
 			}
-			list( $price, $features ) = $info;
 			$is_required = $prank === $tier_rank;
 			$checkout_args = $item && $slug
 				? array( 'ustep' => 'checkout', 'type' => $type, 'slug' => $slug, 'plan' => $name )
 				: array( 'ustep' => 'checkout', 'plan' => $name );
+			// "Add more" under the storage row: the storage add-on checkout the
+			// My Site drawer already uses (addon=storage&gb=N), opened on the
+			// smallest pack; same ctx/back as the plan CTAs.
+			$addmore_args = array( 'ustep' => 'checkout', 'addon' => 'storage', 'gb' => 50 );
 			if ( isset( $_GET['flow'] ) && 'install' === $_GET['flow'] ) {
 				$checkout_args['type'] = 'plugin';
 				$checkout_args['flow'] = 'install';
@@ -6339,6 +6494,7 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			}
 			if ( ! empty( $_GET['back'] ) ) {
 				$checkout_args['back'] = rawurlencode( wp_unslash( $_GET['back'] ) );
+				$addmore_args['back']  = $checkout_args['back'];
 			}
 			if ( $need ) {
 				$checkout_args['need'] = $need;
@@ -6347,48 +6503,66 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 			// drawer's own namespaced plan, not the shared demo state.
 			if ( isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'] ) {
 				$checkout_args['ctx'] = 'ms';
+				$addmore_args['ctx']  = 'ms';
 			}
 			$checkout = untangling_marketplace_url( $mkt, $checkout_args );
+			$addmore  = untangling_marketplace_url( $mkt, $addmore_args );
+			// Badge on the top rule: an item or need entry puts the contextual
+			// pill on the column that answers it ("Unlocks X" / the need's pill,
+			// dark); otherwise Premium and Business keep production's "Most
+			// popular" (light) and "Best value" (dark) — so the generic entry is
+			// the pricing grid as shipped. The current plan carries none — its
+			// CTA already reads "Current plan".
+			$pill      = '';
+			$pill_dark = true;
+			if ( $is_required && ! $is_current && ( $item || $ctx ) ) {
+				$pill = $item ? sprintf( __( 'Unlocks %s' ), $item['name'] ) : ( $ctx['pill'] ? $ctx['pill'] : __( 'Recommended' ) );
+			} elseif ( ! $is_current && $col['badge'] ) {
+				$pill      = $col['badge'];
+				$pill_dark = 'Business' === $name;
+			}
+			$cloud_id = 'untangling-cloud-' . strtolower( $name );
 			?>
-			<div class="untangling-mkt-plan<?php echo $is_current ? ' is-current' : ''; ?><?php echo $is_required && ! $is_current ? ' is-required' : ''; ?>">
-				<?php // The current plan carries no pill: its CTA already reads "Current plan".
-					// The wrapper still renders (fixed 24px) so every card's title stays aligned. ?>
-				<div class="untangling-mkt-plan-badges">
-					<?php if ( $is_required && ! $is_current ) : ?>
-						<span class="untangling-mkt-plan-pill"><?php
-						if ( $item ) {
-							echo esc_html( sprintf( __( 'Unlocks %s' ), $item['name'] ) );
-						} else {
-							echo esc_html( $ctx && $ctx['pill'] ? $ctx['pill'] : __( 'Recommended' ) );
-						}
-						?></span>
+			<div class="untangling-mkt-plan is-plan-<?php echo esc_attr( strtolower( $name ) ); ?><?php echo $is_current ? ' is-current' : ''; ?><?php echo $is_required && ! $is_current ? ' is-required' : ''; ?>">
+				<?php if ( $pill ) : ?>
+					<span class="untangling-mkt-plan-pill <?php echo $pill_dark ? 'is-dark' : 'is-light'; ?>"><?php echo esc_html( $pill ); ?></span>
+				<?php endif; ?>
+				<h2><?php echo esc_html( $name ); ?></h2>
+				<p class="untangling-mkt-plan-tagline"><?php echo esc_html( $col['tagline'] ); ?></p>
+				<div class="untangling-mkt-plan-pricing">
+					<?php if ( $col['save'] ) : ?>
+						<?php // Save pill tooltip = header-price's annual template: "$48/year vs. $108 paying monthly". ?>
+						<span class="untangling-mkt-plan-save untangling-feature-tip" tabindex="0" data-tip="<?php echo esc_attr( sprintf( __( '$%1$s/year vs. $%2$s paying monthly' ), $col['price'] * 12, $col['original'] * 12 ) ); ?>"><?php echo esc_html( sprintf( __( 'Save %d%%' ), $col['save'] ) ); ?></span>
 					<?php endif; ?>
+					<p class="untangling-mkt-plan-price"><span>$<?php echo esc_html( $col['price'] ); ?></span><?php if ( $col['original'] ) : ?><s>$<?php echo esc_html( $col['original'] ); ?></s><?php endif; ?></p>
+					<p class="untangling-mkt-plan-billing"><?php esc_html_e( 'per month, billed every 12 months' ); ?></p>
 				</div>
-				<h2 class="untangling-mkt-brandfont"><?php echo esc_html( $name ); ?></h2>
-				<p class="untangling-mkt-plan-price"><sup>US$</sup><span><?php echo esc_html( $price ); ?></span><em>/<?php esc_html_e( 'month' ); ?></em></p>
 				<?php if ( $is_current ) : ?>
 					<span class="untangling-mkt-button is-disabled"><?php esc_html_e( 'Current plan' ); ?></span>
 				<?php else : ?>
-					<a class="untangling-mkt-button is-primary untangling-mkt-plan-cta is-plan-<?php echo esc_attr( strtolower( $name ) ); ?>" href="<?php echo esc_url( $checkout ); ?>"><?php echo esc_html( sprintf( __( 'Get %s' ), $name ) ); ?></a>
+					<a class="untangling-mkt-button <?php echo 'primary' === $col['cta_style'] ? 'is-primary' : 'is-outline'; ?> untangling-mkt-plan-cta" href="<?php echo esc_url( $checkout ); ?>"><?php echo esc_html( $col['cta'] ); ?></a>
 				<?php endif; ?>
+				<div class="untangling-mkt-plan-storage">
+					<?php // Cloud outline from plans-grid-next storage-feature-label.tsx (17×12, masked stroke). ?>
+					<svg width="17" height="12" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+						<mask id="<?php echo esc_attr( $cloud_id ); ?>" fill="white"><path d="M8.30664 0C10.5453 0 12.4108 1.59411 12.832 3.70898C14.953 3.896 16.6162 5.67714 16.6162 7.84668C16.616 9.98525 14.9996 11.745 12.9219 11.9736V12H3.69141V11.9736C1.61495 11.7436 0 9.98349 0 7.8457C0.000230272 5.67769 1.66132 3.89782 3.78027 3.70898C4.20142 1.59404 6.06793 7.12951e-05 8.30664 0Z"/></mask>
+						<path d="M8.30664 0V-1.5H8.30659L8.30664 0ZM12.832 3.70898L11.3609 4.00201L11.5805 5.10445L12.7003 5.20319L12.832 3.70898ZM16.6162 7.84668L18.1162 7.84684V7.84668H16.6162ZM12.9219 11.9736L12.7578 10.4826L11.4219 10.6297V11.9736H12.9219ZM12.9219 12V13.5H14.4219V12H12.9219ZM3.69141 12H2.19141V13.5H3.69141V12ZM3.69141 11.9736H5.19141V10.6306L3.85655 10.4828L3.69141 11.9736ZM0 7.8457L-1.5 7.84554V7.8457H0ZM3.78027 3.70898L3.91342 5.20306L5.03206 5.10337L5.25139 4.00193L3.78027 3.70898ZM8.30664 0V1.5C9.81555 1.5 11.0766 2.57467 11.3609 4.00201L12.832 3.70898L14.3031 3.41596C13.7449 0.613552 11.2751 -1.5 8.30664 -1.5V0ZM12.832 3.70898L12.7003 5.20319C14.0537 5.32253 15.1162 6.46133 15.1162 7.84668H16.6162H18.1162C18.1162 4.89294 15.8523 2.46948 12.9638 2.21478L12.832 3.70898ZM16.6162 7.84668L15.1162 7.84652C15.1161 9.2112 14.0842 10.3366 12.7578 10.4826L12.9219 11.9736L13.086 13.4646C15.9149 13.1533 18.1159 10.7593 18.1162 7.84684L16.6162 7.84668ZM12.9219 11.9736H11.4219V12H12.9219H14.4219V11.9736H12.9219ZM12.9219 12V10.5H3.69141V12V13.5H12.9219V12ZM3.69141 12H5.19141V11.9736H3.69141H2.19141V12H3.69141ZM3.69141 11.9736L3.85655 10.4828C2.5313 10.336 1.5 9.21028 1.5 7.8457H0H-1.5C-1.5 10.7567 0.698607 13.1513 3.52626 13.4645L3.69141 11.9736ZM0 7.8457L1.5 7.84586C1.50015 6.46158 2.56121 5.32357 3.91342 5.20306L3.78027 3.70898L3.64712 2.21491C0.76142 2.47207 -1.49969 4.8938 -1.5 7.84554L0 7.8457ZM3.78027 3.70898L5.25139 4.00193C5.53552 2.57508 6.79723 1.50005 8.30669 1.5L8.30664 0L8.30659 -1.5C5.33863 -1.49991 2.86733 0.612993 2.30916 3.41604L3.78027 3.70898Z" fill="currentColor" mask="url(#<?php echo esc_attr( $cloud_id ); ?>)"/>
+					</svg>
+					<span><?php echo esc_html( sprintf( __( '%s storage' ), $col['storage'] ) ); ?></span>
+					<?php if ( $col['add_more'] ) : ?>
+						<a class="untangling-mkt-plan-addmore" href="<?php echo esc_url( $addmore ); ?>"><?php esc_html_e( 'Add more' ); ?></a>
+					<?php endif; ?>
+				</div>
 				<ul>
-					<?php foreach ( $features as $feature ) : ?>
-						<li<?php echo ! empty( $feature[2] ) ? ' class="is-highlight"' : ''; ?>><span class="untangling-feature-tip" tabindex="0" data-tip="<?php echo esc_attr( $feature[1] ); ?>"><?php echo esc_html( $feature[0] ); ?></span></li>
+					<?php foreach ( $col['features'] as $feature ) : ?>
+						<li><svg class="untangling-mkt-check" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 19.414l-6.707-6.707 1.414-1.414L9 16.586 20.293 5.293l1.414 1.414z"/></svg><span<?php if ( ! empty( $feature[2] ) ) : ?> class="untangling-feature-tip" tabindex="0" data-tip="<?php echo esc_attr( $feature[2] ); ?>"<?php endif; ?>><?php echo esc_html( $feature[0] ); ?></span><?php if ( ! empty( $feature[1] ) ) : ?><em class="untangling-mkt-plan-fpill"><?php echo esc_html( $feature[1] ); ?></em><?php endif; ?></li>
 					<?php endforeach; ?>
 				</ul>
 			</div>
 		<?php endforeach; ?>
 	</div>
-	<script>
-	// Same tooltip behavior as the WordPress.com page: the bubble opens
-	// above where the cursor entered, then stays put.
-	document.addEventListener( 'mouseover', function ( event ) {
-		var tip = event.target && event.target.closest && event.target.closest( '.untangling-feature-tip' );
-		if ( tip ) {
-			tip.style.setProperty( '--untangling-tip-x', ( event.clientX - tip.getBoundingClientRect().left ) + 'px' );
-		}
-	} );
-	</script>
+	<?php // Production toggles an inline comparison grid here; the prototype has none, so the button opens the public pricing page (same stand-in as the help panel's link). ?>
+	<p class="untangling-mkt-plan-compare"><a class="untangling-mkt-button is-outline is-compare" href="https://wordpress.com/pricing/" target="_blank" rel="noreferrer"><?php esc_html_e( 'Compare plans' ); ?></a></p>
 	<?php
 }
 
@@ -7437,48 +7611,66 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-button.is-secondary:hover { background: var(--mkt-blue-tint); color: var(--mkt-blue); }
 	.untangling-mkt-button.is-disabled { background: var(--mkt-gray-0); color: var(--mkt-gray-50); cursor: default; }
 
-	/* Pricing — plans-grid-next: 280px columns, radius 8, #e0e0e0 border,
-	   Recoleta plan names (32px) and prices (44px), badge pill. */
-	/* Production-style joined grid: one row, cards flush with shared 1px
-	   borders; only the highlighted plan keeps its own rounded blue ring. */
-	.untangling-mkt-plans { display: flex; flex-wrap: nowrap; gap: 0; justify-content: center; margin-top: 48px; align-items: stretch; }
-	.untangling-mkt-plan { flex: 1 1 0; min-width: 0; max-width: 300px; box-sizing: border-box; border: 1px solid #e0e0e0; border-radius: 0; margin-left: -1px; padding: 24px; display: flex; flex-direction: column; position: relative; background: #fff; }
+	/* Pricing — mirrors Calypso's pricing grid redesign (ExPlat
+	   calypso_pricing_differentiation_202607, arm six_plan_new_design — the
+	   `.plans-grid-next.is-plans-grid-redesign-experiment` rules in
+	   packages/plans-grid-next features-grid/style.scss + plan-button/style.scss):
+	   one bordered row of 280px-max columns sharing 1px #e0e0e0 rules, sans
+	   plan names (26px), Save pill + 36px price + struck original, 40px CTA
+	   (filled on Premium/Business, outlined elsewhere), cloud storage row,
+	   green-check feature rows, and badges floating on the top rule. */
+	.untangling-mkt-plans { --mkt-grid-rule: #e0e0e0; --mkt-grid-green: #007017; --mkt-grid-green-dark: #00450c; --mkt-grid-struck: #949494; --mkt-blue-dark: #1d35b4; display: flex; flex-wrap: nowrap; gap: 0; justify-content: center; margin-top: 48px; align-items: stretch; }
+	.untangling-mkt-plan { flex: 1 1 0; min-width: 0; max-width: 280px; box-sizing: border-box; border: 1px solid var(--mkt-grid-rule); border-radius: 0; margin-left: -1px; padding: 32px 16px 16px; display: flex; flex-direction: column; position: relative; background: #fff; color: var(--mkt-gray-80); }
 	.untangling-mkt-plan:first-child { margin-left: 0; border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
 	.untangling-mkt-plan:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-	@media ( max-width: 1100px ) {
-		.untangling-mkt-plans { flex-wrap: wrap; gap: 16px; }
-		.untangling-mkt-plan { flex: 0 0 280px; margin-left: 0; border-radius: 8px; }
-	}
-	.untangling-mkt-plan .untangling-feature-tip { position: relative; cursor: default; }
-	.untangling-mkt-plan .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: var(--untangling-tip-x, 50%); transform: translateX( -50% ); width: max-content; max-width: 300px; background: #1e1e1e; color: #f0f0f0; font-size: 12px; font-weight: 400; line-height: 1.4; padding: 4px 8px; border-radius: 2px; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
+	/* Badge: a 24px pill centred on the top rule, 16px in from the column edge. */
+	.untangling-mkt-plan-pill { position: absolute; top: -12px; left: 16px; z-index: 1; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 2px; font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: 0.25px; white-space: nowrap; box-sizing: border-box; max-width: calc( 100% - 32px ); overflow: hidden; text-overflow: ellipsis; }
+	.untangling-mkt-plan-pill.is-light { background: #fff; border: 1px solid var(--mkt-grid-rule); color: var(--mkt-gray-100); }
+	.untangling-mkt-plan-pill.is-dark { background: var(--mkt-gray-100); border: 1px solid var(--mkt-gray-100); color: #fff; }
+	.untangling-mkt-plan h2 { font-size: 26px; line-height: 30px; font-weight: 400; letter-spacing: 0; margin: 0 0 8px; color: var(--mkt-gray-100); }
+	.untangling-mkt-plan-tagline { font-size: 13px; line-height: 20px; min-height: 40px; margin: 0 0 18px; color: var(--mkt-gray-80); text-wrap: pretty; }
+	/* Price block: Save pill, price + struck original, billing line. Free has
+	   no pill or struck price, so the block bottom-aligns to keep prices level. */
+	.untangling-mkt-plan-pricing { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; min-height: 90px; margin: 0 0 16px; }
+	.untangling-mkt-plan-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--mkt-grid-green-dark); background: rgba(184, 230, 191, 0.68); margin-bottom: 10px; }
+	.untangling-mkt-plan-price { display: flex; align-items: last baseline; gap: 8px; margin: 0 0 8px; line-height: 1; color: var(--mkt-gray-100); }
+	.untangling-mkt-plan-price span { font-size: 36px; letter-spacing: 0; }
+	.untangling-mkt-plan-price s { font-size: 24px; color: var(--mkt-grid-struck); }
+	.untangling-mkt-plan-billing { font-size: 12px; line-height: 16px; margin: 0; color: var(--mkt-gray-50); }
+	/* CTA: 40px, radius 2, one blue — filled on Premium/Business, outlined elsewhere. */
+	.untangling-mkt-plan .untangling-mkt-button { width: 100%; box-sizing: border-box; height: 40px; padding: 8px 12px; border-radius: 2px; font-size: 13px; font-weight: 500; line-height: 20px; }
+	.untangling-mkt-plan .untangling-mkt-button.is-primary:hover { background: #2a46ce; }
+	.untangling-mkt-button.is-outline { background: #fff; color: var(--mkt-blue); box-shadow: inset 0 0 0 1px var(--mkt-blue); }
+	.untangling-mkt-button.is-outline:hover { background: #fff; color: var(--mkt-blue-dark, #1d35b4); box-shadow: inset 0 0 0 1px var(--mkt-blue-dark, #1d35b4); }
+	.untangling-mkt-plan .untangling-mkt-button.is-disabled { background: var(--mkt-gray-0); color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px var(--mkt-gray-10); }
+	/* Storage row: the first row of the features list (Figma: wrapper gap 20px
+	   from the CTA, then 8px between rows), not a block of its own. */
+	.untangling-mkt-plan-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-plan-storage svg { flex: 0 0 17px; width: 17px; height: 12px; color: #000; }
+	.untangling-mkt-plan-storage span { font-weight: 500; }
+	.untangling-mkt-plan-addmore { color: #1e1e1ea3; text-decoration: underline; margin-left: 2px; }
+	.untangling-mkt-plan-addmore:hover { color: var(--mkt-gray-100); }
+	/* Feature rows: 16px green check, 12px text, pill pushed to the right. */
+	.untangling-mkt-plan ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+	.untangling-mkt-plan li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-plan li > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
+	.untangling-mkt-check { flex: 0 0 16px; width: 16px; height: 16px; fill: var(--mkt-grid-green); }
+	.untangling-mkt-plan-fpill { flex: 0 0 auto; margin-inline-start: auto; display: inline-block; padding: 0 4px; border-radius: 2px; font-style: normal; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--mkt-grid-green-dark); background: rgba(184, 230, 191, 0.64); }
+	/* Tooltips (Plans2023Tooltip): dark 210px box, radius 4, 8px/10px, above the
+	   hover area, on the Save pill and on every feature label. */
+	.untangling-mkt-plan .untangling-feature-tip { position: relative; cursor: default; outline: none; }
+	.untangling-mkt-plan .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: 0; width: 210px; box-sizing: border-box; background: var(--mkt-gray-100); color: #fff; font-size: 13px; font-weight: 400; line-height: 18px; letter-spacing: 0; text-align: start; padding: 8px 10px; border-radius: 4px; overflow-wrap: break-word; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
 	.untangling-mkt-plan .untangling-feature-tip:hover::after,
 	.untangling-mkt-plan .untangling-feature-tip:focus-visible::after { opacity: 1; }
-	/* Onboarding-grid badges: static chips inside the card top, with the
-	   row always reserved so plan names align across columns. */
-	/* Fixed-height flex row: the inline pill otherwise adds baseline space
-	   below itself, pushing badge-less cards 6px out of line. */
-	.untangling-mkt-plan-badges { display: flex; align-items: flex-start; height: 24px; margin-bottom: 12px; }
-	.untangling-mkt-plan-pill { display: inline-block; font-size: 12px; font-weight: 500; line-height: 24px; padding: 0 10px; border-radius: 4px; letter-spacing: 0.2px; background: var(--mkt-gray-80); color: #fff; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
-	.untangling-mkt-plan.is-current .untangling-mkt-plan-pill { background: #e0e0e0; color: var(--mkt-gray-100); }
-	.untangling-mkt-plan h2 { font-size: 32px; line-height: 1.2; margin: 8px 0 16px; color: var(--mkt-gray-100); }
-	.untangling-mkt-plan-price { display: flex; align-items: flex-start; font-family: Recoleta, "Noto Serif", Georgia, serif; color: var(--mkt-gray-100); margin: 0 0 24px; line-height: 1; }
-	.untangling-mkt-plan-price sup { font-size: 14px; margin-top: 6px; }
-	.untangling-mkt-plan-price span { font-size: 44px; }
-	.untangling-mkt-plan-price em { font-style: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; color: var(--mkt-gray-50); align-self: flex-end; margin: 0 0 4px 4px; }
+	.untangling-mkt-plan-compare { text-align: center; margin: 40px 0 0; }
+	.untangling-mkt-button.is-compare { height: 40px; padding: 8px 16px; border-radius: 2px; font-size: 13px; font-weight: 500; line-height: 20px; background: transparent; color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px #ccc; }
+	.untangling-mkt-button.is-compare:hover { background: var(--mkt-gray-0); color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px #ccc; }
+	@media ( max-width: 1100px ) {
+		.untangling-mkt-plans { flex-wrap: wrap; gap: 16px; }
+		.untangling-mkt-plan { flex: 0 0 280px; margin-left: 0; border-radius: 8px; padding: 24px 16px; }
+		.untangling-mkt-plan-pill { position: static; margin-bottom: 12px; align-self: flex-start; }
+	}
 	.untangling-mkt-sumfree s { color: var(--mkt-gray-50); margin-right: 6px; }
-	.untangling-mkt-plan ul { list-style: none; margin: 16px 0 0; padding: 0; font-size: 14px; line-height: 20px; color: var(--mkt-gray-80); display: flex; flex-direction: column; gap: 8px; }
-	.untangling-mkt-plan li.is-highlight { font-weight: 600; }
-	/* Onboarding grid: the CTA sits right below the price, features follow. */
-	.untangling-mkt-plan .untangling-mkt-button { width: 100%; box-sizing: border-box; }
-	.untangling-mkt-plan-cta.is-plan-personal { background: #3858e9; }
-	.untangling-mkt-plan-cta.is-plan-personal:hover { background: #2e49d9; }
-	.untangling-mkt-plan-cta.is-plan-premium { background: #1d2db8; }
-	.untangling-mkt-plan-cta.is-plan-premium:hover { background: #16249a; }
-	.untangling-mkt-plan-cta.is-plan-business { background: #7f00d4; }
-	.untangling-mkt-plan-cta.is-plan-business:hover { background: #6a00b2; }
-	.untangling-mkt-plan-cta.is-plan-commerce { background: #9d37f2; }
-	.untangling-mkt-plan-cta.is-plan-commerce:hover { background: #8722d8; }
-	.untangling-mkt-plan-note { font-size: 12px; color: var(--mkt-gray-50); margin: 8px 0 0; text-align: center; }
 
 	/* Checkout — stepper 8+4 columns: form + 432px summary, 4rem gap. */
 	.untangling-mkt-checkout { display: grid; grid-template-columns: 1fr; gap: 48px; max-width: 1160px; margin: 24px auto 0; }
