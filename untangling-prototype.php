@@ -5277,17 +5277,18 @@ function untangling_ms_credits_cta() {
 	return in_array( $cta, array( 'buttons', 'links' ), true ) ? $cta : 'buttons';
 }
 
-// The Upgrades card, two ways (Lucas, 2026-10-22): 'two' = the plan you are
-// on beside the one tier we recommend next (untangling_plan_compare());
-// 'three' = the ladder above you — up to three higher tiers, no current
-// column. When fewer than three tiers remain (Premium, Business) the current
-// plan fills the first column, so Business is the one case with two columns.
+// The Upgrades card, two ways (Lucas, 2026-10-22): 'three' (the default) =
+// the ladder above you — up to three higher tiers, no current column. When
+// fewer than three tiers remain (Premium, Business) the current plan fills
+// the first column, so Business is the one case with two columns. 'two' =
+// the earlier pair: the plan you are on beside the one tier we recommend
+// next (untangling_plan_compare()).
 function untangling_ms_upgrades_card() {
 	if ( defined( 'UNTANGLING_FORCE_MS_UPGRADES' ) ) {
 		return UNTANGLING_FORCE_MS_UPGRADES;
 	}
 	$mode = get_option( 'untangling_ms_upgrades' );
-	return in_array( $mode, array( 'two', 'three' ), true ) ? $mode : 'two';
+	return in_array( $mode, array( 'two', 'three' ), true ) ? $mode : 'three';
 }
 
 // One AI credits line for a plan's column, in the short "15k" form the
@@ -8267,7 +8268,7 @@ add_action( 'admin_footer', function () {
 				// next tier, or the ladder of higher tiers without the current
 				// one (Business is the one plan that still shows itself there).
 				$ms_upgrades = untangling_ms_upgrades_card();
-				$seg( __( 'Upgrades card' ), 'untangling_ms_upgrades', array( 'two' => __( 'Two plans' ), 'three' => __( 'Three plans' ) ), $ms_upgrades, 'three' === $ms_upgrades
+				$seg( __( 'Upgrades card' ), 'untangling_ms_upgrades', array( 'three' => __( 'Three plans' ), 'two' => __( 'Two plans' ) ), $ms_upgrades, 'three' === $ms_upgrades
 					? __( 'Up to three higher tiers, current plan left out. Premium and Business have fewer tiers above them, so their own plan fills the first column — Business is the one card with two plans.' )
 					: __( 'The plan you are on beside the one tier we recommend next, rows paired line by line.' ) );
 				$group( __( 'wp-admin' ) );
