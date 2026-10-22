@@ -28,50 +28,50 @@ work. Two halves, linked both ways:
 | Cast Iron Supply Co | Commerce | developer | WooCommerce, seeded products |
 | Paper Fox Prints | Business | developer | WooCommerce, seeded products |
 
-## The two wp-admin variants (the current version)
+## The wp-admin design (the current version)
 
-Switched by **Layout → Variant** at the top of the floating **Prototype
-controls** panel (`?untangling_variant=dashboard|drawer`, persisted per site).
-Switching navigates to that variant's home.
+One design: the **all-in Dashboard**. The old Variant switch (Dashboard |
+My Site drawer, `?untangling_variant=`) was removed on 2026-10-22; the param
+and the `UNTANGLING_FORCE_VARIANT` constant are ignored, old links carrying
+them land on the Dashboard.
 
-1. **`dashboard` (default) — the all-in Dashboard.** Core `index.php` carries
-   the custom widgets, 3 columns by default (the reviewed layout as of
-   2026-09-15): col 1 = Your site (identity + plan + the ONE promo slot) →
-   Hosting (plan / WordPress / PHP / theme / content / storage + Developer
-   tools); col 2 = Daily Writing Prompt → Quick Draft (core's widget, drafts
-   read the seeds); col 3 = Stats (KPI pair + sparkline) → Newsletter → Log
-   Activity. Layout map: `untangling_dw_layout()`, read by registration and
-   the order-snap filter; Screen Options default = those seven checked, every
-   core/Jetpack extra unchecked. **There is no Next steps widget**: setup is
-   the **Site Setup** sidebar item directly below Dashboard (the production
-   launchpad page, `admin.php?page=untangling-mysite&ms=setup`, rendered by
-   `SiteSetupPage` from the existing `LaunchpadCard`; "0 of 6 completed" on a
-   fresh site, hidden once the site is Established). This follows the
-   product decision to keep Site Setup as its own page rather than a
-   Dashboard widget. Established sites also show three foreign plugin
-   widgets (WooCommerce Status, Yoast, Elementor) so layouts are judged with
-   realistic clutter. Sidebar: Dashboard → Site Setup → Upgrades (opens
-   `ms=plan`) … → Help & Learn; welcome panel suppressed. Persistence: the
-   prompt is lifted out of older saved hide lists once (`untangling_pw_seeded`
-   = 2) and core's `postboxes._pb_change` is neutralised on the Dashboard, so
-   a phone/tablet visit no longer rewrites the column count. Only the user's
-   own Screen Options / drag / Site state changes alter the view; Reset demo
-   restores it. Every widget is a preview; the MSD stays the full surface.
-   Upgrade flows exit "Back to Dashboard" (`untangling_plan_flow_home_url()`
-   is variant-aware).
-2. **`drawer` — the My Site drawer.** Top-level **My Site** menu item with
-   Next steps / Plan & products / Hosting / Help & Learn, `?ms=` router on
-   `admin.php?page=untangling-mysite`. Pages share an MSD PageLayout mimic
-   (`untangling_ms_app_js()` / `untangling_ms_app_css()` at the end of the
-   plugin). Next steps has Just created → confetti → Established. All drawer
-   state is namespaced `untangling_ms_*`.
+Core `index.php` carries
+the custom widgets, 3 columns by default (the reviewed layout as of
+2026-09-15): col 1 = Your site (identity + plan + the ONE promo slot) →
+Hosting (plan / WordPress / PHP / theme / content / storage + Developer
+tools); col 2 = Daily Writing Prompt → Quick Draft (core's widget, drafts
+read the seeds); col 3 = Stats (KPI pair + sparkline) → Newsletter → Log
+Activity. Layout map: `untangling_dw_layout()`, read by registration and
+the order-snap filter; Screen Options default = those seven checked, every
+core/Jetpack extra unchecked. **There is no Next steps widget**: setup is
+the **Site Setup** sidebar item directly below Dashboard (the production
+launchpad page, `admin.php?page=untangling-mysite&ms=setup`, rendered by
+`SiteSetupPage` from the existing `LaunchpadCard`; "0 of 6 completed" on a
+fresh site, hidden once the site is Established). This follows the
+product decision to keep Site Setup as its own page rather than a
+Dashboard widget. Established sites also show three foreign plugin
+widgets (WooCommerce Status, Yoast, Elementor) so layouts are judged with
+realistic clutter. Sidebar: Dashboard → Site Setup → Upgrades (opens
+`ms=plan`) … → Help & Learn; welcome panel suppressed. Persistence: the
+prompt is lifted out of older saved hide lists once (`untangling_pw_seeded`
+= 2) and core's `postboxes._pb_change` is neutralised on the Dashboard, so
+a phone/tablet visit no longer rewrites the column count. Only the user's
+own Screen Options / drag / Site state changes alter the view; Reset demo
+restores it. Every widget is a preview; the MSD stays the full surface.
+Upgrade flows exit "Back to Dashboard" (`untangling_plan_flow_home_url()`).
+The sidebar pages (Site Setup `ms=setup`, Upgrades `ms=plan`, Help & Learn
+`ms=help`) share an MSD PageLayout mimic (`untangling_ms_app_js()` /
+`untangling_ms_app_css()` at the end of the plugin); the widgets reuse the
+same components. Their state is namespaced `untangling_ms_*`.
+`page=untangling-mysite` with any other `ms` (or none) redirects to
+`index.php`.
 
 Other panel controls: Site state (Just created | Established), Hosting state
 (All good | Needs attention), Site type (Atomic | Simple), Upsell placement
 (None | Menu top | Menu foot | Omnibar), Plugins & themes version
 (Fullscreen | Split | Tabs), Partner themes (Subscription | Included), Plan
 filter (Included | Dropdown), "Copy link to this view", and "Reset demo"
-(clears variant, options, theme subscriptions and the dashboard's Screen
+(clears options, theme subscriptions and the dashboard's Screen
 Options / order user meta so the designed first look returns).
 
 Designed defaults: Dashboard · Just created · All good · Atomic · Upsell None ·
@@ -99,16 +99,14 @@ both); the single-theme checkout is
 `ustep=checkout&type=theme&slug=<slug>&flow=subscribe&term=year|month`.
 
 Retired, never demo or link: `admin.php?page=untangling-hosting` (redirects),
-the old `untangling_variant=submenu|plain` and `untangling_header=` switches.
+the old `untangling_variant=` (any value) and `untangling_header=` switches.
 
 ## Where the code is
 
 wp-admin (this repo, `untangling-prototype.php`):
-- `untangling_get_variant()` — variant resolution (overridable by the
-  `UNTANGLING_FORCE_VARIANT` constant for Playground builds).
 - `untangling_dw_*` — dashboard widgets; `untangling_dw_layout()` is the
   column map read by registration and the order-snap filter.
-- `untangling_ms_*` — My Site drawer app (React-ish closure, multi-mount).
+- `untangling_ms_*` — the sidebar pages app (React-ish closure, multi-mount).
   Widgets reuse the same components; `ctx=ms` + `back=` plumbing carries
   checkout round trips.
 - Prototype controls panel + fab, REST route `untangling/v1/upsell` (serves
@@ -210,7 +208,7 @@ pricing grid redesign that wp-calypso ships behind an experiment (the
 
 - Pricing page: "Start Free" (design) vs "Start with Free" (Calypso) is
   undecided; the legacy "Choose a plan" modal and the two-column compare
-  cards (My Site drawer, WordPress.com page) still carry the old look.
+  cards (Upgrades page, WordPress.com page) still carry the old look.
 - MSD `/plans` deep link has no logged-in landing yet.
 - wp-admin workspace flyout is visual only, no bridge to the MSD persona.
 - Notifications bell and Help in wp-admin are placeholders.

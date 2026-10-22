@@ -5,11 +5,9 @@
  */
 define( 'UNTANGLING_STANDALONE', true );
 // One fixed scenario: Marketplace tabs + Included plan filter, no Prototype
-// controls, no URL toggles. The variant is pinned too — the plugin's default
-// is the all-in Dashboard now, and this locked walkthrough was written
-// against the My Site drawer.
+// controls, no URL toggles. The walkthrough runs on the all-in Dashboard,
+// the plugin's only wp-admin design.
 define( 'UNTANGLING_LOCKED_DEMO', true );
-define( 'UNTANGLING_FORCE_VARIANT', 'drawer' );
 define( 'UNTANGLING_FORCE_MARKETPLACE', 'tabs' );
 define( 'UNTANGLING_FORCE_PLAN_FILTER', 'included' );
 define( 'UNTANGLING_PLAN', 'Free' );

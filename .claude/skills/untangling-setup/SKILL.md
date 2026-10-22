@@ -50,7 +50,7 @@ keep uncommitted. Nothing else depends on the ports.
 
 Run `scripts/start.sh` (background is fine; a cold Calypso start takes 1–3
 minutes). Then read `HANDOVER.md` and give a short recap: what the prototype
-is, the two wp-admin variants and the Prototype controls panel, where the code
+is, the all-in Dashboard design and the Prototype controls panel, where the code
 lives, how to publish. End with the live links the script printed and a
 reminder that `/untangling-start` is the daily resume command.
 

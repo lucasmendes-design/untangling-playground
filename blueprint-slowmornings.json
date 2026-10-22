@@ -9,7 +9,7 @@
 		"wp": "latest"
 	},
 	"login": true,
-	"landingPage": "/wp-admin/admin.php?page=untangling-mysite",
+	"landingPage": "/wp-admin/",
 	"steps": [
 		{
 			"step": "mkdir",

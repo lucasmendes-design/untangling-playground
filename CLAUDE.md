@@ -1,8 +1,8 @@
 # Untangling IA prototype — repo guide for Claude Code
 
 Read `HANDOVER.md` first. It is the current picture of the prototype: what the
-two wp-admin variants are, where every piece lives, how to publish, and the
-open next steps.
+wp-admin design is, where every piece lives, how to publish, and the open next
+steps.
 
 ## Skills in this repo
 
@@ -31,9 +31,10 @@ open next steps.
 
 ## Working rules
 
-- **Two live variants, one panel.** `untangling_variant=dashboard|drawer`.
-  Changes to one variant must never leak into the other. Same for the MSD
-  styles (Default / Hybrid / WP Admin): variant CSS stays scoped.
+- **One wp-admin design, one panel.** The all-in Dashboard is the only
+  wp-admin design; the old `untangling_variant=dashboard|drawer` switch was
+  removed on 2026-10-22 and the param is ignored. The MSD styles (Default /
+  Hybrid / WP Admin) are a separate switch: their CSS stays scoped.
 - **Never link `admin.php?page=untangling-hosting`.** Retired; it redirects.
   Use the Prototype controls panel instead of hand-written `?untangling_*` URLs.
 - **Copy**: WordPress.com voice. Sentence case, short, no "simple/easy", no

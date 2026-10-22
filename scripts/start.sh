@@ -127,5 +127,5 @@ for slug in "${(@k)PORT_OF}"; do
 done
 echo ""
 echo "  Every wp-admin toggle lives in the floating PROTOTYPE CONTROLS panel:"
-echo "  Variant (Dashboard | My Site) · Site state · Hosting state · Site type · Upsell · Plugins & themes version · Plan filter."
+echo "  Site state · Hosting state · Site type · Upsell · Plugins & themes version · Plan filter."
 echo "  Never link admin.php?page=untangling-hosting (retired; it redirects)."
