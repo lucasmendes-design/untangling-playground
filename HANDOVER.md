@@ -17,11 +17,16 @@ work. Two halves, linked both ways:
   (the other five).
 - **wp-admin half**: six Studio sites sharing ONE mu-plugin
   (`untangling-prototype.php`), parameterized per site by
-  `0-untangling-config.php`. Plan drives both surfaces consistently.
+  `0-untangling-config.php`. Plan drives both surfaces consistently: the
+  Prototype controls **Plan** segment (Free · Personal · Premium · Business ·
+  Commerce) persists one plan per site, and the MSD mock site hydrates plan,
+  hosting type, storage and domains from `GET /wp-json/untangling/v1/site`
+  on its next load. Site type follows the plan (Free/Personal/Premium are
+  Simple; Business/Commerce default Atomic with a Simple override).
 
 | Site | Plan | Persona | Notes |
 |---|---|---|---|
-| Aperture Diaries | Free | blogger | Simple site type, domain upsell |
+| Aperture Diaries | Free | blogger | Simple, domain upsell; flip to Personal to see the custom domain |
 | Open ocean | Free | developer | |
 | Slow Mornings | Premium | developer | |
 | Core Coworking | Business | developer | Atomic |
@@ -66,8 +71,10 @@ same components. Their state is namespaced `untangling_ms_*`.
 `page=untangling-mysite` with any other `ms` (or none) redirects to
 `index.php`.
 
-Other panel controls: Site state (Just created | Established), Hosting state
-(All good | Needs attention), Site type (Atomic | Simple), Upsell placement
+Other panel controls: Plan (Free | Personal | Premium | Business | Commerce),
+Site state (Just created | Established), Hosting state
+(All good | Needs attention), Site type (Atomic | Simple, Business and
+Commerce only), Upsell placement
 (None | Menu top | Menu foot | Omnibar), Plugins & themes version
 (Fullscreen | Split | Tabs), Partner themes (Subscription | Included), Plan
 filter (Included | Dropdown), "Copy link to this view", and "Reset demo"
@@ -109,8 +116,10 @@ wp-admin (this repo, `untangling-prototype.php`):
 - `untangling_ms_*` — the sidebar pages app (React-ish closure, multi-mount).
   Widgets reuse the same components; `ctx=ms` + `back=` plumbing carries
   checkout round trips.
-- Prototype controls panel + fab, REST route `untangling/v1/upsell` (serves
-  the site's live offer to the MSD omnibar pill), CORS for the MSD origin,
+- Prototype controls panel + fab, REST routes `untangling/v1/upsell` (serves
+  the site's live offer to the MSD omnibar pill) and `untangling/v1/site`
+  (plan, tier, site type, storage, domains, renewal — the MSD mock sites
+  hydrate from it), CORS for the MSD origin,
   localhost auto-login as user 1.
 - Marketplace: `admin.php?page=untangling-marketplace` (fullscreen) vs split
   vs tabs, pricing → checkout → confirmation persisting

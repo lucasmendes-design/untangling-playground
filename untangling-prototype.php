@@ -111,27 +111,76 @@ add_action( 'wp_footer', 'untangling_msd_query_rewriter' );
  * Per-site demo identity. Each Studio site carries a tiny
  * `0-untangling-config.php` mu-plugin (loads first alphabetically) defining
  * UNTANGLING_PLAN / UNTANGLING_SITE_SLUG / UNTANGLING_PRIMARY_DOMAIN /
- * UNTANGLING_DOMAIN_UPSELL; this shared plugin is symlinked into all sites.
+ * UNTANGLING_DOMAIN_UPSELL (optional UNTANGLING_FORCE_PLAN pins the plan for a
+ * locked demo); this shared plugin is symlinked into all sites.
  * ---------------------------------------------------------------------- */
 
+function untangling_plans() {
+	return array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' );
+}
+
+// The one plan the whole prototype runs on (2026-10-23: the My Site scope and
+// the site-type mapping were folded into this). Resolution: the per-site
+// UNTANGLING_FORCE_PLAN pin → the persisted choice (Plan segment in Prototype
+// controls, or a checkout) → the site's UNTANGLING_PLAN config.
 function untangling_get_plan() {
-	// The Marketplace checkout mimic persists upgrades; Prototype controls reset them.
-	$plan = get_option( 'untangling_plan_override' );
-	// Site type = Premium turns the whole wp-admin into a Premium site, so the
-	// shared plan (marketplace, admin bar chip, upsell) follows it too — read
-	// at request time, nothing stored, so Atomic/Simple keep the site constant.
-	if ( ! $plan && 'premium' === untangling_get_site_type() ) {
-		$plan = 'Premium';
+	if ( defined( 'UNTANGLING_FORCE_PLAN' ) && in_array( UNTANGLING_FORCE_PLAN, untangling_plans(), true ) ) {
+		return UNTANGLING_FORCE_PLAN;
 	}
-	if ( ! $plan ) {
+	$plan = get_option( 'untangling_plan_override' );
+	if ( ! in_array( $plan, untangling_plans(), true ) ) {
 		$plan = defined( 'UNTANGLING_PLAN' ) ? UNTANGLING_PLAN : 'Business';
 	}
-	return in_array( $plan, array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ? $plan : 'Business';
+	return in_array( $plan, untangling_plans(), true ) ? $plan : 'Business';
+}
+
+// The plan the site's config names — what "Reset demo" returns to.
+function untangling_config_plan() {
+	$plan = defined( 'UNTANGLING_PLAN' ) ? UNTANGLING_PLAN : 'Business';
+	return in_array( $plan, untangling_plans(), true ) ? $plan : 'Business';
 }
 
 function untangling_plan_rank( $plan ) {
 	$rank = array( 'Free' => 0, 'Personal' => 1, 'Premium' => 2, 'Business' => 3, 'Commerce' => 4 );
 	return isset( $rank[ $plan ] ) ? $rank[ $plan ] : 0;
+}
+
+// Writes the one persisted plan: the Plan segment, both checkout done links
+// and the legacy ?untangling_ms_set_plan= all land here. Changing plan drops
+// what belonged to the plan just left (storage add-on, credit packs) and the
+// Atomic/Simple override, so the new plan opens on its own defaults.
+function untangling_set_plan( $plan ) {
+	if ( defined( 'UNTANGLING_FORCE_PLAN' ) || ! in_array( $plan, untangling_plans(), true ) ) {
+		return;
+	}
+	if ( $plan !== untangling_get_plan() ) {
+		delete_option( 'untangling_ms_storage_addon' );
+		delete_option( 'untangling_ms_credit_topup' );
+		delete_option( 'untangling_ms_credit_last' );
+		delete_option( 'untangling_site_type' );
+	}
+	delete_option( 'untangling_ms_plan_override' );
+	// Picking the config plan is not an override: clear it so "Reset demo"
+	// only appears while the site is away from its default.
+	if ( $plan === untangling_config_plan() ) {
+		delete_option( 'untangling_plan_override' );
+	} else {
+		update_option( 'untangling_plan_override', $plan );
+	}
+}
+
+// Hosting follows the plan: Free, Personal and Premium are Simple-hosted;
+// Business and Commerce can be Atomic.
+function untangling_plan_is_atomic_eligible( $plan = null ) {
+	$plan = $plan ? $plan : untangling_get_plan();
+	return untangling_plan_rank( $plan ) >= untangling_plan_rank( 'Business' );
+}
+
+// WordPress.com product slugs, for the MSD's plan-keyed code paths.
+function untangling_plan_product_slug( $plan = null ) {
+	$map  = array( 'Free' => 'free_plan', 'Personal' => 'personal-bundle', 'Premium' => 'value_bundle', 'Business' => 'business-bundle', 'Commerce' => 'ecommerce-bundle' );
+	$plan = $plan ? $plan : untangling_get_plan();
+	return isset( $map[ $plan ] ) ? $map[ $plan ] : 'business-bundle';
 }
 
 /**
@@ -316,6 +365,25 @@ function untangling_get_domain_upsell() {
 	return defined( 'UNTANGLING_DOMAIN_UPSELL' ) ? UNTANGLING_DOMAIN_UPSELL : 'aperture.blog';
 }
 
+// The .wordpress.com subdomain every site keeps (the slug's first label —
+// the same rule the Upgrades page's Domains card has always used).
+function untangling_wpcom_domain() {
+	return preg_replace( '/\..*$/', '', untangling_get_site_slug() ) . '.wordpress.com';
+}
+
+// The address the site answers at. Free identities configure a .wordpress.com
+// primary and name their custom domain in UNTANGLING_DOMAIN_UPSELL; once the
+// plan is paid that domain is the address (free for a year on every paid
+// plan), and a paid identity dropped to Free falls back to its subdomain.
+function untangling_site_address() {
+	$primary  = untangling_get_primary_domain();
+	$is_wpcom = (bool) preg_match( '/\.wordpress\.com$/', $primary );
+	if ( 'Free' === untangling_get_plan() ) {
+		return $is_wpcom ? $primary : untangling_wpcom_domain();
+	}
+	return $is_wpcom ? untangling_get_domain_upsell() : $primary;
+}
+
 // The MSD upsell diamond (client/dashboard/components/icons → `upsell`) for
 // PHP-rendered upgrade CTAs; the React side renders the same path from
 // OV_ICONS.upsell. The 24×24 icon has heavy built-in padding (the glyph is
@@ -357,8 +425,8 @@ function untangling_plan_card_features( $plan ) {
 			$domain,
 			array( '6 GB storage', $storage_tip ),
 			$ad_free,
-			array( 'Fast email support', 'Email our Happiness Engineers and get unblocked quickly.' ),
-			array( 'Personal-tier themes', 'Unlock every theme in the Personal tier of the showcase.' ),
+			array( 'Support from our expert team', 'Get help by email from our Happiness Engineers.' ),
+			array( 'Dozens of premium themes', 'Install select premium themes from the WordPress.com showcase.' ),
 			array( 'Dozens of premium plugins', 'Install dozens of premium plugins from the WordPress.com marketplace.' ),
 			array( 'Style customization', 'Fine-tune colors, fonts, and layout in the site editor.' ),
 			$unlimited,
@@ -367,11 +435,11 @@ function untangling_plan_card_features( $plan ) {
 			$premium_themes,
 			array( '13 GB storage', $storage_tip ),
 			$domain,
-			array( 'Live chat support', 'Chat with our Happiness Engineers in real time.' ),
+			array( 'Fast support from our expert team', 'Fast email support from our expert team of Happiness Engineers.' ),
 			array( 'Payments and paid subscriptions', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
 			array( 'Premium stats and analytics', 'See where your visitors come from and what they read.' ),
 			array( 'Upload videos', 'Ad-free, high-definition video hosting with VideoPress.' ),
-			$ad_free,
+			array( 'Google Analytics integration', 'See who is reading, where they came from, and what they do next.' ),
 		),
 		// Ordered for the people this prototype is built around — bloggers and
 			// creators — so the card leads with reach, design, and income rather
@@ -408,26 +476,30 @@ function untangling_plan_card_features( $plan ) {
 	);
 }
 
-// Plan-dependent card data for the WordPress.com page. Pass a plan to read
-// another scope's plan (the My Site drawer keeps its own override).
+// Plan-dependent card data (renewal line, storage meter, feature chips).
+// Pass a plan to read another plan's meta (pricing/compare columns).
 function untangling_get_plan_meta( $for_plan = null ) {
 	$plans = array(
 		'Free'     => array(
 			'renew'    => 'No expiration, free forever',
+			'renewsOn' => null,
 			// No note: at 70% the bar already says it, and the line only
 			// belongs here when storage is actually in warning territory.
 			'storage'  => array( 0.7, 1, null ),
 		),
 		'Personal' => array(
 			'renew'    => 'Renews March 14, 2027',
+			'renewsOn' => '2027-03-14',
 			'storage'  => array( 1.4, 6, null ),
 		),
 		'Premium'  => array(
 			'renew'    => 'Renews March 14, 2027',
+			'renewsOn' => '2027-03-14',
 			'storage'  => array( 4.2, 13, null ),
 		),
 		'Business' => array(
 			'renew'    => 'Renews March 14, 2027',
+			'renewsOn' => '2027-03-14',
 			// The 4th entry is the "needs attention" flag that drove the My Site
 			// AttentionCard (storage almost full). Dropped on 2026-08-18: a
 			// storage alarm is not a next step, and Atomic (Business) opened on
@@ -437,6 +509,7 @@ function untangling_get_plan_meta( $for_plan = null ) {
 		),
 		'Commerce' => array(
 			'renew'    => 'Renews March 14, 2027',
+			'renewsOn' => '2027-03-14',
 			'storage'  => array( 22.4, 50, null ),
 		),
 	);
@@ -496,16 +569,16 @@ function untangling_plan_compare( $plan = null ) {
 			'Premium',
 			array(
 				array( __( '6 GB storage' ), $storage_tip ),
-				array( __( 'Personal-tier themes' ), __( 'Unlock every theme in the Personal tier of the showcase.' ) ),
+				array( __( 'Dozens of premium themes' ), __( 'Install select premium themes from the WordPress.com showcase.' ) ),
 				array( __( 'Dozens of premium plugins' ), __( 'Install dozens of premium plugins from the WordPress.com marketplace.' ) ),
-				array( __( 'Fast email support' ), __( 'Email our Happiness Engineers and get unblocked quickly.' ) ),
+				array( __( 'Support from our expert team' ), __( 'Get help by email from our Happiness Engineers.' ) ),
 				array( __( 'Ad-free experience' ), __( 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' ) ),
 			),
 			array(
 				array( __( '13 GB storage' ), $storage_tip ),
 				array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ) ),
 				array( __( 'All premium plugins' ), __( 'Install any premium plugin from the WordPress.com marketplace.' ) ),
-				array( __( 'Live chat support' ), __( 'Chat with our Happiness Engineers in real time.' ) ),
+				array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
 				array( __( 'Payments and paid subscriptions' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 			),
 		),
@@ -515,13 +588,13 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( '13 GB storage' ), $storage_tip ),
 				array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ) ),
 				array( __( 'Premium stats and analytics' ), __( 'See where your visitors come from and what they read.' ) ),
-				array( __( 'Live chat support' ), __( 'Chat with our Happiness Engineers in real time.' ) ),
+				array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
 				array( __( 'Payments and paid subscriptions' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 			),
 			array(
 				array( __( '50 GB storage' ), $storage_tip ),
 				array( __( 'Install any plugin or theme' ), __( 'Install any of the thousands of WordPress plugins and themes.' ) ),
-				array( __( 'Advanced SEO and Google Analytics' ), __( 'Control how your posts appear in search, and see what readers do next.' ) ),
+				array( __( 'Advanced SEO tools' ), __( 'Control how your posts appear in search results and on social.' ) ),
 				$support_247,
 				array( __( 'Real-time backups and one-click restores' ), __( 'Every change saved; restore any moment with one click.' ) ),
 			),
@@ -593,12 +666,11 @@ function untangling_plan_compare( $plan = null ) {
 	);
 }
 
-// Atomic is the default view on every site (2026-09-03; it used to follow
-// the plan, Free/Premium → Simple). The ?untangling_site_type= override —
-// the Site type control (Atomic | Simple | Premium) — still wins once used;
-// "Reset demo state" clears it.
+// Hosting follows the plan (2026-10-23): Free, Personal and Premium are
+// Simple-hosted; Business and Commerce open Atomic, with Simple available as
+// an explicit override (a Business site before its first plugin install).
 function untangling_default_site_type() {
-	return 'atomic';
+	return untangling_plan_is_atomic_eligible() ? 'atomic' : 'simple';
 }
 
 // The MSD site-card previews load the front end with ?iframe=true (same
@@ -644,6 +716,39 @@ add_action( 'rest_api_init', function () {
 			);
 		},
 	) );
+	// The MSD mirrors this site's plan: its mock site hydrates tier, hosting,
+	// storage and domains from here, so the Plan segment in Prototype controls
+	// drives both surfaces. Storage follows untangling_ms_data() (add-on
+	// included) so the two meters never disagree.
+	register_rest_route( 'untangling/v1', '/site', array(
+		'methods'             => 'GET',
+		'permission_callback' => '__return_true',
+		'callback'            => function () {
+			$plan    = untangling_get_plan();
+			$meta    = untangling_get_plan_meta( $plan );
+			$gb      = 1024 * 1024 * 1024;
+			$max_gb  = $meta['storage'][1] + (int) get_option( 'untangling_ms_storage_addon', 0 );
+			return array(
+				'plan'         => $plan,
+				'tier'         => strtolower( $plan ),
+				'product_slug' => untangling_plan_product_slug( $plan ),
+				'plan_rank'    => untangling_plan_rank( $plan ),
+				'site_type'    => untangling_get_site_type(),
+				'storage'      => array(
+					'used_bytes' => (int) round( $meta['storage'][0] * $gb ),
+					'max_bytes'  => (int) round( $max_gb * $gb ),
+				),
+				'domains'      => array(
+					'primary' => untangling_site_address(),
+					'wpcom'   => untangling_wpcom_domain(),
+					'upsell'  => untangling_get_domain_upsell(),
+				),
+				'renewal_date' => isset( $meta['renewsOn'] ) ? $meta['renewsOn'] : null,
+				'site_name'    => get_bloginfo( 'name' ),
+				'site_url'     => home_url( '/' ),
+			);
+		},
+	) );
 } );
 
 // Local demo only: the MSD → WP Admin jump must not hit a login wall.
@@ -680,36 +785,28 @@ add_action( 'init', function () {
  * paid Premium plan: same install gates as Simple, paid-plan copy elsewhere.
  * Switch with ?untangling_site_type=atomic|simple|premium (persisted).
  */
+// 'premium' was a site type until 2026-10-23 (it doubled as the Premium
+// plan); a stored or forced 'premium' now reads as 'simple'. The plan check
+// comes first so no pin or stored override can make a Free, Personal or
+// Premium site Atomic — that is not a product state.
 function untangling_get_site_type() {
-	if ( defined( 'UNTANGLING_FORCE_SITE_TYPE' ) ) {
-		return UNTANGLING_FORCE_SITE_TYPE;
+	if ( ! untangling_plan_is_atomic_eligible() ) {
+		return 'simple';
 	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_site_type'] ) && in_array( $_GET['untangling_site_type'], array( 'atomic', 'simple', 'premium' ), true ) ) {
-		// Toggling resets the My Site plan to the pure mapping (Simple = Free,
-		// Premium = Premium, Atomic = Business) — a checkout override and its
-		// storage add-on belong to the plan the demo just left behind.
-		$previous = get_option( 'untangling_site_type', untangling_default_site_type() );
-		if ( $_GET['untangling_site_type'] !== $previous ) {
-			// The shared (marketplace) plan follows the Premium site type, so a
-			// purchase made while on Premium must not leak into Atomic/Simple,
-			// nor the other way round. Atomic ↔ Simple keeps it, as before.
-			if ( 'premium' === $previous || 'premium' === $_GET['untangling_site_type'] ) {
-				delete_option( 'untangling_plan_override' );
-			}
-			delete_option( 'untangling_ms_plan_override' );
-			delete_option( 'untangling_ms_storage_addon' );
-			delete_option( 'untangling_ms_credit_topup' );
-			delete_option( 'untangling_ms_credit_last' );
-		}
+	if ( defined( 'UNTANGLING_FORCE_SITE_TYPE' ) ) {
+		return 'atomic' === UNTANGLING_FORCE_SITE_TYPE ? 'atomic' : 'simple';
+	}
+	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_site_type'] ) && in_array( $_GET['untangling_site_type'], array( 'atomic', 'simple' ), true ) ) {
 		update_option( 'untangling_site_type', $_GET['untangling_site_type'] );
 	}
-	return get_option( 'untangling_site_type', untangling_default_site_type() );
+	$stored = get_option( 'untangling_site_type', 'atomic' );
+	return in_array( $stored, array( 'simple', 'premium' ), true ) ? 'simple' : 'atomic';
 }
 
-// Platform check: Premium is Simple-hosted too, so every install/upload/
-// Updates/Jetpack gate treats it like Simple. Plan-level copy reads the plan.
+// Platform check: every install/upload/Updates/Jetpack gate keys on this.
+// Plan-level copy reads the plan.
 function untangling_is_simple() {
-	return in_array( untangling_get_site_type(), array( 'simple', 'premium' ), true );
+	return 'simple' === untangling_get_site_type();
 }
 
 /**
@@ -800,21 +897,19 @@ function untangling_get_upsell_placement() {
 }
 
 /**
- * What actually renders. Atomic sites are Business in this prototype — there
- * is no free domain left to sell them — so the nudge is Simple-only. The
- * chosen placement still persists while you are on Atomic; it just goes quiet.
+ * What actually renders. The offer follows the plan: Free sells the domain,
+ * every paid plan sells its own two-year renewal.
  */
 function untangling_get_active_upsell() {
 	return untangling_get_upsell_placement();
 }
 
-// One nudge component, two offers: what it sells follows the site type.
-// Simple has nothing attached yet, so it sells the annual plan (free domain);
-// Atomic is already on Business and Premium already owns its domain, so both
-// sell the two-year renewal instead.
+// One nudge component, two offers: what it sells follows the plan. Free has
+// nothing attached yet, so it sells the annual plan (free domain); every paid
+// plan already owns its domain, so it sells the two-year renewal instead.
 // Same card, same button, same pill — only the words and the landing change.
 function untangling_upsell_offer() {
-	if ( 'simple' === untangling_get_site_type() ) {
+	if ( 'Free' === untangling_get_plan() ) {
 		return array(
 			'text' => __( 'Free domain with an annual plan' ),
 			'cta'  => __( 'Upgrade' ),
@@ -833,20 +928,18 @@ function untangling_upsell_offer() {
 }
 
 // Where every placement sends you — each offer enters at the step its promise
-// starts at. Simple sells a free domain, and a domain starts with picking a
+// starts at. Free sells a free domain, and a domain starts with picking a
 // name: enter the real Calypso domain search, which hands the chosen name to
-// the shared pricing step and on into the shared checkout. Atomic and Premium
-// sell the two-year renewal of the plan already owned — there is nothing to
+// the shared pricing step and on into the shared checkout. Paid plans sell
+// the two-year renewal of the plan already owned — there is nothing to
 // choose, so it goes straight to checkout with the 20% discount in the cart.
 function untangling_upsell_url( $placement ) {
-	if ( 'simple' !== untangling_get_site_type() ) {
-		$plan = untangling_get_plan();
+	$plan = untangling_get_plan();
+	if ( 'Free' !== $plan ) {
 		return untangling_marketplace_url( 'themes', array(
 			'ustep' => 'checkout',
 			'flow'  => 'renew',
-			// Renewing Free is not a thing — if the demo plan was reset under
-			// an Atomic site type, sell the Premium renewal instead.
-			'plan'  => 'Free' === $plan ? 'Premium' : $plan,
+			'plan'  => $plan,
 			'from'  => $placement,
 			'back'  => rawurlencode( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : admin_url() ),
 		) );
@@ -858,28 +951,15 @@ function untangling_upsell_url( $placement ) {
 }
 
 /* -------------------------------------------------------------------------
- * My Site drawer state — every option the drawer variant touches is
- * namespaced `untangling_ms_*`, on purpose: the submenu/plain variants and
- * the Marketplace keep their own shared demo state (untangling_plan_override
- * and friends), and interacting with one variant must never bleed into
- * another. The drawer reads and writes only these keys.
+ * Dashboard / Upgrades state (`untangling_ms_*`, named after the retired My
+ * Site drawer that introduced it): site state, launchpad progress, storage
+ * add-on, credits. The plan itself is no longer scoped here — see
+ * untangling_get_plan() (the two scopes were unified on 2026-10-23).
  * ---------------------------------------------------------------------- */
 
-// The drawer's plan follows the Site type toggle — Simple presents the real
-// Free plan, Premium the real Premium plan, Atomic the real Business plan —
-// so every variant reads as a real site. A checkout "purchase" (ctx=ms →
-// untangling_ms_plan_override) wins until the site type is toggled or the
-// demo is reset; it never touches untangling_plan_override.
+// Alias kept for the older call sites; there is one plan now.
 function untangling_ms_get_plan() {
-	$override = get_option( 'untangling_ms_plan_override' );
-	if ( in_array( $override, array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
-		return $override;
-	}
-	$type = untangling_get_site_type();
-	if ( 'premium' === $type ) {
-		return 'Premium';
-	}
-	return 'simple' === $type ? 'Free' : 'Business';
+	return untangling_get_plan();
 }
 
 // Just created vs Established. The override (Prototype controls) wins; with
@@ -963,8 +1043,8 @@ add_action( 'admin_init', function () {
 	// The theme surfaces read this toggle while rendering the page body, so
 	// persist a switch here, before any of them run.
 	untangling_get_partner_themes();
-	if ( isset( $_GET['untangling_set_plan'] ) && in_array( $_GET['untangling_set_plan'], array( 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
-		update_option( 'untangling_plan_override', $_GET['untangling_set_plan'] );
+	if ( isset( $_GET['untangling_set_plan'] ) ) {
+		untangling_set_plan( (string) wp_unslash( $_GET['untangling_set_plan'] ) );
 	}
 	if ( isset( $_GET['untangling_activate_theme'] ) ) {
 		update_option( 'untangling_mkt_active_theme', sanitize_key( $_GET['untangling_activate_theme'] ) );
@@ -993,10 +1073,10 @@ add_action( 'admin_init', function () {
 	if ( isset( $_GET['untangling_lp_complete'] ) ) {
 		update_option( 'untangling_lp_complete', $_GET['untangling_lp_complete'] ? 1 : 0 );
 	}
-	// My Site drawer state — namespaced writers; see the untangling_ms_*
-	// helpers for why these never touch the shared keys above.
-	if ( isset( $_GET['untangling_ms_set_plan'] ) && in_array( $_GET['untangling_ms_set_plan'], array( 'Personal', 'Premium', 'Business', 'Commerce' ), true ) ) {
-		update_option( 'untangling_ms_plan_override', $_GET['untangling_ms_set_plan'] );
+	// Dashboard / Upgrades writers (`untangling_ms_*`). The legacy
+	// ?untangling_ms_set_plan= still lands on the one shared plan.
+	if ( isset( $_GET['untangling_ms_set_plan'] ) ) {
+		untangling_set_plan( (string) wp_unslash( $_GET['untangling_ms_set_plan'] ) );
 	}
 	if ( isset( $_GET['untangling_ms_add_storage'] ) ) {
 		if ( isset( untangling_storage_addon_pricing()[ (int) $_GET['untangling_ms_add_storage'] ] ) ) {
@@ -1042,7 +1122,8 @@ add_action( 'admin_init', function () {
 		$token = sanitize_key( $_GET['untangling_ms_add_credits'] );
 		if ( $token && $token !== get_option( 'untangling_ms_credit_last' ) ) {
 			update_option( 'untangling_ms_credit_last', $token );
-			update_option( 'untangling_ms_credit_topup', (int) get_option( 'untangling_ms_credit_topup', 0 ) + untangling_ai_credits_pack()['credits'] );
+			$bought = untangling_ai_credits_pack( isset( $_GET['credits'] ) ? (int) $_GET['credits'] : null );
+			update_option( 'untangling_ms_credit_topup', (int) get_option( 'untangling_ms_credit_topup', 0 ) + $bought['credits'] );
 		}
 	}
 	// Dashboard column count, the same user option core's Screen Options radio
@@ -1059,8 +1140,8 @@ add_action( 'admin_init', function () {
 	}
 	if ( isset( $_GET['untangling_reset_demo'] ) ) {
 		delete_option( 'untangling_plan_override' );
-		// Site type drives the My Site plan (Simple = Free, Premium = Premium,
-		// Atomic = Business), so a full reset returns it to the default too.
+		// The plan drives the site type; a full reset returns both to the
+		// site's config default.
 		delete_option( 'untangling_site_type' );
 		delete_option( 'untangling_mkt_active_theme' );
 		delete_option( 'untangling_mkt_installed' );
@@ -4041,12 +4122,13 @@ add_filter( 'plugin_install_action_links', function ( $links, $plugin ) {
 // bottom-right plan signal as the Marketplace cards, appended under core's
 // "Compatible with your version of WordPress". Core re-renders search
 // results via AJAX, so the append re-applies through a MutationObserver.
-// Simple sites name the plan that unlocks installs (Free → Personal, to
-// match the upsell banner; Premium → Business).
+// Rule: Marketplace premium plugins stay tiered per plugin (Personal and
+// up, see the catalog); installing from the wp.org catalog or uploading
+// needs Business on every Simple plan, as in production.
 add_action( 'admin_footer-plugin-install.php', function () {
 	$plan = untangling_get_plan();
 	if ( untangling_is_simple() ) {
-		$tier   = 'Premium' === $plan ? __( 'Business' ) : __( 'Personal' );
+		$tier   = __( 'Business' );
 		$signal = '<span class="untangling-tier-required">' . esc_html__( 'Requires the' ) . ' <strong>' . esc_html( $tier ) . '</strong> ' . esc_html__( 'plan' ) . '</span>';
 	} else {
 		$signal = '<span class="compatibility-compatible"><strong>' . esc_html__( 'Included' ) . '</strong> ' . esc_html( sprintf( __( 'in your %s plan' ), $plan ) ) . '</span>';
@@ -4084,19 +4166,27 @@ add_filter( 'gettext', function ( $translation, $text ) {
 	return $translation;
 }, 10, 2 );
 
-// Free-plan upsell banner on every Add Plugins tab — above the category
+// Plugins upsell banner on every Add Plugins tab — above the category
 // filters on Marketplace, at the top of the tab content elsewhere (echoed
-// before core's display_plugins_table at priority 10). Personal is the
-// first paid step up from Free, so only Free sites see it. `inline` keeps
-// it where it is echoed — common.js moves non-inline notices to the
-// header.
+// before core's display_plugins_table at priority 10). Every Simple plan
+// sees it (installs need Business); the second line changes with the plan.
+// `inline` keeps it where it is echoed — common.js moves non-inline notices
+// to the header.
 foreach ( array( 'featured', 'popular', 'recommended', 'favorites', 'search' ) as $untangling_tab ) {
 	add_action( "install_plugins_{$untangling_tab}", 'untangling_plugins_upsell_banner', 5 );
 }
 unset( $untangling_tab );
 
+// What the second line of the plugins banner/hero promises, by plan: the
+// free domain on Free, the open catalog on a paid Simple plan.
+function untangling_plugins_upsell_line() {
+	return 'Free' === untangling_get_plan()
+		? __( 'Upgrade to any annual plan and get a free domain for the first year.' )
+		: __( 'Upgrade to Business to install any WordPress plugin.' );
+}
+
 function untangling_plugins_upsell_banner() {
-	if ( 'Free' !== untangling_get_plan() ) {
+	if ( ! untangling_is_simple() ) {
 		return;
 	}
 	if ( in_array( untangling_get_marketplace_mode(), array( 'split', 'tabs' ), true ) ) {
@@ -4107,8 +4197,8 @@ function untangling_plugins_upsell_banner() {
 	<div class="notice inline untangling-plugins-upsell">
 		<span class="untangling-plugins-upsell-icon dashicons dashicons-info-outline"></span>
 		<div class="untangling-plugins-upsell-copy">
-			<h2><?php esc_html_e( 'Access thousands of plugins with the Personal Plan' ); ?></h2>
-			<p><?php esc_html_e( 'Free domain included.' ); ?></p>
+			<h2><?php esc_html_e( 'Install any plugin with the Business plan' ); ?></h2>
+			<p><?php echo esc_html( 'Free' === untangling_get_plan() ? __( 'Free domain included.' ) : __( 'Upload your own or pick from thousands on WordPress.org.' ) ); ?></p>
 		</div>
 		<a class="button button-primary untangling-upgrade" href="<?php echo esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'ref' => 'plugins-upsell-hero', 'back' => rawurlencode( $_SERVER['REQUEST_URI'] ) ) ) ); ?>"><?php esc_html_e( 'Upgrade' ); ?></a>
 	</div>
@@ -4175,7 +4265,7 @@ function untangling_plugins_upsell_hero() {
 		<div class="untangling-upsell-hero__content">
 			<img src="<?php echo esc_url( $assets . '/wpcom-logo.svg' ); ?>" alt="WordPress.com">
 			<h3><?php esc_html_e( 'Unlock thousands of plugins' ); ?></h3>
-			<p><?php esc_html_e( 'Upgrade to any annual plan and get a free domain for the first year.' ); ?></p>
+			<p><?php echo esc_html( untangling_plugins_upsell_line() ); ?></p>
 			<a class="untangling-upsell-cta" href="<?php echo esc_url( untangling_marketplace_url( 'plugins', array( 'ustep' => 'pricing', 'ref' => 'plugins-upsell-hero', 'back' => rawurlencode( $_SERVER['REQUEST_URI'] ) ) ) ); ?>"><?php esc_html_e( 'See all plans' ); ?></a>
 		</div>
 	</div>
@@ -4471,7 +4561,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 			if ( 'included' === $plan_filter ) {
 				untangling_plan_filter_links( count( $themes ), $included_count );
 			} else {
-				untangling_plan_filter_dropdown( array( 'Free', 'Personal', 'Premium', 'Business' ) );
+				untangling_plan_filter_dropdown( array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ) );
 			}
 			?>
 		</div>
@@ -4869,6 +4959,7 @@ add_action( 'admin_footer', function () {
 	$msd     = UNTANGLING_MSD_URL;
 	$current = untangling_get_plan();
 	$plans   = array(
+		array( 'Personal', '€4', __( 'Free domain, no ads, premium themes' ) ),
 		array( 'Premium', '€8', __( 'Premium themes, monetization' ) ),
 		array( 'Business', '€25', __( 'Plugins, SFTP/SSH, database' ) ),
 		array( 'Commerce', '€45', __( 'Sell products, store extensions' ) ),
@@ -5239,8 +5330,17 @@ function untangling_ai_credits_allowance( $plan = null ) {
 	return isset( $allowance[ $plan ] ) ? $allowance[ $plan ] : 0;
 }
 
-function untangling_ai_credits_pack() {
-	return array( 'credits' => 100000, 'price' => 20.00 );
+// Top-up packs, credits => one-off US$ price. Four sizes at a flat US$20 per
+// 100k so the picker reads like the Storage card's (Lucas, 2026-10-23); the
+// 100k pack is the default and the one the single "Add credits" link buys.
+function untangling_ai_credits_packs() {
+	return array( 50000 => 10.00, 100000 => 20.00, 250000 => 50.00, 500000 => 100.00 );
+}
+
+function untangling_ai_credits_pack( $credits = null ) {
+	$packs   = untangling_ai_credits_packs();
+	$credits = ( $credits && isset( $packs[ (int) $credits ] ) ) ? (int) $credits : 100000;
+	return array( 'credits' => $credits, 'price' => $packs[ $credits ] );
 }
 
 // Short credit numbers, the way the balance UI writes them: amounts under
@@ -5306,9 +5406,9 @@ function untangling_plan_credits_row( $for_plan ) {
 }
 
 // Columns for the three-plan Upgrades card. Each column carries the pricing
-// grid's meta and its complete feature list, in the grid's order, with the
-// plan's AI credits row first. Commerce has nothing above it and gets no
-// ladder.
+// grid's meta and the rows it adds over the tier below ("Everything in X,
+// plus:"), in the grid's order, with the plan's AI credits row first when
+// the allowance grows. Commerce has nothing above it and gets no ladder.
 function untangling_plan_ladder( $plan = null ) {
 	$plan   = $plan ? $plan : untangling_get_plan();
 	$order  = array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' );
@@ -5334,20 +5434,31 @@ function untangling_plan_ladder( $plan = null ) {
 	$columns = array();
 	foreach ( $names as $name ) {
 		$g = $grid[ $name ];
-		// Every column lists its plan's complete pricing-grid rows, in the
-		// grid's order, with the credits row first (Lucas, 2026-10-22). The
-		// earlier diff against the tier below ("Everything in X, plus:") left
-		// Premium with four rows beside Personal's eight, so the dearer plan
-		// read as the poorer one.
-		$plus    = array_map( $label, $g['features'] );
-		$credits = untangling_plan_credits_row( $name );
-		array_unshift( $plus, array( 'label' => $credits[0], 'pill' => '', 'tip' => $credits[1] ) );
+		// Each column opens with "Everything in <tier below>, plus:" and lists
+		// only the pricing-grid rows the tier below does not have, in the
+		// grid's order, so the card stays short (Lucas, 2026-10-22 — back to
+		// the diff after a round with every row listed, which made the card
+		// too tall). Rows are matched by label, so an upgraded line ("All
+		// premium themes" over "Dozens of premium themes") still shows. The
+		// credits row leads when the allowance grows over the tier below.
+		$below        = $order[ array_search( $name, $order, true ) - 1 ];
+		$below_labels = array_map( function ( $row ) { return $row[0]; }, $grid[ $below ]['features'] );
+		$plus         = array();
+		foreach ( $g['features'] as $row ) {
+			if ( ! in_array( $row[0], $below_labels, true ) ) {
+				$plus[] = $label( $row );
+			}
+		}
+		if ( untangling_ai_credits_allowance( $name ) !== untangling_ai_credits_allowance( $below ) ) {
+			$credits = untangling_plan_credits_row( $name );
+			array_unshift( $plus, array( 'label' => $credits[0], 'pill' => '', 'tip' => $credits[1] ) );
+		}
 		$is_current = $name === $plan;
 		$columns[]  = array(
 			'name'        => $name,
 			'isCurrent'   => $is_current,
 			'isNext'      => $name === $next,
-			'plus'        => null,
+			'plus'        => $below,
 			'pill'        => $is_current ? '' : ( isset( $pills[ $name ] ) ? $pills[ $name ] : $g['badge'] ),
 			'features'    => $plus,
 			'grid'        => array(
@@ -5375,10 +5486,10 @@ function untangling_plan_ladder( $plan = null ) {
 // monthly; purchased packs never expire and only drain once the month's plan
 // credits are gone, so the low-balance rule watches the combined balance
 // (plan left + packs), never a percentage. The meter reads in three colours:
-// blue while healthy, amber once the combined balance drops under a quarter
-// of the monthly allowance, red once it crosses the 10k line. On Personal and
-// Premium the 10k line sits at or above the quarter mark, so those tiers go
-// straight from blue to red.
+// blue while healthy, yellow once the combined balance drops under a quarter
+// of the monthly allowance, red once it crosses the 10k line in the low state.
+// The warn control always reads yellow, even on Personal and Premium where a
+// fifth of the allowance is already under 10k (Lucas, 2026-10-23).
 function untangling_ms_credits_data( $plan ) {
 	$allowance = untangling_ai_credits_allowance( $plan );
 	$state     = untangling_ms_credits_state();
@@ -5395,7 +5506,11 @@ function untangling_ms_credits_data( $plan ) {
 	} else {
 		$left = isset( $left_ok[ $plan ] ) ? $left_ok[ $plan ] : 0;
 	}
-	$is_low    = $allowance > 0 && ( $left + $topup ) < 10000;
+	// The warn state stays amber on every tier (Lucas, 2026-10-23): on
+	// Personal and Premium a fifth of the allowance is already under the 10k
+	// line, so the red rule only applies in the low state. A pack still
+	// clears either state.
+	$is_low    = $allowance > 0 && 'low' === $state && ( $left + $topup ) < 10000;
 	$is_warn   = $allowance > 0 && ! $is_low && ( $left + $topup ) < $allowance * 0.25;
 	// The plan period resets on the 17th — the design's "Resets 17 Oct".
 	$reset_day = 17;
@@ -5413,6 +5528,7 @@ function untangling_ms_credits_data( $plan ) {
 		'status'    => $is_low ? 'low' : ( $is_warn ? 'warn' : 'ok' ),
 		'resets'    => date_i18n( 'j M', $reset ),
 		'pack'      => untangling_ai_credits_pack(),
+		'packs'     => untangling_ai_credits_packs(),
 		'state'     => $state,
 		'cta'       => untangling_ms_credits_cta(),
 		'addUrl'    => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'credits', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
@@ -5464,6 +5580,7 @@ function untangling_plan_pricing() {
 		array( __( 'Premium stats and analytics' ), __( 'See where your visitors come from and what they read.' ) ),
 		array( __( 'Payments and paid subscriptions' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 		array( __( 'Upload videos' ), __( 'Ad-free, high-definition video hosting with VideoPress.' ) ),
+		array( __( 'Google Analytics integration' ), __( 'See who is reading, where they came from, and what they do next.' ) ),
 	) );
 
 	// Business and up.
@@ -5489,14 +5606,14 @@ function untangling_plan_pricing() {
 		'Personal' => array( 4, array_merge( array(
 			$domain,
 			array( __( '6 GB storage' ), $storage_tip ),
-			array( __( 'Fast email support' ), __( 'Email our Happiness Engineers and get unblocked quickly.' ) ),
-			array( __( 'Personal-tier themes' ), __( 'Unlock every theme in the Personal tier of the showcase.' ), $from_themes ),
+			array( __( 'Support from our expert team' ), __( 'Get help by email from our Happiness Engineers.' ) ),
+			array( __( 'Dozens of premium themes' ), __( 'Install select premium themes from the WordPress.com showcase.' ), $from_themes ),
 			array( __( 'Dozens of premium plugins' ), __( 'Install dozens of premium plugins from the WordPress.com marketplace.' ), $from_plugins ),
 		), $paid_tail ) ),
 		'Premium'  => array( 8, array_merge( array(
 			$domain,
 			array( __( '13 GB storage' ), $storage_tip ),
-			array( __( 'Live chat support' ), __( 'Chat with our Happiness Engineers in real time.' ) ),
+			array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
 			$premium_themes,
 			$premium_plugins,
 		), $premium_tail ) ),
@@ -5528,7 +5645,7 @@ function untangling_render_marketplace_page() {
 	// (untangling_ms_*), so the pricing and checkout steps have to price
 	// against that plan — otherwise a Business drawer site is offered the
 	// whole Free→Commerce ladder from the shared demo plan.
-	$plan = ( isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'] ) ? untangling_ms_get_plan() : untangling_get_plan();
+	$plan = untangling_get_plan();
 	$step = isset( $_GET['ustep'] ) && in_array( $_GET['ustep'], array( 'details', 'pricing', 'checkout', 'done' ), true ) ? $_GET['ustep'] : 'browse';
 	$type = ( isset( $_GET['type'] ) && 'plugin' === $_GET['type'] ) ? 'plugin' : 'theme';
 	// V2 (split) restricts the fullscreen page to themes; plugin steps that
@@ -6605,9 +6722,10 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	$storage_pricing = untangling_storage_addon_pricing();
 	$addon_gb        = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] && isset( $storage_pricing[ (int) $_GET['gb'] ] ) ) ? (int) $_GET['gb'] : 0;
 
-	// AI credits pack checkout (addon=credits): one 100k pack, one-off, no
-	// plan change — the Upgrades card's "Add credits".
-	$credits_pack = untangling_ai_credits_pack();
+	// AI credits pack checkout (addon=credits&credits=N): one pack, one-off,
+	// no plan change — the Upgrades card's picker. Unknown sizes fall back to
+	// the 100k default.
+	$credits_pack = untangling_ai_credits_pack( isset( $_GET['credits'] ) ? (int) $_GET['credits'] : null );
 	$is_credits   = ! $item && isset( $_GET['addon'] ) && 'credits' === $_GET['addon'];
 
 	// Two-year renewal checkout (flow=renew, the Atomic sidebar nudge): the
@@ -6643,7 +6761,7 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 	} elseif ( $is_credits ) {
 		// The pack lands on the site whichever surface sold it; the timestamp
 		// keeps a reloaded confirmation from buying it again.
-		$done_args = array( 'ustep' => 'done', 'addon' => 'credits', 'untangling_ms_add_credits' => (string) time() );
+		$done_args = array( 'ustep' => 'done', 'addon' => 'credits', 'credits' => $credits_pack['credits'], 'untangling_ms_add_credits' => (string) time() );
 		if ( $is_ms ) {
 			$done_args['ctx'] = 'ms';
 		}
@@ -6657,9 +6775,12 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 		// A renewal changes nothing about the plan — no override to persist.
 		$done_args = array( 'ustep' => 'done', 'flow' => 'renew', 'plan' => $new_plan );
 	} else {
-		$done_args = $is_ms
-			? array( 'ustep' => 'done', 'untangling_ms_set_plan' => $new_plan, 'ctx' => 'ms' )
-			: array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+		// One plan for the whole prototype: both contexts persist it the same
+		// way; `ctx` only steers the return link.
+		$done_args = array( 'ustep' => 'done', 'untangling_set_plan' => $new_plan );
+		if ( $is_ms ) {
+			$done_args['ctx'] = 'ms';
+		}
 		// The plan upsell cart already charged the partner theme's line, so
 		// the visitor lands on Subscribed → Activate, not on another checkout.
 		if ( $is_partner ) {
@@ -6834,7 +6955,7 @@ function untangling_marketplace_done_step( $type ) {
 	$item  = untangling_marketplace_find_item( $type, $slug );
 	$is_ms = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
-	$plan  = $is_ms ? untangling_ms_get_plan() : untangling_get_plan();
+	$plan  = untangling_get_plan();
 	$addon_gb = ( isset( $_GET['addon'], $_GET['gb'] ) && 'storage' === $_GET['addon'] ) ? (int) $_GET['gb'] : 0;
 	$is_credits = ! $item && isset( $_GET['addon'] ) && 'credits' === $_GET['addon'];
 	$is_renew = ! $item && isset( $_GET['flow'] ) && 'renew' === $_GET['flow'];
@@ -6865,7 +6986,7 @@ function untangling_marketplace_done_step( $type ) {
 			<?php if ( $is_subscribe ) : ?>
 				<?php echo esc_html( ( $theme_author ? sprintf( __( '%1$s by %2$s is now part of your site.' ), $item['name'], $theme_author ) : sprintf( __( '%s is now part of your site.' ), $item['name'] ) ) . ' ' . $renews . ' ' . __( 'Activate it whenever you’re ready.' ) ); ?>
 			<?php elseif ( $is_credits ) : ?>
-				<?php echo esc_html( sprintf( __( '%1$s AI credits are now on %2$s. They never expire, and the WordPress Agent uses them once this month’s plan credits run out.' ), untangling_format_credits( untangling_ai_credits_pack()['credits'] ), get_bloginfo( 'name' ) ) ); ?>
+				<?php echo esc_html( sprintf( __( '%1$s AI credits are now on %2$s. They never expire, and the WordPress Agent uses them once this month’s plan credits run out.' ), untangling_format_credits( untangling_ai_credits_pack( isset( $_GET['credits'] ) ? (int) $_GET['credits'] : null )['credits'] ), get_bloginfo( 'name' ) ) ); ?>
 			<?php elseif ( $addon_gb ) : ?>
 				<?php echo esc_html( sprintf( __( '%1$d GB of extra storage is now active on %2$s.' ), $addon_gb, get_bloginfo( 'name' ) ) ); ?>
 			<?php elseif ( $is_renew ) : ?>
@@ -8131,8 +8252,7 @@ add_action( 'admin_footer', function () {
 	$mode     = untangling_get_marketplace_mode();
 	$plan     = untangling_get_plan();
 	$override = (bool) get_option( 'untangling_plan_override' );
-	$ms_plan_override = (bool) get_option( 'untangling_ms_plan_override' );
-	$ms_dirty = $ms_plan_override || get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_hosting' ) || get_option( 'untangling_ms_credits' ) || get_option( 'untangling_ms_credit_topup' );
+	$ms_dirty = get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_hosting' ) || get_option( 'untangling_ms_credits' ) || get_option( 'untangling_ms_credit_topup' );
 	// A theme subscription is the one Marketplace purchase with no plan change
 	// behind it, so it has to surface the Reset button on its own.
 	$mkt_dirty = (bool) get_option( 'untangling_mkt_subscribed' );
@@ -8188,6 +8308,8 @@ add_action( 'admin_footer', function () {
 	.untangling-gproto-seg button.is-active { background: #2c3338; color: #fff; font-weight: 500; }
 	.untangling-gproto-seg.is-grid { flex-wrap: wrap; }
 	.untangling-gproto-seg.is-grid button { flex: 1 0 50%; box-shadow: inset -1px -1px 0 0 #dcdcde; }
+	/* Five options (the Plan segment) sit 2 + 2 + 1: the last one takes the full row. */
+	.untangling-gproto-seg.is-grid button:nth-child(5):last-child { flex-basis: 100%; }
 	.untangling-gproto-hint { font-size: 11px; line-height: 1.4; color: #757575; margin: 6px 0 0; }
 	/* Lean is the default: labels alone, explanations on hover. The header
 	   toggle brings them back for anyone reading the panel rather than driving
@@ -8244,8 +8366,8 @@ add_action( 'admin_footer', function () {
 				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, $state_hint );
 				// Hosting health has no real source in the prototype — no backup
 				// runs, no scanner — so the failure branch needs a switch to be
-				// demoable at all. Free plans gate both cards, so the segment
-				// only means something on Atomic.
+				// demoable at all. Plans below Business gate both cards, so the
+				// segment only means something on Atomic.
 				$ms_hosting = untangling_ms_hosting_state();
 				$seg( __( 'Hosting state' ), 'untangling_ms_hosting', array( 'ok' => __( 'All good' ), 'attention' => __( 'Needs attention' ) ), $ms_hosting, 'attention' === $ms_hosting
 					? __( 'Hosting: a failed backup and threats found — both cards turn red.' )
@@ -8256,14 +8378,14 @@ add_action( 'admin_footer', function () {
 				$ms_credits = untangling_ms_credits_state();
 				$credits_hints = array(
 					'ok'   => __( 'Credits: a mid-month balance, blue meter. Free sites see the offer instead.' ),
-					'warn' => __( 'Credits: a fifth of the allowance left — amber meter and a Getting low badge. Personal and Premium skip amber: their 10k line sits above the quarter mark, so they go straight to red.' ),
-					'low'  => __( 'Credits: under 10k left in total — red meter, Running low badge, and the low-balance line. A bought pack clears it.' ),
+					'warn' => __( 'Credits: a fifth of the allowance left — yellow meter and a Getting low badge, on every tier.' ),
+					'low'  => __( 'Credits: under 10k left in total — red meter, no badge or notice line. A bought pack clears it.' ),
 				);
 				$seg( __( 'AI credits' ), 'untangling_ms_credits', array( 'ok' => __( 'Healthy' ), 'warn' => __( 'Getting low' ), 'low' => __( 'Running low' ) ), $ms_credits, $credits_hints[ $ms_credits ] );
 				$ms_credits_cta = untangling_ms_credits_cta();
 				$seg( __( 'Credits actions' ), 'untangling_ms_credits_cta', array( 'buttons' => __( 'Button' ), 'links' => __( 'Link' ) ), $ms_credits_cta, 'links' === $ms_credits_cta
 					? __( 'Add credits as a text link beside the balance — the lighter card.' )
-					: __( 'Add credits as a secondary button under the meter. Upgrading lives on the plan card, which keeps the one primary button.' ) );
+					: __( 'A pack picker with a secondary Add credits button under the meter, like the Storage card. Upgrading lives on the plan card, which keeps the one primary button.' ) );
 				// The Upgrades card: the current plan beside the recommended
 				// next tier, or the ladder of higher tiers without the current
 				// one (Business is the one plan that still shows itself there).
@@ -8272,9 +8394,31 @@ add_action( 'admin_footer', function () {
 					? __( 'Up to three higher tiers, current plan left out. Premium and Business have fewer tiers above them, so their own plan fills the first column — Business is the one card with two plans.' )
 					: __( 'The plan you are on beside the one tier we recommend next, rows paired line by line.' ) );
 				$group( __( 'wp-admin' ) );
-				$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ), 'premium' => __( 'Premium' ) ), $type, __( 'Simple = Free plan · Premium = Premium plan, Simple-hosted · Atomic = Business plan in My Site.' ) );
+				// The plan drives everything on both surfaces: widgets, Upgrades,
+				// gating, upsell offer, hosting type — and the MSD mock site,
+				// which hydrates from untangling/v1/site on its next load.
+				$plan_hints = array(
+					'Free'     => __( 'Free: 1 GB, a .wordpress.com address, WordPress.com ads. Simple-hosted; the upsell sells the free domain.' ),
+					'Personal' => __( 'Personal: 6 GB, free domain for a year, no ads, dozens of premium themes. Simple-hosted; plugins still need Business.' ),
+					'Premium'  => __( 'Premium: 13 GB, all premium themes, payments, video, Google Analytics. Simple-hosted.' ),
+					'Business' => __( 'Business: 50 GB, plugins and themes, SFTP/SSH, backups, 24/7 priority support. Atomic by default.' ),
+					'Commerce' => __( 'Commerce: everything in Business plus the store. Atomic by default.' ),
+				);
+				$plan_options = array();
+				foreach ( untangling_plans() as $p ) {
+					$plan_options[ $p ] = __( $p );
+				}
+				$seg( __( 'Plan' ), 'untangling_set_plan', $plan_options, $plan, $plan_hints[ $plan ]
+					. ' ' . ( defined( 'UNTANGLING_FORCE_PLAN' ) ? __( 'Pinned by UNTANGLING_FORCE_PLAN.' ) : __( 'The MSD mirrors this on its next reload.' ) ), 'is-grid' );
+				// Hosting follows the plan; only Business and Commerce can be
+				// Atomic, so the segment exists only there.
+				if ( untangling_plan_is_atomic_eligible( $plan ) ) {
+					$seg( __( 'Site type' ), 'untangling_site_type', array( 'atomic' => __( 'Atomic' ), 'simple' => __( 'Simple' ) ), $type, 'atomic' === $type
+						? __( 'Atomic: installs, uploads and Updates are live. Personal and lower are always Simple.' )
+						: __( 'Simple on a Business plan, as before the first plugin install: install actions become upgrade CTAs. Personal and lower are always Simple.' ) );
+				}
 				// Placement of the upsell nudge. What it sells follows the
-				// site type: the free domain on Simple, the two-year renewal
+				// plan: the free domain on Free, the two-year renewal
 				// on Atomic — same card, same placements.
 				$upsell       = untangling_get_upsell_placement();
 				$upsell_hints = array(
@@ -8289,7 +8433,7 @@ add_action( 'admin_footer', function () {
 					'menu-foot' => __( 'Menu foot' ),
 					'omnibar'   => __( 'Omnibar' ),
 				), $upsell, $upsell_hints[ $upsell ]
-					. ( 'none' === $upsell ? '' : ' ' . ( 'simple' === $type ? __( 'Selling the free domain here.' ) : __( 'Selling the 2-year renewal here.' ) ) ), 'is-grid' );
+					. ( 'none' === $upsell ? '' : ' ' . ( 'Free' === $plan ? __( 'Selling the free domain here.' ) : __( 'Selling the 2-year renewal here.' ) ) ), 'is-grid' );
 
 				$group( __( 'Plugins and Themes' ) );
 				// One line about the selected mode only — the segments reload the
@@ -8323,10 +8467,8 @@ add_action( 'admin_footer', function () {
 				<button type="button" class="untangling-gproto-copy"><?php esc_html_e( 'Copy link to this view' ); ?></button>
 				<?php if ( $override || $ms_dirty || $mkt_dirty ) : ?>
 					<button type="button" class="untangling-gproto-reset" title="<?php echo esc_attr( $override
-						? sprintf( __( 'Plan override in effect: %s' ), $plan )
-						: ( $ms_plan_override
-							? sprintf( __( 'My Site plan override in effect: %s' ), untangling_ms_get_plan() )
-							: __( 'Purchases and completed steps are being remembered.' ) ) ); ?>"><?php esc_html_e( 'Reset demo' ); ?></button>
+						? sprintf( __( 'Plan set to %1$s; the site’s config default is %2$s.' ), $plan, untangling_config_plan() )
+						: __( 'Purchases and completed steps are being remembered.' ) ); ?>"><?php esc_html_e( 'Reset demo' ); ?></button>
 				<?php endif; ?>
 			</div>
 		</div>
@@ -9024,7 +9166,7 @@ add_action( 'admin_enqueue_scripts', function () {
  * below Dashboard; Next steps / Plan & products / Hosting / Help are sidebar
  * children (no tabs). Pages share one shell that mirrors the MSD PageLayout:
  * 1344px column, Recoleta 32px/40px H1, 24px rhythm. All demo state is
- * namespaced untangling_ms_* — see the helpers near untangling_ms_get_plan().
+ * namespaced untangling_ms_* — see the helpers near untangling_ms_get_state().
  * ---------------------------------------------------------------------- */
 
 function untangling_render_mysite_page() {
@@ -9035,7 +9177,7 @@ function untangling_render_mysite_page() {
 // Everything the four sections need, resolved server-side once.
 function untangling_ms_data() {
 	$section = isset( $_GET['ms'] ) && in_array( $_GET['ms'], array( 'plan', 'hosting', 'help', 'setup' ), true ) ? $_GET['ms'] : 'next';
-	$plan    = untangling_ms_get_plan();
+	$plan    = untangling_get_plan();
 	$meta    = untangling_get_plan_meta( $plan );
 	// The compare card's upgrade column needs its own checkout link — the
 	// shared checkoutUrl below is pinned to Premium for the Free-plan CTAs.
@@ -9193,7 +9335,8 @@ function untangling_ms_data() {
 		'planCompare'  => $compare,
 		'planLadder'   => untangling_plan_ladder( $plan ),
 		'upgradesCard' => untangling_ms_upgrades_card(),
-		'planOverride' => (bool) get_option( 'untangling_ms_plan_override' ),
+		'planOverride' => (bool) get_option( 'untangling_plan_override' ),
+		'configPlan'   => untangling_config_plan(),
 		'state'        => untangling_ms_get_state(),
 		// Nothing done on a fresh site: the production Site Setup opens on
 		// "Choose a theme" at 0 of 6.
@@ -9204,6 +9347,10 @@ function untangling_ms_data() {
 		'siteUrl'      => home_url( '/' ),
 		'siteSlug'     => untangling_get_site_slug(),
 		'domain'       => untangling_get_primary_domain(),
+		// The address the site answers at today (plan-aware: the custom domain
+		// on paid plans, the .wordpress.com subdomain on Free) and that subdomain.
+		'siteAddress'  => untangling_site_address(),
+		'wpcomDomain'  => untangling_wpcom_domain(),
 		'domainUpsell' => untangling_get_domain_upsell(),
 		'visibility'   => untangling_get_visibility(),
 		'siteType'     => untangling_get_site_type(),
@@ -9766,11 +9913,14 @@ function untangling_pw_ids() {
 
 add_action( 'wp_dashboard_setup', function () {
 	// "Stats" is a product name, do not translate. normal / core, as Jetpack registers it.
-	wp_add_dashboard_widget( 'jetpack_summary_widget', 'Jetpack Stats', 'untangling_pw_render_stats' );
+	wp_add_dashboard_widget( 'jetpack_summary_widget', untangling_dw_jetpack_title( 'Jetpack Stats' ), 'untangling_pw_render_stats' );
 	// side / high, as the newsletter package registers it; the designed layout
 	// (untangling_dw_layout, priority 10) then moves it to the top of column 2,
 	// which is why this runs early.
-	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', __( 'Daily Writing Prompt' ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
+	// Both carry the Jetpack mark in the title, like the prototype's own
+	// Jetpack-backed widgets (untangling_dw_jetpack_title) — the wordmark
+	// footers production signs them off with are dropped for the same reason.
+	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', untangling_dw_jetpack_title( __( 'Daily Writing Prompt' ) ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
 }, 5 );
 
 // Core's Welcome panel shows or hides on the `show_welcome_panel` user meta
@@ -9803,14 +9953,6 @@ add_action( 'load-index.php', function () {
 		update_user_meta( $user_id, 'untangling_pw_seeded', 2 );
 	}
 } );
-
-// The Jetpack wordmark the production widgets sign off with
-// (@automattic/jetpack-components JetpackLogo, monochrome, 20px).
-function untangling_pw_jetpack_logo() {
-	return '<span class="untangling-pw-jplogo" aria-label="Jetpack"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="20" height="20" aria-hidden="true" focusable="false">'
-		. '<path fill="#000" d="M16,0C7.2,0,0,7.2,0,16s7.2,16,16,16s16-7.2,16-16S24.8,0,16,0z"/>'
-		. '<polygon fill="#fff" points="15,19 7,19 15,3 "/><polygon fill="#fff" points="17,29 17,13 25,13 "/></svg><span>Jetpack</span></span>';
-}
 
 // Jetpack Stats: the Odyssey dashboard widget (wp-calypso
 // apps/odyssey-stats/src/widget), markup, classes and copy verbatim. The
@@ -9847,7 +9989,7 @@ function untangling_stats_periods() {
 	}
 	$copy = array(
 		'day'   => array( 'unit' => __( 'last 7 days' ), 'viewsDelta' => '+12%', 'visitorsDelta' => '+9%' ),
-		'week'  => array( 'unit' => __( 'last 7 weeks' ), 'viewsDelta' => '+8%', 'visitorsDelta' => '+6%' ),
+		'week'  => array( 'unit' => __( 'last 7 weeks' ), 'viewsDelta' => '+8%', 'visitorsDelta' => '-6%' ),
 		'month' => array( 'unit' => __( 'last 7 months' ), 'viewsDelta' => '+15%', 'visitorsDelta' => '+13%' ),
 		'year'  => array( 'unit' => __( 'since launch' ), 'viewsDelta' => '+57%', 'visitorsDelta' => '+58%' ),
 	);
@@ -9977,7 +10119,6 @@ function untangling_pw_render_stats() {
 					</div>
 				<?php endif; ?>
 				<div class="stats-widget-footer">
-					<a href="https://jetpack.com/redirect/?source=jetpack-stats-widget-logo-link" target="_blank" rel="noreferrer noopener" aria-label="Jetpack Stats Website"><?php echo untangling_pw_jetpack_logo(); ?></a>
 					<a href="<?php echo esc_url( $stats_base ); ?>"><?php esc_html_e( 'View all stats' ); ?></a>
 				</div>
 			</div>
@@ -10134,10 +10275,6 @@ function untangling_pw_render_prompt() {
 						<a class="untangling-pw-link" href="<?php echo esc_url( $reader ); ?>" target="_blank" rel="noreferrer noopener"><?php esc_html_e( 'View responses' ); ?> <?php echo $ext; ?></a>
 					</div>
 				</div>
-				<div class="wpcom-daily-writing-prompt--branding">
-					<?php echo untangling_pw_jetpack_logo(); ?>
-					<a class="untangling-pw-link is-neutral" href="<?php echo esc_url( $reader ); ?>"><?php esc_html_e( 'Read the blogs and topics you follow' ); ?></a>
-				</div>
 			</div>
 		</div>
 	</div>
@@ -10229,10 +10366,8 @@ function untangling_pw_css() {
 .untangling-pw-stats .stats-widget-module__icon { margin-bottom: 16px; height: 24px; }
 .untangling-pw-stats .stats-widget-module__title { font-weight: 500; font-size: 13px; line-height: 20px; letter-spacing: -0.24px; }
 .untangling-pw-stats .stats-widget-module__value { margin-top: 4px; font-size: 28px; line-height: 1; letter-spacing: -0.02em; }
-.untangling-pw-stats .stats-widget-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.untangling-pw-stats .stats-widget-footer { display: flex; justify-content: flex-start; align-items: center; margin-top: 24px; }
 .untangling-pw-stats .stats-widget-footer a { display: inline-block; font-weight: 500; font-size: 13px; line-height: 20px; letter-spacing: -0.24px; text-decoration: underline; color: #101517; }
-.untangling-pw-stats .stats-widget-footer a:first-child { text-decoration: none; }
-.untangling-pw-jplogo { display: inline-flex; align-items: center; gap: 4px; color: #000; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; line-height: 20px; }
 @container (max-width: 480px) {
 	.untangling-pw-stats .stats-widget-highlights__tabs { display: block; }
 	.untangling-pw-stats .stats-widget-highlights__body { grid-template-columns: 1fr; }
@@ -10260,8 +10395,6 @@ function untangling_pw_css() {
 .untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users img:first-child { margin-inline-start: 0; }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users-more { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 24px; height: 24px; font-size: 0.5625rem; font-variant-numeric: tabular-nums; line-height: 1; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; background: #f0f0f0; color: #757575; }
 .untangling-pw-prompt .untangling-pw-link { display: inline-flex; align-items: center; gap: 2px; color: var(--wpds-color-foreground-content-brand, #3858e9); text-decoration: underline; font-size: 13px; }
-.untangling-pw-prompt .untangling-pw-link.is-neutral { color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
-.untangling-pw-prompt .wpcom-daily-writing-prompt--branding { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--wpds-dimension-gap-sm, 8px); padding-block-start: var(--wpds-dimension-padding-md, 16px); border-block-start: 1px solid var(--wpds-color-stroke-surface-neutral, #ddd); }
 CSS;
 }
 
@@ -10468,6 +10601,13 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 .untangling-dw .components-card { box-shadow: none; border-radius: 0; }
 .untangling-dw > * { padding: 12px; }
 .untangling-dw > .ms-linkfooter,
+/* Pixel snapping. Core's page title (23px × 1.3 = 29.9px) and postbox header
+   (14px × 1.4 = 19.6px) leave every widget body on a half-pixel, and a 1px
+   hairline on a half-pixel is painted across two rows on a 1x display — the
+   "double stroke" on the period control's border. Round both line-heights
+   (30px, 20px) so the widgets start on whole pixels. */
+body.index-php .wrap h1 { line-height: 30px; }
+#dashboard-widgets .postbox-header .hndle { line-height: 20px; }
 .untangling-dw > .ms-dw-body { padding: 12px; }
 
 /* Generic widget body + footer. The footer mirrors .ms-linkfooter but sits on
@@ -10559,6 +10699,45 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 	.untangling-dw .ms-dw-head.is-stacked .ms-dw-periods { height: 32px; }
 	.untangling-dw .ms-dw-head.is-stacked .ms-dw-periods .segmented-control__item { font-size: 12px; line-height: 30px; padding: 0 10px; }
 }
+/* Stats (Figma 82:9127): three rows at 16px — the DS ToggleGroupControl at
+   its content width, the legend (24px between entries; 8px dot, 8px to the
+   13px label, 8px to the 13px/500 value, 4px to the delta), the chart. The
+   delta is text in the DS semantic colours — green when up, red when down —
+   not a pill. The bundled ToggleGroupControl mounts without its emotion
+   styles here too, so the DS recipe from the app pages is painted again
+   under .untangling-dw: bordered 40px shell, quiet 13px segments, dark
+   active fill from data-active-item. */
+.untangling-dw .ms-dw-stats { gap: 16px; }
+.untangling-dw .ms-dw-stats .ms-dw-kpis { flex-wrap: wrap; gap: 4px 24px; }
+.untangling-dw .ms-dw-stats .ms-dw-kpi { align-items: center; gap: 8px; height: 24px; }
+.untangling-dw .ms-dw-stats .ms-dw-kpi-label { color: #1e1e1e; }
+.untangling-dw .ms-dw-stats .ms-dw-kpi-value { font-size: 13px; font-weight: 500; }
+.untangling-dw .ms-dw-stats .ms-dw-kpi-delta { margin-left: -4px; padding: 0; border-radius: 0; background: none; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+/* The Figma's own alert green and red (#008a20 / #cc1818), not the local
+   --wpds-color-foreground-content-* tokens, which the vendored cascade
+   leaves at near-black (#002900 / #470000). */
+.untangling-dw .ms-dw-stats .ms-dw-kpi-delta.is-up { color: #008a20; }
+.untangling-dw .ms-dw-stats .ms-dw-kpi-delta.is-down { color: #cc1818; }
+.untangling-dw .ms-dw-stats .ms-dw-spark { height: 150px; }
+/* The Figma period control (82:9127): a white track with a gray-300 hairline
+   and 2px radius, 40px tall; 13px labels — quiet gray-700 at rest, the
+   selected one semibold gray-900 on white inside a 1px gray-700 border with
+   a 2px radius. The DS ToggleGroupControl draws that selected box itself: the
+   container's ::before, sized and moved by the --selected-* vars the
+   component sets, 1px gray-700 border, gray-100 fill, already pulled 1px over
+   the track hairline. So the segment draws no box of its own (a second border
+   on the button doubled the stroke on the sides); the prototype only turns
+   the DS fill white and sets type. The container's own focus-within outline
+   is dropped — the segment's focus-visible ring is the focus indicator. */
+.untangling-dw .ms-dw-periods.components-toggle-group-control { display: inline-flex; align-items: stretch; gap: 0; height: 40px; box-sizing: border-box; overflow: visible; margin: 0; padding: 0; background: #fff; border: 1px solid #ddd; border-radius: 2px; box-shadow: none; }
+.untangling-dw .ms-dw-periods.components-toggle-group-control::before { background: #fff; }
+.untangling-dw .ms-dw-periods.components-toggle-group-control:focus-within, .untangling-dw .ms-dw-periods.components-toggle-group-control:focus { outline: none; box-shadow: none; }
+.untangling-dw .ms-dw-periods.components-toggle-group-control > div { display: flex; align-items: stretch; height: auto; margin: 0; padding: 0; overflow: visible; }
+.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base { font: inherit; font-size: 13px; line-height: 20px; font-weight: 400; padding: 0 11px; color: #757575; border-radius: 2px; white-space: nowrap; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base:hover:not([aria-checked="true"]) { color: #1e1e1e; }
+.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base:focus-visible { outline: var(--wpds-border-width-focus, 1.5px) solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -1px; }
+.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base[aria-checked="true"] { color: #1e1e1e; font-weight: 600; background: transparent; }
+@media ( prefers-reduced-motion: reduce ) { .untangling-dw .ms-dw-periods .components-toggle-group-control-option-base { transition: none; } }
 
 .untangling-dw .ms-dw-spark-wrap { position: relative; }
 .untangling-dw .ms-dw-spark { display: block; width: 100%; height: 96px; }
@@ -10614,25 +10793,24 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    plan block and the promo slot, each on a hairline. The thumbnail is the
    MSD site-card scale — a 1320px viewport at 10% — so it reads as the site's
    face, not a hero; the postbox width goes to the words. */
-.untangling-dw .ms-dw-site { gap: 0; }
-.untangling-dw .ms-dw-site > * + * { margin: 12px -12px 0; padding: 12px 12px 0; border-top: 1px solid #f0f0f0; }
-.untangling-dw .ms-dw-site-id { display: flex; align-items: flex-start; gap: 14px; }
-.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 132px; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 6px; background: #f6f7f7; }
+/* Figma widget-master (81:7184): 16px between the three blocks; the plan
+   block opens on an inset gray-0 hairline with 16px above its first row. */
+.untangling-dw .ms-dw-site { gap: 16px; }
+.untangling-dw .ms-dw-site-plan { padding-top: 16px; border-top: 1px solid #f6f7f7; }
+.untangling-dw .ms-dw-site-id { display: flex; align-items: flex-start; gap: 16px; }
+.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 94px; aspect-ratio: 94 / 85; overflow: hidden; border: 1px solid #c3c4c7; border-radius: 2px; background: #f6f7f7; }
 .untangling-dw .ms-dw-site-iframe { position: absolute; top: 0; left: 0; width: 1000%; min-height: 1000%; border: 0; transform: scale(.1); transform-origin: top left; pointer-events: none; }
-.untangling-dw .ms-dw-site-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-#dashboard-widgets .postbox .untangling-dw .ms-dw-site-name { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #1e1e1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.untangling-dw .ms-dw-site-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#dashboard-widgets .postbox .untangling-dw .ms-dw-site-name { margin: 0; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.24px; color: #1e1e1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .untangling-dw a.ms-dw-site-domain { font-size: 12px; line-height: 16px; color: #757575; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .untangling-dw a.ms-dw-site-domain:hover, .untangling-dw a.ms-dw-site-domain:focus-visible { color: #3858e9; text-decoration: underline; }
-.untangling-dw .ms-dw-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; }
+.untangling-dw .ms-dw-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 /* Visit site is the tertiary button as the design system ships it — brand
    blue, quiet beside the secondary Edit site; the icon follows the text. */
 .untangling-dw .ms-dw-site-actions .components-button.is-tertiary svg { fill: currentColor; }
 /* Narrow well (the 3-column dashboard): a smaller thumbnail, so the words
    keep enough room for both actions on one line. Very narrow (1-column
    collapsed to phone width): stack. */
-@container dw-body (max-width: 400px) {
-	.untangling-dw .ms-dw-site-thumb { width: 104px; }
-}
 @container dw-body (max-width: 300px) {
 	/* Stacked, so the row's cross axis is now the horizontal one: the
 	   flex-start above would size the meta column to its max-content and a
@@ -10640,14 +10818,14 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 	.untangling-dw .ms-dw-site-id { flex-direction: column; align-items: stretch; }
 	/* Full width turns the 10% preview into a ~296x185 mostly-blank hero. Cap
 	   it so it still reads as the site's face, left-aligned under the name. */
-	.untangling-dw .ms-dw-site-thumb { width: 100%; max-width: 160px; }
+	.untangling-dw .ms-dw-site-thumb { width: 100%; max-width: 120px; }
 }
 
 /* Plan block: name + Active on the left, renewal on the right (wraps under
    when the well is narrow), then the included features as check chips. */
 .untangling-dw .ms-dw-site-planrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
-.untangling-dw .ms-dw-site-planname { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; color: #1e1e1e; line-height: 20px; }
-.untangling-dw .ms-dw-site-renew { font-size: 12px; line-height: 20px; color: #757575; }
+.untangling-dw .ms-dw-site-planname { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: -0.078px; color: #1e1e1e; line-height: 20px; }
+.untangling-dw .ms-dw-site-renew { font-size: 13px; line-height: 20px; color: #757575; }
 /* What the plan includes: the check list (.ms-plan-features, its tooltips
    on each feature), inside the plan block — so no hairline or bleed of its
    own — with "+N more" as the last row, a link into Upgrades. One column,
@@ -10658,18 +10836,27 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    = 476px) still sits on one line — a 2-column dashboard at ~1100px or a
    3-column one at ~1600px already qualifies, so the list stops reading as
    a tall single column with a blank right half. */
-.untangling-dw .ms-dw-site-plan .ms-plan-features { margin: 10px 0 0; padding: 0; border-top: 0; grid-template-columns: 1fr; gap: 6px 24px; }
-.untangling-dw .ms-dw-site-features li { align-items: flex-start; line-height: 20px; }
+/* Figma "feature" rows: 18px check, 4px gap, 13/20 label, 4px between rows
+   (one column at every width, as drawn); 12px then "See all features". */
+.untangling-dw .ms-dw-site-plan .ms-plan-features { margin: 8px 0 0; padding: 0; border-top: 0; grid-template-columns: 1fr; gap: 4px 24px; }
+.untangling-dw .ms-dw-site-features li { margin: 0; align-items: flex-start; gap: 4px; line-height: 20px; }
 .untangling-dw .ms-dw-site-features .ms-plan-check { flex: none; height: 20px; align-items: center; }
-.untangling-dw .ms-dw-site-features li.is-more { padding-left: 26px; }
-.untangling-dw .ms-dw-site-features li.is-more a { color: #3858e9; text-decoration: none; }
-.untangling-dw .ms-dw-site-features li.is-more a:hover, .untangling-dw .ms-dw-site-features li.is-more a:focus-visible { text-decoration: underline; }
+.untangling-dw .ms-dw-site-more { margin: 12px 0 0; padding-left: 5px; font-size: 13px; line-height: 20px; }
+.untangling-dw .ms-dw-site-more a { color: #3858e9; font-weight: 600; text-decoration: none; }
+.untangling-dw .ms-dw-site-more a:hover, .untangling-dw .ms-dw-site-more a:focus-visible { text-decoration: underline; }
+/* Promo box: brand-tinted (theme alpha 4 on alpha 8), 12px padding, title
+   on description at 4px, then the primary Upgrade plan at 8px. */
+.untangling-dw .ms-dw-site-promo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; background: rgba(56, 88, 233, 0.04); border: 1px solid rgba(56, 88, 233, 0.08); border-radius: 4px; }
+.untangling-dw .ms-dw-site-promo-top { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#dashboard-widgets .postbox .untangling-dw .ms-dw-site-promo-title { margin: 0; padding: 0; font-size: 13px; line-height: 20px; font-weight: 600; letter-spacing: -0.078px; color: #1e1e1e; }
+.untangling-dw .ms-dw-site-promo-desc { margin: 0; font-size: 12px; line-height: 16px; color: #757575; }
+.untangling-dw .ms-dw-site-promo .components-button svg { fill: currentColor; }
 /* The shared tooltip bubble is 300px wide and anchors at the label's left
    edge — 26px into the well — so inside a postbox it runs up to ~100px past
    the card, and because it is only faded out at rest it inflates the widget's
    scroll width at every width. Cap it to what is left of the container from
    that anchor. */
-.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { max-width: min(300px, calc(100cqi - 26px)); }
+.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { max-width: min(300px, calc(100cqi - 22px)); }
 /* Touch: the chips' tips only open on hover and focus, so on a phone they are
    unreachable. This is a question of input, not of width — a device query is
    the right test, not a container one. */
@@ -10680,35 +10867,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    inline text. Pad them into a thumb-sized row without moving their neighbours —
    keyed on input capability, not width, since a wide tablet still taps. */
 @media (hover: none) {
-	.untangling-dw a.ms-dw-site-domain, .untangling-dw .ms-dw-site-features li.is-more a { display: inline-block; padding: 4px 0; }
-}
-@container dw-body (min-width: 480px) {
-	.untangling-dw .ms-dw-site-plan .ms-plan-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	/* Two columns: a tip anchored 26px into its own column has half the well
-	   minus the 24px gutter and that indent to work with. */
-	.untangling-dw .ms-dw-site-features .untangling-feature-tip::after { max-width: min(300px, calc(50cqi - 38px)); }
-}
-
-/* Promo slot: the ms-upsell row on every plan — icon chip, title + one
-   line, CTA — stacked only when the well is too narrow for the row. */
-.untangling-dw .ms-dw-site .ms-upsell { flex-direction: row; align-items: center; gap: 12px; padding: 12px 12px 0; }
-.untangling-dw .ms-dw-site .ms-upsell-icon { width: 36px; height: 36px; border-radius: 6px; }
-.untangling-dw .ms-dw-site .ms-upsell-title { font-size: 13px; line-height: 18px; }
-.untangling-dw .ms-dw-site .ms-upsell-desc { font-size: 12px; line-height: 16px; }
-.untangling-dw .ms-dw-site .ms-upsell .components-button { flex: none; }
-/* The words carry a real basis at every width, not only in the block below:
-   the page's own `max-width: 600px` media query gives .ms-upsell-main a
-   flex-basis of 100%, which in a postbox strands the 36px icon chip alone on
-   line one. With this basis the row either fits on one line, or wraps into the
-   stack the block below draws. */
-.untangling-dw .ms-dw-site .ms-upsell-main { flex: 1 1 180px; }
-/* Narrow: icon and words stay on one line (the words hold the basis, so the
-   CTA is what wraps), the CTA drops under the words, aligned with them. The
-   threshold is the widest well where icon + words + CTA stop fitting on one
-   line — the container is the body's content box, so cq = postbox width - 24. */
-@container dw-body (max-width: 440px) {
-	.untangling-dw .ms-dw-site .ms-upsell { flex-wrap: wrap; row-gap: 8px; }
-	.untangling-dw .ms-dw-site .ms-upsell .components-button { margin-left: 48px; }
+	.untangling-dw a.ms-dw-site-domain, .untangling-dw .ms-dw-site-more a { display: inline-block; padding: 4px 0; }
 }
 
 /* Checklist: the open (current) step is the page's only elevation. */
@@ -11281,7 +11440,7 @@ function untangling_ms_app_js() {
 			el( 'div', { className: 'ms-tl-preview-frame' },
 				el( 'iframe', {
 					className: 'ms-tl-preview-iframe',
-					title: data.siteName || data.domain || 'Site preview',
+					title: data.siteName || data.siteAddress || 'Site preview',
 					src: ( data.siteUrl || '/' ) + '?iframe=true',
 					tabIndex: -1,
 				} ),
@@ -11289,9 +11448,9 @@ function untangling_ms_app_js() {
 					el( Button, { variant: 'primary', href: data.adminUrl + 'site-editor.php' }, 'Edit site' )
 				)
 			),
-			el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.domain ),
+			el( 'p', { className: 'ms-tl-preview-title' }, data.siteName || data.siteAddress ),
 			el( 'a', { className: 'ms-tl-preview-link', href: data.siteUrl, target: '_blank', rel: 'noreferrer' },
-				data.domain,
+				data.siteAddress,
 				el( 'span', { 'aria-hidden': true }, ' ↗' )
 			)
 		);
@@ -12297,8 +12456,19 @@ function untangling_ms_app_js() {
 		// The paired rows from untangling_plan_compare(), and only those: the
 		// card is the short comparison, the complete lists live on the
 		// pricing page behind See all plans (Lucas, 2026-10-22).
+		// The AI credits line leaves the list and sits with the storage row,
+		// above "Everything in X, plus:" — it is plan meta like storage, not
+		// one of the rows the tier adds (Lucas, 2026-10-23).
+		var credits = null;
 		var rows = col.features.filter( function ( feature ) {
-			return ! ( g.storage && /GB storage$/.test( feature.label ) );
+			if ( g.storage && /GB storage$/.test( feature.label ) ) {
+				return false;
+			}
+			if ( ! credits && /AI credits/.test( feature.label || '' ) ) {
+				credits = feature;
+				return false;
+			}
+			return true;
 		} );
 		// Badge: the grid's own static badge ("Most popular" on Premium) and
 		// nothing else — no "Recommended" / "Made for stores" fallback, so the
@@ -12321,8 +12491,13 @@ function untangling_ms_app_js() {
 			el( 'div', { className: 'ms-plangrid-cta' }, cta ),
 			g.storage ? el( 'div', { className: 'ms-plangrid-storage' },
 				icon( PATHS.cloud, '0 0 24 24', 20 ),
-				el( 'span', null, g.storage + ' storage' ),
-				g.addMore ? el( 'a', { className: 'ms-plangrid-addmore', href: data.storageAddonUrl + '&gb=50' }, 'Add more' ) : null
+				// No "Add more" here: the Storage card further down the page
+				// sells the add-on (Lucas, 2026-10-23).
+				el( 'span', null, g.storage + ' storage' )
+			) : null,
+			credits ? el( 'div', { className: 'ms-plangrid-credits' },
+				gridCheckMs( credits ),
+				el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': credits.tip }, credits.label )
 			) : null,
 			// Ladder columns open their list with the pricing grid's own line.
 			col.plus ? el( 'p', { className: 'ms-plangrid-plus' }, 'Everything in ' + col.plus + ', plus:' ) : null,
@@ -12421,11 +12596,12 @@ function untangling_ms_app_js() {
 	// only when the site owns packs, and a single secondary action, Add
 	// credits — upgrading stays on the plan card above, so the page keeps one
 	// primary button (Lucas, 2026-10-22). The meter carries three statuses:
-	// blue (healthy), amber (under a quarter of the allowance left, "Getting
-	// low"), red (combined balance under 10k, "Running low" + the notice
-	// line). Both thresholds watch the combined balance (plan + packs), so a
-	// site with plenty of top-ups never sees them. Free has no allowance and
-	// gets the offer row instead of a meter.
+	// blue (healthy), yellow (under a quarter of the allowance left, "Getting
+	// low" badge), red (combined balance under 10k — the meter alone says it:
+	// no badge, no notice line, the balance line keeps its normal colour;
+	// Lucas, 2026-10-23). Both thresholds watch the combined balance (plan +
+	// packs), so a site with plenty of top-ups never sees them. Free has no
+	// allowance and gets the offer row instead of a meter.
 	function fmtCredits( n ) {
 		n = Number( n ) || 0;
 		if ( n < 1000 ) {
@@ -12435,8 +12611,10 @@ function untangling_ms_app_js() {
 		return ( k % 1 ? k.toFixed( 1 ) : String( Math.round( k ) ) ) + 'k';
 	}
 
-	function CreditsCardMs() {
+	function CreditsCardMs( props ) {
 		var c = data.credits;
+		var packState = useState( String( ( c && c.pack && c.pack.credits ) || 100000 ) );
+		var pack = packState[ 0 ], setPack = packState[ 1 ];
 		if ( ! c ) {
 			return null;
 		}
@@ -12476,11 +12654,26 @@ function untangling_ms_app_js() {
 					el( 'a', { className: 'ms-credits-link', href: c.addUrl, title: fineprint }, 'Add credits' )
 				);
 			} else {
-				// Button: fine print left, one secondary Add credits right.
-				actions = el( 'div', { className: 'ms-credits-actions' },
-					el( 'p', { className: 'ms-storage-fineprint' }, fineprint ),
-					el( 'div', { className: 'ms-credits-buttons' },
-						el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: c.addUrl }, 'Add credits' )
+				// Button: a pack picker and one secondary Add credits, the same
+				// row as the Storage card's (Lucas, 2026-10-23). The option text
+				// carries size, price and the one-off nature, so there is no
+				// fine print under the row.
+				var SelectControl = C.SelectControl;
+				var packOptions = Object.keys( c.packs || {} ).map( function ( credits ) {
+					return { value: credits, label: '+' + fmtCredits( credits ) + ' credits — $' + Number( c.packs[ credits ] ).toFixed( 2 ) + ', never expire' };
+				} );
+				actions = el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
+					el( 'div', { className: 'ms-storage-buy-row' },
+						SelectControl && packOptions.length ? el( SelectControl, {
+							label: 'AI credits pack size',
+							hideLabelFromVision: true,
+							value: pack,
+							options: packOptions,
+							onChange: setPack,
+							__nextHasNoMarginBottom: true,
+							__next40pxDefaultSize: true,
+						} ) : null,
+						el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: c.addUrl + '&credits=' + pack }, 'Add credits' )
 					)
 				);
 			}
@@ -12500,13 +12693,12 @@ function untangling_ms_app_js() {
 					el( 'span', null, 'Top-ups' ),
 					el( 'span', null, fmtCredits( c.topup ) + ' credits left' )
 				),
-				c.isLow && el( 'p', { className: 'ms-credits-notice' }, fmtCredits( c.combined ) + ' credits left in total. Add credits to keep the WordPress Agent going.' ),
 				useLinks ? null : actions
 			);
 		}
-		return el( Card, { className: 'ms-span2' },
+		return el( Card, { className: props && props.half ? null : 'ms-span2' },
 			el( CardBody, null,
-				cardTitle( 'AI credits', ! c.allowance ? null : ( c.isLow ? el( Badge, { intent: 'error' }, 'Running low' ) : ( c.isWarn ? el( Badge, { intent: 'warning' }, 'Getting low' ) : null ) ) ),
+				cardTitle( 'AI credits', c.allowance && c.isWarn ? el( Badge, { intent: 'warning' }, 'Getting low' ) : null ),
 				body
 			)
 		);
@@ -12592,10 +12784,10 @@ function untangling_ms_app_js() {
 	}
 
 	function DomainsCardMs() {
-		var sub = data.siteSlug.replace( /\..*$/, '' ) + '.wordpress.com';
-		// Sites configured with a wordpress.com primary (Free identities) show
-		// the upsell domain as the custom one once the drawer plan is paid.
-		var custom = /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain;
+		var sub = data.wpcomDomain;
+		// The custom domain: the plan-aware address on paid plans (Free
+		// identities get their upsell domain once the plan is paid).
+		var custom = isFree ? data.domainUpsell : data.siteAddress;
 		var rows = isFree ? [
 			{ domain: sub, badge: [ 'default', 'Primary' ], note: 'Free forever' },
 			{ domain: data.domainUpsell, badge: [ 'success', 'Available' ], note: 'Free for a year on paid plans', href: data.domainClaimUrl || data.plansUrl },
@@ -12628,7 +12820,7 @@ function untangling_ms_app_js() {
 	// so the Manage link gives way to the CTA. Free has no custom domain to hang
 	// an address on and points at a domain first; paid plans can buy one now.
 	function EmailCardMs() {
-		var addr = 'hello@' + ( /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain );
+		var addr = 'hello@' + ( data.siteAddress );
 		return el( Card, null,
 			el( CardBody, null,
 				cardTitle( 'Email' ),
@@ -12664,107 +12856,85 @@ function untangling_ms_app_js() {
 		var gbState = useState( '50' );
 		var gb = gbState[ 0 ], setGb = gbState[ 1 ];
 		var pricing = data.storagePricing || {};
-		// The option text ("+50 GB — $50.00/month") already says what the field
-		// does, so the label is screen-reader only and the billing cadence sits
-		// once under the row instead of repeating in all seven options.
+		// The option text carries size, price and cadence in production's own
+		// words ("$50/month, billed yearly" — the Add-ons page dropdown and
+		// the MSD Add storage modal), so the label is screen-reader only and
+		// there is no fine print under the row (Lucas, 2026-10-23). Tiers and
+		// prices mirror the production product (wordpress_com_1gb_space_addon_yearly
+		// price tiers, yearly / 12), checked against the billing API on 2026-10-23.
 		var options = Object.keys( pricing ).map( function ( tier ) {
-			return { value: tier, label: '+' + tier + ' GB — $' + Number( pricing[ tier ] ).toFixed( 2 ) + '/month' };
+			return { value: tier, label: '+' + tier + ' GB — $' + Number( pricing[ tier ] ).toFixed( 2 ) + '/month, billed yearly' };
 		} );
+		// Same anatomy as the AI credits card beside it (Lucas, 2026-10-23):
+		// label row over the meter (name left, percentage right), the meter,
+		// the amount line, then the picker + button row at the right edge. The
+		// classes are the credits card's own so the two cannot drift apart.
+		var storage = meta.storage || [ 0, 1, null ];
+		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
+		var isTight = pct > 80;
 		return el( Card, null,
 			el( CardBody, null,
 				cardTitle( 'Storage' ),
-				el( StorageMeter ),
-				el( 'div', { className: 'ms-storage-buy' },
-					el( 'div', { className: 'ms-storage-buy-row' },
-						SelectControl && el( SelectControl, {
-							label: 'Storage add-on size',
-							hideLabelFromVision: true,
-							value: gb,
-							options: options,
-							onChange: setGb,
-							__nextHasNoMarginBottom: true,
-							__next40pxDefaultSize: true,
-						} ),
-						el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.storageAddonUrl + '&gb=' + gb }, 'Add storage' )
+				el( 'div', { className: 'ms-credits' },
+					el( 'div', { className: 'ms-credits-meta' },
+						el( 'span', { className: 'ms-credits-label' }, 'Plan storage' ),
+						el( 'span', { className: 'ms-credits-reset' }, 'Used', el( 'strong', null, pct + '%' ) )
 					),
-					el( 'p', { className: 'ms-storage-fineprint' }, 'Billed yearly. Applies to this site only.' )
-				)
-			)
-		);
-	}
-
-	// A billing line rendered as one link. Same shape as the domains-card row
-	// (name · badge · right-aligned note) so the two cards still read alike;
-	// the anchor wraps the row rather than the name so the whole strip is the
-	// hit target. At rest the row reads as plain text; hovering turns it blue
-	// and reveals the external icon that marks the jump out to the MSD.
-	function billingRow( row ) {
-		return el( 'li', { key: row.href, className: 'ms-domain-row is-linked' },
-			el( 'a', { className: 'ms-domain-link', href: row.href },
-				el( 'span', { className: 'ms-domain-name' }, row.name ),
-				row.badge || null,
-				el( 'span', { className: 'ms-domain-note' },
-					row.note,
-					icon( PATHS.external, '0 0 24 24', 14 )
-				)
-			)
-		);
-	}
-
-	// Billing pointer — history stays with the account (per the page intro);
-	// this card carries what's site-relevant and links out for the rest.
-	function BillingCardMs() {
-		return el( Card, null,
-			el( CardBody, null,
-				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
-					el( 'h2', { className: 'ms-card-title' }, 'Billing' ),
-					extLink( msd + '/me/billing', 'Manage' )
-				),
-				isFree
-					? cardDesc( 'No payments needed — the Free plan is free forever. Receipts for any upgrade will show up here.' )
-					: el( 'ul', { className: 'ms-domains' },
-						// Every row is a link to the MSD screen that actually owns it:
-						// the plan and the card live on the account (billing), the
-						// domain on its own page. The whole row is the target — the
-						// renewal date on the right is as likely a click as the name.
-						billingRow( {
-							name: 'WordPress.com ' + data.plan,
-							badge: el( Badge, { intent: 'success' }, 'Active' ),
-							note: meta.renew,
-							href: msd + '/me/billing/purchases',
-						} ),
-						// The custom domain is its own billing line in the real
-						// product (free the first year, renews with the plan after).
-						billingRow( {
-							name: /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain,
-							badge: el( Badge, { intent: 'default' }, 'Domain' ),
-							note: meta.renew,
-							href: msd + '/domains/' + ( /\.wordpress\.com$/.test( data.domain ) ? data.domainUpsell : data.domain ),
-						} ),
-						billingRow( {
-							name: 'Visa ending in 4242',
-							note: 'Payment method',
-							href: msd + '/me/billing/payment-methods',
-						} )
+					el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Plan storage' },
+						el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
+					),
+					el( 'div', { className: 'ms-credits-leftrow' },
+						el( 'p', { className: 'ms-credits-left' }, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' )
+					),
+					storage[ 2 ] && ! isTight ? el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] ) : null,
+					el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
+						el( 'div', { className: 'ms-storage-buy-row' },
+							SelectControl && el( SelectControl, {
+								label: 'Storage add-on size',
+								hideLabelFromVision: true,
+								value: gb,
+								options: options,
+								onChange: setGb,
+								__nextHasNoMarginBottom: true,
+								__next40pxDefaultSize: true,
+							} ),
+							el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.storageAddonUrl + '&gb=' + gb }, 'Add storage' )
+						)
 					)
+				)
 			)
 		);
 	}
+
+	// Cards under the plan grid, trial layout (Lucas, 2026-10-23): AI credits
+	// and Storage share the first row as two half cards, Domains and Email
+	// the second. Flip to false to get the previous layout back: AI credits
+	// full width, then Domains + Storage, then Email. (Billing left the page
+	// on 2026-10-23 so it is all about upgrades; billing lives in the MSD.)
+	var UPGRADES_GRID_COMPACT = true;
 
 	function PlanPage() {
 		return el( Shell, {
 			title: 'Upgrades',
-			description: 'What you’re on, what’s attached to this site, and what could help. Billing history stays with your account.',
+			description: 'What your plan includes, and what to add as your site grows.',
 		},
 			el( 'div', { className: 'ms-grid' },
 				el( PlanCardMs ),
-				el( CreditsCardMs ),
-				// Storage sits beside Domains: both are "what this site has
-				// right now". Email and Billing make the second row.
-				el( DomainsCardMs ),
-				el( StorageCardMs ),
-				el( EmailCardMs ),
-				el( BillingCardMs )
+				UPGRADES_GRID_COMPACT
+					? [
+						el( CreditsCardMs, { key: 'credits', half: true } ),
+						el( StorageCardMs, { key: 'storage' } ),
+						el( DomainsCardMs, { key: 'domains' } ),
+						el( EmailCardMs, { key: 'email' } ),
+					]
+					: [
+						el( CreditsCardMs, { key: 'credits' } ),
+						// Storage sits beside Domains: both are "what this site has
+						// right now". Email takes the second row.
+						el( DomainsCardMs, { key: 'domains' } ),
+						el( StorageCardMs, { key: 'storage' } ),
+						el( EmailCardMs, { key: 'email' } ),
+					]
 			)
 		);
 	}
@@ -12824,13 +12994,16 @@ function untangling_ms_app_js() {
 	];
 
 	var LEARN_SUPPORT = [
-		// Support ladder is plan-aware: community-first on Free, live chat on
-		// Premium (its compare row), 24/7 priority support on Business.
+		// Support ladder is plan-aware, as in the pricing grid: community-first
+		// on Free, email support on Personal, fast support on Premium, 24/7
+		// priority support on Business and Commerce.
 		[ 'comment', 'Contact us', isFree
 			? 'Get answers from our AI assistant. 24/7 expert human support comes with paid plans.'
-			: ( isManaged
-				? 'Get answers from our AI assistant, backed by live chat support from our Happiness Engineers.'
-				: 'Get answers from our AI assistant, backed by 24/7 priority support from our expert team.' ), 'https://wordpress.com/help/contact/' ],
+			: ( 1 === ( data.planRank || 0 )
+				? 'Get answers from our AI assistant, backed by email support from our Happiness Engineers.'
+				: ( isManaged
+					? 'Get answers from our AI assistant, backed by fast email support from our Happiness Engineers.'
+					: 'Get answers from our AI assistant, backed by 24/7 priority support from our expert team.' ) ), 'https://wordpress.com/help/contact/' ],
 		[ 'login', 'Ask a question in our forum', 'Browse questions and get answers from other experienced users.', 'https://wordpress.com/forums/' ],
 	];
 
@@ -13180,7 +13353,10 @@ function untangling_ms_app_js() {
 	}
 	function Sparkline( props ) {
 		var width = 400;
-		var height = 96;
+		// The chart's own height: 96 by default, 150 on the Stats widget (the
+		// Figma spark), passed in so the strokes keep their weight instead of
+		// being stretched by CSS.
+		var height = props.height || 96;
 		var pad = 4;
 		var hoverState = useState( null );
 		var hover = hoverState[ 0 ], setHover = hoverState[ 1 ];
@@ -13359,41 +13535,45 @@ function untangling_ms_app_js() {
 			{ key: 'views', label: 'Views', color: '#3858e9', values: p.views || [], total: p.viewsTotal || 0, delta: p.viewsDelta },
 			{ key: 'visitors', label: 'Visitors', color: '#5ba300', values: p.visitors || [], total: p.visitorsTotal || 0, delta: p.visitorsDelta },
 		];
-		// The Jetpack Stats widget's period control, its markup and look.
 		var PERIODS = [ [ 'day', 'Days' ], [ 'week', 'Weeks' ], [ 'month', 'Months' ], [ 'year', 'Years' ] ];
-		// Full (legend and control on one row) → stacked (the control above
-		// the numbers, the legend's copy kept whole) → brief, the last resort
-		// in the narrowest wells: the delta pills go, the numbers stay. See
-		// useHeadMode.
-		var headRef = useRef( null );
-		var mode = useHeadMode( headRef, [ '', 'is-stacked', 'is-stacked is-brief' ], [ period ] );
+		// Figma "widget-master" Stats (Untangling Calypso — Dashboard approach,
+		// node 82:9127; Lucas, 2026-10-23), built from the design system only:
+		// the period control first, on its own row, as the DS
+		// ToggleGroupControl (radio semantics, one tab stop) — not the Jetpack
+		// widget's segmented control; then the legend row (dot · label ·
+		// value · delta, 24px between entries), the delta as plain coloured
+		// text — green up, red down — instead of the grey pill; then the
+		// chart. The rows wrap on their own in a narrow well, so the
+		// full/stacked/brief head ladder is not needed here any more.
+		var ToggleGroup = C.__experimentalToggleGroupControl;
+		var ToggleGroupOption = C.__experimentalToggleGroupControlOption;
 		return el( Fragment, null,
-			el( 'div', { className: 'ms-dw-body' },
-				el( 'div', { ref: headRef, className: 'ms-dw-head' + ( mode ? ' ' + mode : '' ) },
-					el( 'div', { className: 'ms-dw-kpis' },
-						SERIES.map( function ( s ) {
-							return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
-								el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'aria-hidden': true } ),
-								el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · ' + ( p.unit || '' ) ) ),
-								el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
-								s.delta && el( 'span', { className: 'ms-dw-kpi-delta' }, s.delta )
-							);
-						} )
-					),
-					el( 'div', { className: 'ms-dw-periods segmented-control', role: 'group', 'aria-label': 'Period' },
-						PERIODS.map( function ( pair ) {
-							var active = pair[ 0 ] === period;
-							return el( 'button', {
-								key: pair[ 0 ],
-								type: 'button',
-								className: 'segmented-control__item' + ( active ? ' is-selected' : '' ),
-								'aria-pressed': active,
-								onClick: function () { setPeriod( pair[ 0 ] ); },
-							}, pair[ 1 ] );
-						} )
-					)
+			el( 'div', { className: 'ms-dw-body ms-dw-stats' },
+				ToggleGroup && el( ToggleGroup, {
+					className: 'ms-dw-periods',
+					label: 'Period',
+					hideLabelFromVision: true,
+					value: period,
+					onChange: function ( next ) { if ( next ) { setPeriod( next ); } },
+					__nextHasNoMarginBottom: true,
+					__next40pxDefaultSize: true,
+				},
+					PERIODS.map( function ( pair ) {
+						return el( ToggleGroupOption, { key: pair[ 0 ], value: pair[ 0 ], label: pair[ 1 ] } );
+					} )
 				),
-				el( Sparkline, { id: period, series: SERIES, labels: p.labels || [] } )
+				el( 'div', { className: 'ms-dw-kpis' },
+					SERIES.map( function ( s ) {
+						var down = s.delta && '-' === String( s.delta ).charAt( 0 );
+						return el( 'div', { key: s.key, className: 'ms-dw-kpi' },
+							el( 'span', { className: 'ms-dw-kpi-swatch', style: { background: s.color }, 'aria-hidden': true } ),
+							el( 'span', { className: 'ms-dw-kpi-label' }, s.label, el( 'span', { className: 'screen-reader-text' }, ' · ' + ( p.unit || '' ) ) ),
+							el( 'span', { className: 'ms-dw-kpi-value' }, s.total.toLocaleString() ),
+							s.delta && el( 'span', { className: 'ms-dw-kpi-delta ' + ( down ? 'is-down' : 'is-up' ) }, s.delta )
+						);
+					} )
+				),
+				el( Sparkline, { id: period, series: SERIES, labels: p.labels || [], height: 150 } )
 			),
 			// Same target as the sidebar's Stats item, so it reads as internal
 			// navigation (chevron), not a jump out of wp-admin.
@@ -13457,10 +13637,16 @@ function untangling_ms_app_js() {
 	// last cell, a link into Upgrades. On Free, one upgrade callout follows
 	// (the dashboard's ONE promo slot); on a paid plan nothing does — the
 	// 2-year renewal offer that used to sit here is gone. Footer: Upgrades.
+	// Your site, on the Figma "widget-master" spec (Untangling Calypso —
+	// Dashboard approach, node 81:7184; Lucas, 2026-10-23): 94px thumbnail,
+	// 15px name, Edit site + Visit site compact; a hairline then the plan row
+	// (name + Active left, renewal right), six feature rows at 4px, "See all
+	// features" as a small brand link; and a tinted "Do more with {next}"
+	// promo box with the one primary Upgrade plan button. No footer row.
 	function DwSite() {
-		var compare = data.planCompare || {};
 		var features = meta.features || [];
-		var shown = features.slice( 0, 5 );
+		var shown = features.slice( 0, 6 );
+		var compare = data.planCompare || {};
 		var editUrl = data.adminUrl + 'site-editor.php';
 		return el( Fragment, null,
 			el( 'div', { className: 'ms-dw-body ms-dw-site' },
@@ -13471,17 +13657,19 @@ function untangling_ms_app_js() {
 					el( 'div', { className: 'ms-dw-site-thumb', 'aria-hidden': true },
 						el( 'iframe', {
 							className: 'ms-dw-site-iframe',
-							title: data.siteName || data.domain || 'Site preview',
+							title: data.siteName || data.siteAddress || 'Site preview',
 							src: ( data.siteUrl || '/' ) + '?iframe=true',
 							tabIndex: -1,
 						} )
 					),
 					el( 'div', { className: 'ms-dw-site-meta' },
-						el( 'h3', { className: 'ms-dw-site-name' }, data.siteName || data.domain ),
-						el( 'a', { className: 'ms-dw-site-domain', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.domain ),
+						el( 'h3', { className: 'ms-dw-site-name' }, data.siteName || data.siteAddress ),
+						el( 'a', { className: 'ms-dw-site-domain', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, data.siteAddress ),
 						el( 'div', { className: 'ms-dw-site-actions' },
 							el( Button, { variant: 'secondary', size: 'compact', href: editUrl }, 'Edit site' ),
-							el( Button, { variant: 'tertiary', size: 'compact', href: data.siteUrl, target: '_blank', rel: 'noreferrer', icon: icon( PATHS.external, '0 0 24 24', 16 ), iconPosition: 'right' }, 'Visit site' )
+							// Text only, as the design draws it: the spec's minimal
+							// button carries no external mark.
+							el( Button, { variant: 'tertiary', size: 'compact', href: data.siteUrl, target: '_blank', rel: 'noreferrer' }, 'Visit site' )
 						)
 					)
 				),
@@ -13499,30 +13687,34 @@ function untangling_ms_app_js() {
 								el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
 								el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': feature.tip }, feature.label )
 							);
-						} ),
-						// Always: the list here is a sample, and the plan has far
-						// more than the handful this card carries (a count would read
-						// as the total). The link is the plan page's full feature list.
-						el( 'li', { key: 'more', className: 'is-more' },
-							el( 'a', { href: data.planPageUrl }, 'See more' )
-						)
+						} )
+					),
+					// Always: the list here is a sample, and the plan has far
+					// more than the six this card carries (a count would read as
+					// the total). The link is the plan page's full feature list.
+					el( 'p', { className: 'ms-dw-site-more' },
+						el( 'a', { href: data.planPageUrl }, 'See all features' )
 					)
 				),
-				// Every managed plan has a next step: Free sells Premium, Premium
-				// sells Business — the description names what that step unlocks.
-				isManaged && compare.next
-					? el( UpsellCallout, {
-						size: 'compact',
-						icon: 'performance',
-						title: 'Do more with ' + compare.next.name,
-						desc: 'Business' === compare.next.name
-							? 'Plugins, SFTP and SSH, and the tools to run it yourself.'
-							: 'More storage, more design control, and room to grow.',
-						cta: 'Upgrade to ' + compare.next.name,
-					} )
+				// Every plan but the top one has a next step (the compare table's
+				// pair: Free and Personal sell Premium, Premium sells Business,
+				// Business sells Commerce) — the description names what that
+				// step unlocks. Commerce has no pair, so the widget ends on the
+				// feature list. The box is the widget's one primary action; the
+				// Upgrades page is one click away through "See all features".
+				compare.next
+					? el( 'div', { className: 'ms-dw-site-promo' },
+						el( 'div', { className: 'ms-dw-site-promo-top' },
+							el( 'h3', { className: 'ms-dw-site-promo-title' }, 'Do more with ' + compare.next.name ),
+							el( 'p', { className: 'ms-dw-site-promo-desc' }, {
+								Business: 'Plugins, SFTP and SSH, and the tools to run it yourself.',
+								Commerce: 'Sell products and subscriptions, ship worldwide, and track every sale.',
+							}[ compare.next.name ] || 'More storage, more design control, and room to grow.' )
+						),
+						el( Button, { variant: 'primary', size: 'compact', icon: upsellDiamond(), iconSize: 14, href: data.plansUrl }, 'Upgrade plan' )
+					)
 					: null
-			),
-			dwFooter( data.planPageUrl, 'Upgrades', false, true )
+			)
 		);
 	}
 
@@ -13646,7 +13838,7 @@ function untangling_ms_app_js() {
 	}
 
 	function NewsletterWidget() {
-		var site = data.domain || data.siteSlug;
+		var site = data.siteAddress || data.siteSlug;
 		var adminUrl = data.adminUrl;
 		var allSubscribers = 214;
 		var emailSubscribers = 163;
@@ -14203,7 +14395,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-storage svg { flex: 0 0 20px; fill: #1e1e1e; }
 .untangling-ms .ms-plangrid-storage span { font-weight: 500; }
-.untangling-ms .ms-plangrid-addmore { color: #1e1e1ea3; text-decoration: underline; margin-left: 2px; }
+/* AI credits: plan meta beside storage, the sparkles at the list's icon size. */
+.untangling-ms .ms-plangrid-credits { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 12px; font-size: 12px; line-height: 16px; color: #2c3338; }
+.untangling-ms .ms-plangrid-credits span { font-weight: 500; }
 .untangling-ms .ms-plangrid-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .untangling-ms .ms-plangrid-list li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-check { flex: 0 0 16px; width: 16px; height: 16px; fill: #007017; }
@@ -14249,6 +14443,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-storage-bar { height: 8px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
 .untangling-ms .ms-storage-fill { height: 100%; border-radius: 4px; background: #3858e9; transition: width .4s ease; }
 .untangling-ms .ms-storage-fill.is-warning { background: #d47608; }
+.untangling-ms .ms-credits .ms-storage-fill.is-warning { background: #dba617; }
 .untangling-ms .ms-storage-used { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-storage-note { margin: 2px 0 0; font-size: 13px; color: #757575; }
 .untangling-ms .ms-storage-buy { margin-top: 16px; }
@@ -14275,13 +14470,15 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-credits-link { color: #3858e9; text-decoration: none; }
 .untangling-ms .ms-credits-link:hover { text-decoration: underline; }
 .untangling-ms .ms-credits-topups { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 13px; color: #757575; }
-.untangling-ms .ms-credits-notice { margin: 8px 0 0; font-size: 13px; color: #cc1818; }
 .untangling-ms .ms-storage-fill.is-low { background: #cc1818; }
-.untangling-ms .ms-credits.is-low .ms-credits-left { color: #cc1818; }
 /* Buttons treatment: a row under the meter — fine print left, the pair right,
    the same shape as the Storage card's picker row. */
 .untangling-ms .ms-credits-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
 .untangling-ms .ms-credits-actions .ms-storage-fineprint { margin: 0; }
+.untangling-ms .ms-credits-actions .ms-storage-buy-row { flex: 1; }
+/* Half-width cards (AI credits beside Storage): the picker stretches to the
+   button, which keeps its own width at the right edge — the plain
+   .ms-storage-buy-row behaviour, in both cards (Lucas, 2026-10-23). */
 .untangling-ms .ms-credits-buttons { display: flex; gap: 8px; margin-left: auto; }
 .untangling-ms .ms-credits-free { padding: 12px 0 4px; }
 @media (max-width: 782px) {
@@ -14294,21 +14491,6 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-domain-note { margin-left: auto; color: #757575; font-size: 12px; }
 .untangling-ms .ms-domain-note a { color: #3858e9; text-decoration: none; }
 .untangling-ms .ms-domain-note a:hover { text-decoration: underline; }
-/* Linked billing rows: the anchor carries the row layout so the whole strip is
-   clickable, but the hover reads as a link, not a band — the row text turns blue
-   and the external icon fades in. The icon holds its slot at rest (opacity 0)
-   so nothing shifts when the pointer arrives. */
-.untangling-ms .ms-domain-row.is-linked { padding: 0; }
-.untangling-ms .ms-domain-link { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; padding: 11px 0; color: inherit; text-decoration: none; transition: color .12s ease-out; }
-.untangling-ms .ms-domain-link:focus-visible { outline: 2px solid var(--wp-admin-theme-color, #3858e9); outline-offset: 2px; border-radius: 2px; }
-.untangling-ms .ms-domain-link:hover,
-.untangling-ms .ms-domain-link:hover .ms-domain-name,
-.untangling-ms .ms-domain-link:hover .ms-domain-note { color: var(--wp-admin-theme-color, #3858e9); }
-.untangling-ms .ms-domain-link .ms-domain-name,
-.untangling-ms .ms-domain-link .ms-domain-note { transition: color .12s ease-out; }
-.untangling-ms .ms-domain-link .ms-domain-note { display: inline-flex; align-items: center; gap: 4px; }
-.untangling-ms .ms-domain-link .ms-domain-note svg { fill: currentColor; opacity: 0; transition: opacity .12s ease-out; }
-.untangling-ms .ms-domain-link:hover .ms-domain-note svg { opacity: 1; }
 
 /* Help & Learn — the hosting tab's learn layout inside the My Site shell.
    Media/topic/support/ask-card styles come from untangling_app_css(); the page
