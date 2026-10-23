@@ -142,7 +142,8 @@ MSD (Calypso branch `prototype/untangling-ia`):
 - Whole flow, developer persona:
   https://calypso.live/sites?branch=prototype/untangling-ia&env=dashboard&persona=developer
 - Whole flow, blogger persona: same URL with `persona=blogger`.
-- wp-admin only, controls visible (Business/Atomic, all-in Dashboard):
+- wp-admin only, controls visible (Personal/Simple, all-in Dashboard; flip
+  the Plan segment for the others):
   https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-quickstart.json
 - Same site, landing on Add Themes → Marketplace tab (partner theme
   subscription state):

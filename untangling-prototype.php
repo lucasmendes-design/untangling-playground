@@ -12640,7 +12640,10 @@ function untangling_ms_app_js() {
 				el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.plansUrl }, 'Upgrade' )
 			);
 		} else {
-			var pct = Math.max( 0, Math.min( 100, Math.round( ( c.left / c.allowance ) * 100 ) ) );
+			// The meter fills with credits USED, left to right, like the
+			// Storage bar: the two cards side by side read the same way
+			// (Lucas, 2026-10-23). The balance line still says what is left.
+			var pct = Math.max( 0, Math.min( 100, Math.round( ( ( c.allowance - c.left ) / c.allowance ) * 100 ) ) );
 			var useLinks = 'links' === c.cta;
 			var status = c.isLow ? 'low' : ( c.isWarn ? 'warn' : 'ok' );
 			var fineprint = fmtCredits( c.pack.credits ) + ' credits for US$' + Math.round( Number( c.pack.price ) ) + '. One-off, never expire.';
@@ -12678,16 +12681,18 @@ function untangling_ms_app_js() {
 				);
 			}
 			body = el( 'div', { className: 'ms-credits is-' + status + ( useLinks ? ' is-links' : '' ) },
-				el( 'div', { className: 'ms-credits-meta' },
-					el( 'span', { className: 'ms-credits-label' }, 'Monthly plan' ),
-					el( 'span', { className: 'ms-credits-reset' }, 'Resets ' + c.resets, el( 'strong', null, pct + '%' ) )
-				),
 				el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Monthly plan credits' },
 					el( 'div', { className: 'ms-storage-fill' + ( c.isLow ? ' is-low' : ( c.isWarn ? ' is-warning' : '' ) ), style: { width: pct + '%' } } )
 				),
+				// No "Monthly plan" label: the card title already says what the
+				// meter is. Reset date + percent sit on the balance line, right
+				// edge, below the bar (Lucas, 2026-10-23).
 				el( 'div', { className: 'ms-credits-leftrow' },
 					el( 'p', { className: 'ms-credits-left' }, leftLine ),
-					useLinks ? actions : null
+					el( 'span', { className: 'ms-credits-meta' },
+						el( 'span', { className: 'ms-credits-reset' }, 'Resets ' + c.resets, el( 'strong', null, 'Used ' + pct + '%' ) ),
+						useLinks ? actions : null
+					)
 				),
 				c.topup > 0 && el( 'div', { className: 'ms-credits-topups' },
 					el( 'span', null, 'Top-ups' ),
@@ -12876,15 +12881,14 @@ function untangling_ms_app_js() {
 			el( CardBody, null,
 				cardTitle( 'Storage' ),
 				el( 'div', { className: 'ms-credits' },
-					el( 'div', { className: 'ms-credits-meta' },
-						el( 'span', { className: 'ms-credits-label' }, 'Plan storage' ),
-						el( 'span', { className: 'ms-credits-reset' }, 'Used', el( 'strong', null, pct + '%' ) )
-					),
 					el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Plan storage' },
 						el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
 					),
 					el( 'div', { className: 'ms-credits-leftrow' },
-						el( 'p', { className: 'ms-credits-left' }, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' )
+						el( 'p', { className: 'ms-credits-left' }, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' ),
+						el( 'span', { className: 'ms-credits-meta' },
+							el( 'span', { className: 'ms-credits-reset' }, 'Used', el( 'strong', null, pct + '%' ) )
+						)
 					),
 					storage[ 2 ] && ! isTight ? el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] ) : null,
 					el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
@@ -14458,8 +14462,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    quarter of the allowance, the error red (is-low) once the 10k line is
    crossed. */
 .untangling-ms .ms-credits { margin-top: 12px; }
-.untangling-ms .ms-credits-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; color: #757575; }
-.untangling-ms .ms-credits-label { font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-credits-meta { display: inline-flex; align-items: baseline; gap: 16px; font-size: 13px; color: #757575; }
 .untangling-ms .ms-credits-reset { display: inline-flex; gap: 10px; white-space: nowrap; }
 .untangling-ms .ms-credits-reset strong { font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-credits-leftrow { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
