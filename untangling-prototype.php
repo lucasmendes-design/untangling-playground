@@ -12690,7 +12690,9 @@ function untangling_ms_app_js() {
 		}
 		var body;
 		if ( ! c.allowance ) {
-			body = el( 'div', { className: 'ms-upsell ms-credits-free' },
+			// Stacked and centred like the Email card beside it, so the two Free
+			// upsells on this row read as one pattern (Lucas, 2026-10-27).
+			body = el( 'div', { className: 'ms-upsell is-stacked ms-credits-free' },
 				el( 'span', { className: 'ms-upsell-main' },
 					el( 'h3', { className: 'ms-upsell-title' }, 'Included with every paid plan' ),
 					// No per-plan allowances here: the plan cards above already say
@@ -14581,7 +14583,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    button, which keeps its own width at the right edge — the plain
    .ms-storage-buy-row behaviour, in both cards (Lucas, 2026-10-23). */
 .untangling-ms .ms-credits-buttons { display: flex; gap: 8px; margin-left: auto; }
-.untangling-ms .ms-credits-free { padding: 12px 0 4px; }
+/* .ms-credits-free keeps the .is-stacked padding (16px 0 4px), same as the Email
+   card, so the two upsells on the row sit at the same height. */
 @media (max-width: 782px) {
 	.untangling-ms .ms-credits-buttons { margin-left: 0; }
 }
