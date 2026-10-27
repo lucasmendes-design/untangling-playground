@@ -14471,8 +14471,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-billing { margin: 0; font-size: 12px; line-height: 16px; color: #646970; }
 .untangling-ms .ms-plangrid-cta .components-button { width: 100%; justify-content: center; height: 40px; border-radius: 2px; font-size: 13px; font-weight: 500; }
 .untangling-ms .ms-plangrid-cta .components-button svg { fill: currentColor; }
-/* "Current plan" is inert: muted text and border on the gray fill, so it reads as disabled (Lucas, 2026-10-22) rather than as a second button to press. */
-.untangling-ms .ms-plangrid-cta .components-button.is-secondary:disabled { background: #f6f7f7; box-shadow: inset 0 0 0 1px #dcdcde; color: #757575; opacity: 1; cursor: default; pointer-events: none; }
+/* "Current plan" is inert. It follows the WPDS disabled secondary button (no fill, gray-600 text, 1px neutral-disabled stroke) instead of the earlier gray-filled look, which read heavier than the live buttons (Lucas, 2026-10-27). */
+.untangling-ms .ms-plangrid-cta .components-button.is-secondary:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--wpds-color-stroke-interactive-neutral-disabled, #dbdbdb); color: #949494; opacity: 1; cursor: default; pointer-events: none; }
 .untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-storage svg { flex: 0 0 16px; fill: #1e1e1e; }
 .untangling-ms .ms-plangrid-storage span { font-weight: 500; }
