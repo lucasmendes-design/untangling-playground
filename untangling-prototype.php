@@ -9497,7 +9497,9 @@ function untangling_dw_jetpack_title( $title ) {
 // hand-drawn SVG, stroked for weight, came out as a blob). Hidden in Screen
 // Options like the Jetpack mark.
 function untangling_dw_wpcom_title( $title ) {
-	$mark = '<span class="dashicons dashicons-wordpress ms-wp-mark" aria-hidden="true"></span>';
+	// dashicons-wordpress-alt (f324): the outlined W, blue on white — not the
+	// filled disc (f120), which read as a blue badge (Lucas, 2026-10-27).
+	$mark = '<span class="dashicons dashicons-wordpress-alt ms-wp-mark" aria-hidden="true"></span>';
 	return '<span class="untangling-dw-title">' . $mark . '<span>' . esc_html( $title ) . '</span></span>';
 }
 
@@ -14536,6 +14538,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-ext-arrow { font: inherit; white-space: pre; }
 .untangling-ms .ms-linkfooter .ms-ext-arrow { color: #757575; }
 .untangling-ms .ms-linkfooter:hover svg { fill: currentColor; }
+/* The ↗ takes the link's hover blue too; its own #757575 rule above would
+   otherwise win over the inherited colour (Lucas, 2026-10-27). */
+.untangling-ms .ms-linkfooter:hover .ms-ext-arrow { color: inherit; }
 .untangling-ms .ms-storage { margin: 12px 0 8px; }
 .untangling-ms .ms-storage-bar { height: 8px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
 .untangling-ms .ms-storage-fill { height: 100%; border-radius: 4px; background: #3858e9; transition: width .4s ease; }
