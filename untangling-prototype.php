@@ -408,7 +408,7 @@ function untangling_plan_card_features( $plan ) {
 	$install_plugins = array( 'Install plugins and themes', 'Install any of the thousands of WordPress plugins and themes.' );
 	$sftp            = array( 'SFTP/SSH and database access', 'Developer access to your site’s files and database.' );
 	$priority        = array( '24/7 priority support', 'Round-the-clock priority support from our expert team.' );
-	$backups         = array( 'Real-time backups and one-click restores', 'Every change saved; restore any moment with one click.' );
+	$backups         = array( 'Real-time backups and one-click restores', 'Every change saved. Restore any moment with one click.' );
 
 	$features = array(
 		'Free'     => array(
@@ -554,7 +554,7 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( '1 GB storage' ), __( 'Room for your images, documents, and other media.' ) ),
 				array( __( 'Dozens of free themes' ), __( 'Choose from dozens of professionally designed free themes.' ) ),
 				array( __( 'Free .wordpress.com address' ), sprintf( __( 'Your site address ends in .wordpress.com, like %s.' ), untangling_get_site_slug() . '.wordpress.com' ) ),
-				array( __( 'WordPress.com ads displayed' ), __( 'Free sites display WordPress.com ads to visitors.' ) ),
+				array( __( 'WordPress.com ads displayed' ), __( 'Free sites display WordPress.com ads to visitors.' ), true ),
 				array( __( 'Community support' ), __( 'Get help from support guides and the community forums.' ) ),
 			),
 			array(
@@ -596,7 +596,7 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( 'Install any plugin or theme' ), __( 'Install any of the thousands of WordPress plugins and themes.' ) ),
 				array( __( 'Advanced SEO tools' ), __( 'Control how your posts appear in search results and on social.' ) ),
 				$support_247,
-				array( __( 'Real-time backups and one-click restores' ), __( 'Every change saved; restore any moment with one click.' ) ),
+				array( __( 'Real-time backups and one-click restores' ), __( 'Every change saved. Restore any moment with one click.' ) ),
 			),
 		),
 		// Business is answered on selling, not on servers: the site is already
@@ -631,7 +631,9 @@ function untangling_plan_compare( $plan = null ) {
 	$label = function ( $rows ) {
 		return array_map(
 			function ( $row ) {
-				return array( 'label' => $row[0], 'tip' => $row[1] );
+				// A third element flags a drawback row (Free's ads line, no AI
+				// credits): the ladder draws it with a grey x, not the check.
+				return array( 'label' => $row[0], 'tip' => $row[1], 'negative' => ! empty( $row[2] ) );
 			},
 			$rows
 		);
@@ -5378,11 +5380,12 @@ function untangling_ms_credits_cta() {
 }
 
 // The Upgrades card, two ways (Lucas, 2026-10-22): 'three' (the default) =
-// the ladder above you — up to three higher tiers, no current column. When
-// fewer than three tiers remain (Premium, Business) the current plan fills
-// the first column, so Business is the one case with two columns. 'two' =
-// the earlier pair: the plan you are on beside the one tier we recommend
-// next (untangling_plan_compare()).
+// the plan you are on, then up to two higher tiers (Lucas, 2026-10-27, on
+// Cris's note that the ladder had no reference of what the current plan
+// includes — before that the card listed up to three tiers above you and
+// left the current one out). Business has one tier above it, so it is the
+// one case with two columns. 'two' = the earlier pair: the plan you are on
+// beside the one tier we recommend next (untangling_plan_compare()).
 function untangling_ms_upgrades_card() {
 	if ( defined( 'UNTANGLING_FORCE_MS_UPGRADES' ) ) {
 		return UNTANGLING_FORCE_MS_UPGRADES;
@@ -5397,15 +5400,19 @@ function untangling_ms_upgrades_card() {
 function untangling_plan_credits_row( $for_plan ) {
 	$allowance = untangling_ai_credits_allowance( $for_plan );
 	if ( ! $allowance ) {
-		return array( __( 'No AI credits included' ), sprintf( __( 'The WordPress Agent runs on AI credits, included with every paid plan. Personal starts at %s a month.' ), untangling_format_credits( untangling_ai_credits_allowance( 'Personal' ) ) ) );
+		return array( __( 'No AI credits included' ), sprintf( __( 'The WordPress Agent runs on AI credits, included with every paid plan. Personal starts at %s a month.' ), untangling_format_credits( untangling_ai_credits_allowance( 'Personal' ) ) ), true );
 	}
 	return array(
 		sprintf( __( '%s AI credits per month' ), untangling_format_credits( $allowance ) ),
-		sprintf( __( 'Spend %s credits a month on the WordPress Agent to write, design, and manage your site. Your balance resets every month.' ), untangling_format_credits( $allowance ) ),
+		sprintf( __( 'Spend %s credits a month in the WordPress Agent to write, design, and manage your site. The balance resets monthly.' ), untangling_format_credits( $allowance ) ),
 	);
 }
 
-// Columns for the three-plan Upgrades card. Each column carries the pricing
+// Columns for the three-plan Upgrades card: the current plan first, then up
+// to two tiers above it. The current column lists everything the plan
+// includes — the same rows the Your site widget previews as chips
+// (untangling_plan_card_features()), so "See all features" lands on the long
+// version of what it promised. Each upgrade column carries the pricing
 // grid's meta and the rows it adds over the tier below ("Everything in X,
 // plus:"), in the grid's order, with the plan's AI credits row first when
 // the allowance grows. Commerce has nothing above it and gets no ladder.
@@ -5416,12 +5423,11 @@ function untangling_plan_ladder( $plan = null ) {
 	if ( false === $rank ) {
 		return array();
 	}
-	$above = array_slice( $order, $rank + 1, 3 );
+	$above = array_slice( $order, $rank + 1, 2 );
 	if ( ! $above ) {
 		return array();
 	}
-	// Fewer than three tiers left: the current plan takes the first column.
-	$names = count( $above ) < 3 ? array_merge( array( $plan ), $above ) : $above;
+	$names = array_merge( array( $plan ), $above );
 
 	$grid    = untangling_plan_grid();
 	$compare = untangling_plan_compare( $plan );
@@ -5433,31 +5439,47 @@ function untangling_plan_ladder( $plan = null ) {
 
 	$columns = array();
 	foreach ( $names as $name ) {
-		$g = $grid[ $name ];
-		// Each column opens with "Everything in <tier below>, plus:" and lists
-		// only the pricing-grid rows the tier below does not have, in the
-		// grid's order, so the card stays short (Lucas, 2026-10-22 — back to
-		// the diff after a round with every row listed, which made the card
-		// too tall). Rows are matched by label, so an upgraded line ("All
-		// premium themes" over "Dozens of premium themes") still shows. The
-		// credits row leads when the allowance grows over the tier below.
-		$below        = $order[ array_search( $name, $order, true ) - 1 ];
-		$below_labels = array_map( function ( $row ) { return $row[0]; }, $grid[ $below ]['features'] );
-		$plus         = array();
-		foreach ( $g['features'] as $row ) {
-			if ( ! in_array( $row[0], $below_labels, true ) ) {
-				$plus[] = $label( $row );
+		$g          = $grid[ $name ];
+		$is_current = $name === $plan;
+		if ( $is_current ) {
+			// The current column is the reference: the full list the plan
+			// includes, in the Your site widget's order, with the plan's own
+			// credits row first so the renderer lifts it beside storage. No
+			// "Everything in X, plus:" line — there is nothing to diff against.
+			$below   = null;
+			$credits = untangling_plan_credits_row( $name );
+			$plus    = array( array( 'label' => $credits[0], 'pill' => '', 'tip' => $credits[1], 'negative' => ! empty( $credits[2] ) ) );
+			foreach ( untangling_plan_card_features( $name ) as $row ) {
+				$plus[] = array( 'label' => $row['label'], 'pill' => '', 'tip' => $row['tip'] );
+			}
+		} else {
+			// Each upgrade column opens with "Everything in <tier below>, plus:"
+			// and lists only the pricing-grid rows the tier below does not have,
+			// in the grid's order, so the card stays short (Lucas, 2026-10-22 —
+			// back to the diff after a round with every row listed, which made
+			// the card too tall). Rows are matched by label, so an upgraded line
+			// ("All premium themes" over "Dozens of premium themes") still shows.
+			// The credits row leads when the allowance grows over the tier below.
+			$below        = $order[ array_search( $name, $order, true ) - 1 ];
+			$below_labels = array_map( function ( $row ) { return $row[0]; }, $grid[ $below ]['features'] );
+			$plus         = array();
+			foreach ( $g['features'] as $row ) {
+				if ( ! in_array( $row[0], $below_labels, true ) ) {
+					$plus[] = $label( $row );
+				}
+			}
+			if ( untangling_ai_credits_allowance( $name ) !== untangling_ai_credits_allowance( $below ) ) {
+				$credits = untangling_plan_credits_row( $name );
+				array_unshift( $plus, array( 'label' => $credits[0], 'pill' => '', 'tip' => $credits[1], 'negative' => ! empty( $credits[2] ) ) );
 			}
 		}
-		if ( untangling_ai_credits_allowance( $name ) !== untangling_ai_credits_allowance( $below ) ) {
-			$credits = untangling_plan_credits_row( $name );
-			array_unshift( $plus, array( 'label' => $credits[0], 'pill' => '', 'tip' => $credits[1] ) );
-		}
-		$is_current = $name === $plan;
 		$columns[]  = array(
 			'name'        => $name,
 			'isCurrent'   => $is_current,
 			'isNext'      => $name === $next,
+			// The current column lists the full plan, not a diff — the renderer
+			// labels it so. The two-plan card's columns never set this.
+			'full'        => $is_current,
 			'plus'        => $below,
 			'pill'        => $is_current ? '' : ( isset( $pills[ $name ] ) ? $pills[ $name ] : $g['badge'] ),
 			'features'    => $plus,
@@ -6403,16 +6425,16 @@ function untangling_plan_grid() {
 	$builder_tip = __( 'Skip the blank screen — create and launch a WordPress.com website in minutes by chatting with AI.' );
 	$unlimited   = array( __( 'Unlimited pages, posts, users, and visitors' ), '', __( 'Grow your site without limits — unlimited content, users, and traffic.' ) );
 	$domain      = array( __( 'Free domain for one year' ), '', $domain_tip );
-	$no_ads      = array( __( 'No ads for visitors' ), '', __( 'Free sites display WordPress.com ads to visitors. Upgrade to Personal to turn them off.' ) );
+	$no_ads      = array( __( 'Ad-free experience' ), '', __( 'Free sites display WordPress.com ads to visitors. Upgrade to Personal to turn them off.' ) );
 	$builder_lim = array( __( 'Guided website builder (usage limits apply)' ), '', $builder_tip );
 	$builder     = array( __( 'Create your site with a guided website builder' ), '', $builder_tip );
 	$themes_some = array( __( 'Dozens of premium themes' ), '', __( 'Install select premium themes from the WordPress.com marketplace.' ) );
 	$themes_all  = array( __( 'All premium themes' ), '', __( 'Install any premium theme from the WordPress.com marketplace.' ) );
 	$plugins     = array( __( 'Extend your site with WordPress plugins' ), '', __( 'Install any of over 60,000 plugins from the WordPress.com marketplace, or upload a plugin directly to your site.' ) );
 	$stats       = array( __( 'Premium stats and analytics' ), '', __( 'Access all stats & analytics, including UTM tracking and device insights.' ) );
-	$payments    = array( __( 'Add payment buttons' ), '', __( 'Collect payments and donations with PayPal and Stripe.' ) );
-	$support     = array( __( 'Free support' ), '', __( 'Get support from our expert, friendly Happiness team.' ) );
-	$support_247 = array( __( 'Free 24/7 priority expert support' ), '', __( 'Your support questions answered first by our expert, friendly Happiness team.' ) );
+	$payments    = array( __( 'Payments and paid subscriptions' ), '', __( 'Collect payments and donations with PayPal and Stripe.' ) );
+	$support     = array( __( 'Support from our expert team' ), '', __( 'Get support from our expert, friendly Happiness team.' ) );
+	$support_247 = array( __( '24/7 priority support' ), '', __( 'Your support questions answered first by our expert, friendly Happiness team.' ) );
 	$videopress  = array( __( 'Use VideoPress with 250 GB dedicated storage' ), '', __( 'Showcase your video beautifully with the high-quality, ad-free VideoPress player.' ) );
 	$assistant   = array( __( 'Built-in site assistant' ), '', __( 'Use the WordPress AI Assistant to generate content, design, and manage your site — all without leaving WordPress.' ) );
 	$biz_email   = array( __( 'Free business email account for one year' ), '', __( 'Build and grow your online presence with a professional email address at your domain name, powered by Titan' ) );
@@ -6469,7 +6491,7 @@ function untangling_plan_grid() {
 				$domain,
 				$no_ads,
 				$builder_lim,
-				$themes_some,
+				$themes_all,
 				$support,
 				$plugins,
 				$stats,
@@ -6521,7 +6543,7 @@ function untangling_plan_grid() {
 				$domain,
 				$no_ads,
 				$builder,
-				array( __( 'Premium store themes' ), '', __( 'Jumpstart your store’s design with a professionally designed theme.' ) ),
+				array( __( 'Premium store designs' ), '', __( 'Jumpstart your store’s design with a professionally designed theme.' ) ),
 				$support_247,
 				$plugins,
 				$stats,
@@ -8387,11 +8409,11 @@ add_action( 'admin_footer', function () {
 					? __( 'Add credits as a text link beside the balance — the lighter card.' )
 					: __( 'A pack picker with a secondary Add credits button under the meter, like the Storage card. Upgrading lives on the plan card, which keeps the one primary button.' ) );
 				// The Upgrades card: the current plan beside the recommended
-				// next tier, or the ladder of higher tiers without the current
-				// one (Business is the one plan that still shows itself there).
+				// next tier, or the current plan followed by up to two higher
+				// tiers (Business has one above it, so it is the two-plan card).
 				$ms_upgrades = untangling_ms_upgrades_card();
 				$seg( __( 'Upgrades card' ), 'untangling_ms_upgrades', array( 'three' => __( 'Three plans' ), 'two' => __( 'Two plans' ) ), $ms_upgrades, 'three' === $ms_upgrades
-					? __( 'Up to three higher tiers, current plan left out. Premium and Business have fewer tiers above them, so their own plan fills the first column — Business is the one card with two plans.' )
+					? __( 'Your plan first, with everything it includes, then up to two tiers above it and what each one adds. Business has one tier above it, so it is the one card with two plans.' )
 					: __( 'The plan you are on beside the one tier we recommend next, rows paired line by line.' ) );
 				$group( __( 'wp-admin' ) );
 				// The plan drives everything on both surfaces: widgets, Upgrades,
@@ -9467,6 +9489,18 @@ function untangling_dw_jetpack_title( $title ) {
 	return '<span class="untangling-dw-title">' . $mark . '<span>' . esc_html( $title ) . '</span></span>';
 }
 
+// The WordPress.com mark before a widget title, the Hosting widget's answer
+// to the Jetpack mark on Stats / Log Activity / Newsletter (Cris, 2026-10-27:
+// with four Jetpack marks on the page the unmarked Hosting widget looked
+// orphaned). The glyph is the admin bar's own W (Dashicons f120), in the
+// brand blue, 16px like the Jetpack mark (Lucas, 2026-10-27 — the earlier
+// hand-drawn SVG, stroked for weight, came out as a blob). Hidden in Screen
+// Options like the Jetpack mark.
+function untangling_dw_wpcom_title( $title ) {
+	$mark = '<span class="dashicons dashicons-wordpress ms-wp-mark" aria-hidden="true"></span>';
+	return '<span class="untangling-dw-title">' . $mark . '<span>' . esc_html( $title ) . '</span></span>';
+}
+
 add_action( 'wp_dashboard_setup', function () {
 	$mount = function ( $id ) {
 		return function () use ( $id ) {
@@ -9483,11 +9517,11 @@ add_action( 'wp_dashboard_setup', function () {
 		// former Site preview and Plan widgets, redesigned as one.
 		'untangling_dw_site'       => array( __( 'Your site' ), 'site' ),
 		'untangling_dw_stats'      => array( untangling_dw_jetpack_title( __( 'Stats' ) ), 'stats' ),
-		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Log Activity' ) ), 'activity' ),
+		'untangling_dw_activity'   => array( untangling_dw_jetpack_title( __( 'Activity log' ) ), 'activity' ),
 		// Hosting (was Site details): core's At a glance extended with what the site runs
 		// on, plus the hosting tools behind an expand/collapse — the former
 		// Hosting widget folded in, so the column does not run tall.
-		'untangling_dw_glance'     => array( __( 'Hosting' ), 'glance' ),
+		'untangling_dw_glance'     => array( untangling_dw_wpcom_title( __( 'Hosting' ) ), 'glance' ),
 		// Jetpack Newsletter, as the Jetpack plugin registers it on every
 		// WP.com site (modules/subscriptions/newsletter-widget): same id, same
 		// mount markup, same body. The title follows the other Jetpack-backed
@@ -10268,7 +10302,7 @@ function untangling_pw_render_prompt() {
 					<div class="wpcom-daily-writing-prompt--answered-users">
 						<span>
 							<?php foreach ( $avatars as $hash ) : ?>
-								<img alt="<?php esc_attr_e( 'User avatar' ); ?>" src="<?php echo esc_url( 'https://secure.gravatar.com/avatar/' . $hash . '?s=48&d=identicon&f=y' ); ?>" width="24" height="24" />
+								<img alt="" src="<?php echo esc_url( 'https://secure.gravatar.com/avatar/' . $hash . '?s=48&d=identicon&f=y' ); ?>" width="24" height="24" />
 							<?php endforeach; ?>
 							<span class="wpcom-daily-writing-prompt--answered-users-more">+<?php echo (int) $prompts[0]['count']; ?></span>
 						</span>
@@ -10379,8 +10413,8 @@ function untangling_pw_css() {
 }
 
 /* Daily Writing Prompt (jetpack-newsletter). */
-.untangling-pw-prompt { font-size: 13px; color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
-.untangling-pw-prompt .untangling-pw-stack { display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md, 16px); }
+.untangling-pw-prompt { font-size: var(--wpds-typography-font-size-md, 13px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-pw-prompt .untangling-pw-stack { display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md, 12px); }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--prompt { display: flex; align-items: flex-start; gap: var(--wpds-dimension-gap-sm, 8px); }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--prompt-text { flex: 1; margin: 0; font-size: 16px; line-height: 24px; text-wrap: pretty; }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--prompt-nav { flex-shrink: 0; display: flex; align-items: center; gap: var(--wpds-dimension-gap-xs, 4px); }
@@ -10393,8 +10427,8 @@ function untangling_pw_css() {
 .untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users { display: flex; align-items: center; gap: var(--wpds-dimension-gap-sm, 8px); }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users img { vertical-align: middle; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; }
 .untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users img:first-child { margin-inline-start: 0; }
-.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users-more { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 24px; height: 24px; font-size: 0.5625rem; font-variant-numeric: tabular-nums; line-height: 1; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; background: #f0f0f0; color: #757575; }
-.untangling-pw-prompt .untangling-pw-link { display: inline-flex; align-items: center; gap: 2px; color: var(--wpds-color-foreground-content-brand, #3858e9); text-decoration: underline; font-size: 13px; }
+.untangling-pw-prompt .wpcom-daily-writing-prompt--answered-users-more { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 24px; height: 24px; font-size: var(--wpds-typography-font-size-xs, 11px); font-variant-numeric: tabular-nums; line-height: 1; border-radius: 50%; border: 2px solid #fff; margin-inline-start: -10px; background: #f0f0f0; color: #757575; }
+.untangling-pw-prompt .untangling-pw-link { display: inline-flex; align-items: center; gap: 2px; color: var(--wpds-color-foreground-content-brand, #3858e9); text-decoration: underline; font-size: var(--wpds-typography-font-size-md, 13px); }
 CSS;
 }
 
@@ -10587,7 +10621,7 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
 #screen-options-wrap .metabox-prefs { min-inline-size: 0; }
 .untangling-dw-optgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 12px 24px; margin: 12px 0 4px; max-width: 1400px; min-width: 0; }
 .untangling-dw-optgroup { margin: 0; min-inline-size: 0; }
-.untangling-dw-optgroup legend { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 6px; }
+.untangling-dw-optgroup legend { font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); letter-spacing: .04em; text-transform: uppercase; color: #757575; margin: 0 0 6px; }
 .untangling-dw-optgroup label { display: block; margin: 0 0 8px; }
 
 /* Widgets inside postboxes: the postbox supplies chrome and title, so the
@@ -10597,10 +10631,9 @@ body.is-dragging-metaboxes #dashboard-widgets .postbox-container .empty-containe
    stacks on the body's own padding and every widget opens with a 23px gap
    against 12px on the other three sides. */
 #dashboard-widgets .postbox .untangling-dw { margin: -11px -12px -12px; }
-.untangling-dw { font-size: 13px; }
+.untangling-dw { font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-dw .components-card { box-shadow: none; border-radius: 0; }
 .untangling-dw > * { padding: 12px; }
-.untangling-dw > .ms-linkfooter,
 /* Pixel snapping. Core's page title (23px × 1.3 = 29.9px) and postbox header
    (14px × 1.4 = 19.6px) leave every widget body on a half-pixel, and a 1px
    hairline on a half-pixel is painted across two rows on a 1x display — the
@@ -10610,27 +10643,38 @@ body.index-php .wrap h1 { line-height: 30px; }
 #dashboard-widgets .postbox-header .hndle { line-height: 20px; }
 .untangling-dw > .ms-dw-body { padding: 12px; }
 
+/* A grid that ends the body sits on the footer hairline, like the Developer
+   tools disclosure does on Business (its -12px margin): without this the
+   body's bottom padding stayed under the last row on Free / Personal /
+   Premium and "Developer tools" read taller than the rows above it (Cris,
+   2026-10-27). */
+.untangling-dw .ms-dw-body > .ms-dw-grid:last-child { margin-bottom: -12px; }
+/* And a grid that opens the body sits on the header hairline, so the first
+   row is as tall as the rest (Lucas, 2026-10-27). */
+.untangling-dw .ms-dw-body > .ms-dw-grid:first-child { margin-top: -12px; }
+
 /* Generic widget body + footer. The footer mirrors .ms-linkfooter but sits on
    a hairline inside the postbox. */
 .untangling-dw .ms-dw-body { display: flex; flex-direction: column; gap: 12px; container: dw-body / inline-size; }
 /* Children space through the flex gap alone; trailing text margins would stack on it. */
 .untangling-dw .ms-dw-body > * > :last-child { margin-bottom: 0; }
-.untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: 13px; }
+.untangling-dw .ms-linkfooter { border-top: 1px solid #f0f0f0; padding: 12px; font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-dw .ms-linkfooter .ms-logs-credit { position: static; transform: none; margin-left: auto; margin-right: 10px; }
 
 /* Jetpack-backed widgets: mark + name in the postbox title, the single credit.
    Hidden in the Screen Options checkbox label, where core reuses the title. */
 .postbox .untangling-dw-title { display: inline-flex; align-items: center; gap: 8px; }
-.postbox .untangling-dw-title .ms-jp-mark { flex-shrink: 0; width: 16px; height: 16px; }
+.postbox .untangling-dw-title .ms-jp-mark, .postbox .untangling-dw-title .ms-wp-mark { flex-shrink: 0; width: 16px; height: 16px; }
+.postbox .untangling-dw-title .ms-wp-mark { font-size: 18px; line-height: 16px; color: #3858e9; }
 .metabox-prefs .untangling-dw-title { display: inline; }
-.metabox-prefs .untangling-dw-title .ms-jp-mark { display: none; }
+.metabox-prefs .untangling-dw-title .ms-jp-mark, .metabox-prefs .untangling-dw-title .ms-wp-mark { display: none; }
 
 /* Stats → Highlights: a disclosure row under the chart (closed by default),
    then the Jetpack widget's 7-day lists as one segmented pair + rows. */
 
 /* Site details: label/value rows split by hairlines (the settings-card model). */
 .untangling-dw .ms-dw-grid { display: flex; flex-direction: column; }
-.untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
+.untangling-dw .ms-dw-grid-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 -12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f0; line-height: 20px; }
 .untangling-dw .ms-dw-grid-row:last-child { border-bottom: 0; }
 .untangling-dw .ms-dw-grid-label { color: #757575; flex-shrink: 0; }
 /* The value is the flexible half of the row: it must be allowed to shrink past
@@ -10661,9 +10705,9 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-dw-kpis { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; }
 .untangling-dw .ms-dw-kpi { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; line-height: 20px; }
 .untangling-dw .ms-dw-kpi-swatch { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; }
-.untangling-dw .ms-dw-kpi-label { font-size: 13px; line-height: 20px; color: #757575; }
-.untangling-dw .ms-dw-kpi-value { font-size: 14px; line-height: 20px; font-weight: 600; color: #1e1e1e; font-variant-numeric: tabular-nums; }
-.untangling-dw .ms-dw-kpi-delta { align-self: center; padding: 1px 5px; border-radius: 999px; background: #f0f0f0; font-size: 11px; line-height: 14px; font-weight: 500; color: #1e1e1e; }
+.untangling-dw .ms-dw-kpi-label { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
+.untangling-dw .ms-dw-kpi-value { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); color: #1e1e1e; font-variant-numeric: tabular-nums; }
+.untangling-dw .ms-dw-kpi-delta { align-self: center; padding: 1px 5px; border-radius: 999px; background: #f0f0f0; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); font-weight: 500; color: #1e1e1e; }
 /* Stacked (Stats): the control takes its own row above the numbers, at its
    content width and flush left like the legend, and the legend keeps its
    full copy (dot · label · value · delta) under it, wrapping entries whole.
@@ -10733,7 +10777,7 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-dw-periods.components-toggle-group-control::before { background: #fff; }
 .untangling-dw .ms-dw-periods.components-toggle-group-control:focus-within, .untangling-dw .ms-dw-periods.components-toggle-group-control:focus { outline: none; box-shadow: none; }
 .untangling-dw .ms-dw-periods.components-toggle-group-control > div { display: flex; align-items: stretch; height: auto; margin: 0; padding: 0; overflow: visible; }
-.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base { font: inherit; font-size: 13px; line-height: 20px; font-weight: 400; padding: 0 11px; color: #757575; border-radius: 2px; white-space: nowrap; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+.untangling-dw .ms-dw-periods .components-toggle-group-control-option-base { font: inherit; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-default, 400); padding: 0 11px; color: #757575; border-radius: 2px; white-space: nowrap; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
 .untangling-dw .ms-dw-periods .components-toggle-group-control-option-base:hover:not([aria-checked="true"]) { color: #1e1e1e; }
 .untangling-dw .ms-dw-periods .components-toggle-group-control-option-base:focus-visible { outline: var(--wpds-border-width-focus, 1.5px) solid var(--wpds-color-stroke-focus, #3858e9); outline-offset: -1px; }
 .untangling-dw .ms-dw-periods .components-toggle-group-control-option-base[aria-checked="true"] { color: #1e1e1e; font-weight: 600; background: transparent; }
@@ -10773,10 +10817,10 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw a.ms-dw-feed-row:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
 .untangling-dw .ms-dw-feed-icon { flex-shrink: 0; display: flex; margin-top: 1px; }
 .untangling-dw .ms-dw-feed-icon svg { fill: #757575; }
-.untangling-dw .ms-dw-feed-main { flex: 1; min-width: 0; }
+.untangling-dw .ms-dw-feed-main { flex: 1; min-width: 0; line-height: 18px; }
 .untangling-dw .ms-dw-feed-title { display: block; font-weight: 500; color: #1e1e1e; }
 .untangling-dw .ms-dw-feed-summary { display: block; color: #757575; }
-.untangling-dw .ms-dw-feed-time { flex-shrink: 0; color: #757575; font-size: 12px; margin-top: 2px; }
+.untangling-dw .ms-dw-feed-time { flex-shrink: 0; color: #757575; font-size: var(--wpds-typography-font-size-sm, 12px); margin-top: 2px; }
 /* Narrow well (the three-column dashboard): icon, text and time on one line
    leave the title barely 130px of measure. Wrap the time under the text
    instead, indented to the text's own edge (20px icon + 10px gap), so the
@@ -10798,11 +10842,14 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-dw-site { gap: 16px; }
 .untangling-dw .ms-dw-site-plan { padding-top: 16px; border-top: 1px solid #f6f7f7; }
 .untangling-dw .ms-dw-site-id { display: flex; align-items: flex-start; gap: 16px; }
-.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; width: 94px; aspect-ratio: 94 / 85; overflow: hidden; border: 1px solid #c3c4c7; border-radius: 2px; background: #f6f7f7; }
+/* The thumb is sized by the words beside it: it stretches to the row, so its
+   bottom edge always lands on the buttons' bottom edge (Cris, 2026-10-27)
+   instead of a fixed 94/85 ratio ending 3px above or below them. */
+.untangling-dw .ms-dw-site-thumb { position: relative; display: block; flex: none; align-self: stretch; width: 94px; overflow: hidden; border: 1px solid #c3c4c7; border-radius: 2px; background: #f6f7f7; }
 .untangling-dw .ms-dw-site-iframe { position: absolute; top: 0; left: 0; width: 1000%; min-height: 1000%; border: 0; transform: scale(.1); transform-origin: top left; pointer-events: none; }
 .untangling-dw .ms-dw-site-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 #dashboard-widgets .postbox .untangling-dw .ms-dw-site-name { margin: 0; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.24px; color: #1e1e1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.untangling-dw a.ms-dw-site-domain { font-size: 12px; line-height: 16px; color: #757575; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.untangling-dw a.ms-dw-site-domain { font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); color: #757575; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .untangling-dw a.ms-dw-site-domain:hover, .untangling-dw a.ms-dw-site-domain:focus-visible { color: #3858e9; text-decoration: underline; }
 .untangling-dw .ms-dw-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 /* Visit site is the tertiary button as the design system ships it — brand
@@ -10818,14 +10865,16 @@ body.index-php .wrap h1 { line-height: 30px; }
 	.untangling-dw .ms-dw-site-id { flex-direction: column; align-items: stretch; }
 	/* Full width turns the 10% preview into a ~296x185 mostly-blank hero. Cap
 	   it so it still reads as the site's face, left-aligned under the name. */
-	.untangling-dw .ms-dw-site-thumb { width: 100%; max-width: 120px; }
+	/* Stacked, the row is a column and stretch would give the thumb no
+	   height — the ratio comes back only here. */
+	.untangling-dw .ms-dw-site-thumb { width: 100%; max-width: 120px; align-self: auto; aspect-ratio: 94 / 85; }
 }
 
 /* Plan block: name + Active on the left, renewal on the right (wraps under
    when the well is narrow), then the included features as check chips. */
 .untangling-dw .ms-dw-site-planrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
-.untangling-dw .ms-dw-site-planname { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: -0.078px; color: #1e1e1e; line-height: 20px; }
-.untangling-dw .ms-dw-site-renew { font-size: 13px; line-height: 20px; color: #757575; }
+.untangling-dw .ms-dw-site-planname { display: inline-flex; align-items: center; gap: 8px; font-size: var(--wpds-typography-font-size-md, 13px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); letter-spacing: -0.078px; color: #1e1e1e; line-height: var(--wpds-typography-line-height-sm, 20px); }
+.untangling-dw .ms-dw-site-renew { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
 /* What the plan includes: the check list (.ms-plan-features, its tooltips
    on each feature), inside the plan block — so no hairline or bleed of its
    own — with "+N more" as the last row, a link into Upgrades. One column,
@@ -10841,14 +10890,14 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-dw-site-plan .ms-plan-features { margin: 8px 0 0; padding: 0; border-top: 0; grid-template-columns: 1fr; gap: 4px 24px; }
 .untangling-dw .ms-dw-site-features li { margin: 0; align-items: flex-start; gap: 4px; line-height: 20px; }
 .untangling-dw .ms-dw-site-features .ms-plan-check { flex: none; height: 20px; align-items: center; }
-.untangling-dw .ms-dw-site-more { margin: 12px 0 0; padding-left: 5px; font-size: 13px; line-height: 20px; }
+.untangling-dw .ms-dw-site-more { margin: 12px 0 0; padding-left: 5px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); }
 .untangling-dw .ms-dw-site-more a { color: #3858e9; font-weight: 600; text-decoration: none; }
 .untangling-dw .ms-dw-site-more a:hover, .untangling-dw .ms-dw-site-more a:focus-visible { text-decoration: underline; }
 /* Promo box: brand-tinted (theme alpha 4 on alpha 8), 12px padding, title
    on description at 4px, then the primary Upgrade plan at 8px. */
 .untangling-dw .ms-dw-site-promo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; background: rgba(56, 88, 233, 0.04); border: 1px solid rgba(56, 88, 233, 0.08); border-radius: 4px; }
 .untangling-dw .ms-dw-site-promo-top { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-#dashboard-widgets .postbox .untangling-dw .ms-dw-site-promo-title { margin: 0; padding: 0; font-size: 13px; line-height: 20px; font-weight: 600; letter-spacing: -0.078px; color: #1e1e1e; }
+#dashboard-widgets .postbox .untangling-dw .ms-dw-site-promo-title { margin: 0; padding: 0; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); letter-spacing: -0.078px; color: #1e1e1e; }
 .untangling-dw .ms-dw-site-promo-desc { margin: 0; font-size: 12px; line-height: 16px; color: #757575; }
 .untangling-dw .ms-dw-site-promo .components-button svg { fill: currentColor; }
 /* The shared tooltip bubble is 300px wide and anchors at the label's left
@@ -10874,13 +10923,13 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-tl-tasks { background: #f6f7f7; }
 .untangling-dw .ms-tl-card { box-shadow: none; border: 1px solid transparent; }
 .untangling-dw .ms-tl-card.is-open { box-shadow: 0 4px 12px rgba(0, 0, 0, .08), 0 0 0 1px #e0e0e0; }
-.untangling-dw .ms-tl-progress { margin: 0 0 10px; font-size: 12px; color: #757575; }
+.untangling-dw .ms-tl-progress { margin: 0 0 10px; font-size: var(--wpds-typography-font-size-md, 13px); color: #757575; }
 /* Provenance line, widget edition: no hairline (it read as a second footer
    under the checklist), the text inset 8px so it lines up with the cards'
    left edge inside the tasks well. The gradient shimmer and
    the sparks carry over from the page unchanged — overflow stays visible so
    the sparks can float above the line. */
-.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { position: relative; display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 8px; text-align: left; font-size: 12px; line-height: 16px; color: #757575; white-space: nowrap; }
+.untangling-dw .ms-dw-body > * > .ms-madefor.is-compact { position: relative; display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 8px; text-align: left; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); color: #757575; white-space: nowrap; }
 .untangling-dw .ms-madefor.is-compact > span:last-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .untangling-dw .ms-madefor.is-compact .ms-ai { flex-shrink: 0; }
 /* Under ~420px the single line ellipsises mid-word ("…from your s…"), which is
@@ -10900,7 +10949,7 @@ body.index-php .wrap h1 { line-height: 30px; }
 .untangling-dw .ms-hero-title { font-size: 18px; }
 
 /* Upsell callouts stack in the narrow column. */
-.untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.untangling-dw .ms-upsell { flex-direction: column; align-items: flex-start; gap: 12px; padding: 8px 0; }
 
 /* Expand/collapse row (Hosting → Developer tools): a grid row that folds. The
    trigger has the grid rows' metrics (13px on 20px, 9px of padding), regular
@@ -10912,7 +10961,7 @@ body.index-php .wrap h1 { line-height: 30px; }
 /* The fold hugs the grid above it: the body's 12px gap would push its
    hairline off the rows' 9px rhythm. */
 .untangling-dw .ms-dw-disclosure { margin: -12px -12px -12px; }
-.untangling-dw .ms-dw-disclosure-trigger { position: relative; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 9px 12px; border: 0; border-radius: 0; background: none; font: inherit; font-size: 13px; line-height: 20px; font-weight: 400; color: #1e1e1e; text-align: left; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
+.untangling-dw .ms-dw-disclosure-trigger { position: relative; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 9px 12px; border: 0; border-radius: 0; background: none; font: inherit; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-default, 400); color: #1e1e1e; text-align: left; cursor: var(--wpds-cursor-control, pointer); transition: color var(--wpds-motion-duration-sm, 100ms) var(--wpds-motion-easing-subtle, ease); }
 .untangling-dw .ms-dw-disclosure-trigger::before, .untangling-dw .ms-dw-disclosure.is-open .ms-dw-disclosure-trigger::after { content: ''; position: absolute; left: 0; right: 0; height: 1px; background: #f0f0f0; pointer-events: none; }
 .untangling-dw .ms-dw-disclosure-trigger::before { top: 0; }
 .untangling-dw .ms-dw-disclosure-trigger::after { bottom: 0; }
@@ -10958,7 +11007,7 @@ body.folded .untangling-dw-snackbars { left: 60px; }
    others, so it ends on the one footer link (.ms-linkfooter) the other
    widgets end on. */
 .newsletter-widget__header { padding: 12px; margin-bottom: 12px; }
-.newsletter-widget__heading { font-weight: var(--wpds-typography-font-weight-emphasis, 499) !important; }
+.newsletter-widget__heading { font-weight: var(--wpds-typography-font-weight-emphasis, 600) !important; }
 .newsletter-widget__stat-label { margin-left: 4px; text-decoration: none; }
 .newsletter-widget__stats { display: flex; gap: 12px; flex-wrap: wrap; width: 100%; }
 .newsletter-widget__stats > :first-child { margin-right: 12px; }
@@ -11011,13 +11060,13 @@ body.folded .untangling-dw-snackbars { left: 60px; }
 .newsletter-widget__chart { padding-top: 12px; }
 .newsletter-widget__spark .ms-dw-head.is-list { padding-bottom: 8px; }
 .newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpis { margin-left: 0; }
-.newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpi { align-items: center; gap: 6px; }
+.newsletter-widget__spark .ms-dw-head.is-list .ms-dw-kpi { align-items: center; gap: 8px; }
 /* The copy is the whole KPI's link and its only tap target: on the 20px
    line 2px of padding takes it to 24px, and stacked the rows sit 6px apart
    so two targets never touch. */
 .newsletter-widget__spark .ms-dw-kpi-copy { display: inline-block; padding: 2px 0; text-decoration: none; color: var(--wp-admin-theme-color, #3858e9); }
-.newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-value, .newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-label { color: inherit; font-size: 13px; line-height: 20px; }
-.newsletter-widget__spark .ms-dw-kpi-detail { color: #757575; font-size: 13px; line-height: 20px; white-space: nowrap; }
+.newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-value, .newsletter-widget__spark .ms-dw-kpi-copy .ms-dw-kpi-label { color: inherit; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); }
+.newsletter-widget__spark .ms-dw-kpi-detail { color: #757575; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); white-space: nowrap; }
 /* Last resort: the detail is nowrap, so a long one ("9,163 via email") keeps
    the stacked row wider than the postbox. Drop it from the line — the link's
    title and the swatch's tooltip still carry it. */
@@ -11158,7 +11207,7 @@ function untangling_ms_app_js() {
 	var UPSELL_GLYPH = 'M18.9397 9.87999 15.4197 6.06999 15.3597 6.00999C15.2897 5.93999 15.1997 5.89999 15.0997 5.89999H8.87973C8.77973 5.89999 8.68973 5.93999 8.61973 6.00999L5.05973 9.87999C4.93973 10.01 4.93973 10.21 5.05973 10.34L11.5397 17.86C11.6497 17.99 11.8197 18.07 11.9997 18.07C12.1797 18.07 12.3397 17.99 12.4597 17.86L18.9397 10.34C19.0597 10.21 19.0497 10.01 18.9397 9.87999ZM15.4097 7.53999 17.3297 9.63999H15.1697L15.4097 7.53999ZM14.4297 6.83999 14.1097 9.63999H10.2897L9.64973 6.83999H14.4297ZM8.68973 7.42999 9.19973 9.63999H6.66973L8.68973 7.42999ZM6.61973 10.6H9.42973L10.8397 15.49 6.61973 10.6ZM12.0397 15.87 10.5297 10.6H13.8597L12.0397 15.87ZM14.9697 10.6H17.3797L13.3697 15.24 14.9697 10.6Z';
 
 	function upsellDiamond() {
-		return icon( UPSELL_GLYPH, '4.4 5.4 15.2 13.2', 14 );
+		return icon( UPSELL_GLYPH, '4.4 5.4 15.2 13.2', 16 );
 	}
 
 	// The Jetpack mark — same geometry and green as Calypso's
@@ -11225,23 +11274,31 @@ function untangling_ms_app_js() {
 		return el( 'p', { className: 'ms-card-desc' }, text );
 	}
 
+	// Links that leave wp-admin for the Hosting Dashboard end in ↗ — still
+	// inside the WordPress product, so not the design system's external icon,
+	// which is kept for pages outside the product (Lucas, 2026-10-27, on
+	// Cris's note). The glyph is decorative: the label already says where.
+	function extArrow() {
+		return el( 'span', { className: 'ms-ext-arrow', 'aria-hidden': true }, ' ↗' );
+	}
+
 	function extLink( href, label ) {
 		return el( 'a', { className: 'ms-extlink', href: href },
 			label,
-			icon( PATHS.external, '0 0 24 24', 16 )
+			extArrow()
 		);
 	}
 
 	// The MSD's HostingFeatureGatedWithCallout upsell, in the ms idiom — but a
-	// row, not a centered empty state: icon chip, title + one-line description,
-	// CTA on the right. The old layout stacked four blocks of centered text in
+	// row, not a centered empty state: title + one-line description, CTA on
+	// the right (no icon tile since 2026-10-27; the icon: prop at the call
+	// sites is inert). The old layout stacked four blocks of centered text in
 	// a full-width card, so three gated cards read as three broken pages. The
 	// plan name lives in the CTA ("Upgrade to Business") instead of a separate
 	// availability sentence repeated in every card.
 	// props.inline renders the bordered in-card variant (Free activity log).
 	function UpsellCallout( props ) {
 		return el( 'div', { className: 'ms-upsell' + ( props.inline ? ' is-inline' : '' ) + ( props.stacked ? ' is-stacked' : '' ) },
-			el( 'span', { className: 'ms-upsell-icon', 'aria-hidden': true }, icon( PATHS[ props.icon || 'plugin' ], '0 0 24 24', 24 ) ),
 			el( 'span', { className: 'ms-upsell-main' },
 				el( 'h3', { className: 'ms-upsell-title' }, props.title ),
 				el( 'p', { className: 'ms-upsell-desc' }, props.desc )
@@ -11250,7 +11307,7 @@ function untangling_ms_app_js() {
 			// carry three or four of them at once — as primaries they outshouted
 			// the page's one real primary action and each other. The diamond and
 			// the blue label still read as an upgrade.
-			el( Button, { variant: 'secondary', size: props.size, icon: upsellDiamond(), iconSize: 14, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
+			el( Button, { variant: 'secondary', size: props.size, icon: upsellDiamond(), iconSize: 16, href: plansUrlFor( props.need ), __next40pxDefaultSize: true }, props.cta || 'Upgrade plan' )
 		);
 	}
 
@@ -12368,7 +12425,7 @@ function untangling_ms_app_js() {
 				),
 				body,
 				el( 'div', { className: 'ms-missing-foot' },
-					el( Button, { variant: 'primary', icon: upsellDiamond(), iconSize: 14, href: plansUrlFor( 'hosting' ), __next40pxDefaultSize: true }, 'See plans' )
+					el( Button, { variant: 'primary', icon: upsellDiamond(), iconSize: 16, href: plansUrlFor( 'hosting' ), __next40pxDefaultSize: true }, 'See plans' )
 				)
 			)
 		);
@@ -12429,9 +12486,16 @@ function untangling_ms_app_js() {
 	// credits line, which gets Calypso's sparkles icon (packages/components
 	// icons/sparkles, the mark the Stats AI empty state uses) in the admin
 	// blue so the Agent allowance stands out from the list (Lucas,
-	// 2026-10-22). Free's "No AI credits included" keeps the check: there is
-	// nothing to sparkle about.
+	// 2026-10-22). Drawback rows ("No AI credits included", "WordPress.com ads
+	// displayed") carry feature.negative from PHP and get a grey closeSmall x
+	// in the same 16px box, so a drawback no longer reads as a benefit
+	// (2026-10-27).
 	function gridCheckMs( feature ) {
+		if ( feature && feature.negative ) {
+			return el( 'svg', { className: 'ms-plangrid-check is-no', viewBox: '0 0 24 24', 'aria-hidden': true, focusable: false },
+				el( 'path', { d: 'M12 13.06l3.712 3.713 1.061-1.06L13.061 12l3.712-3.712-1.06-1.06L12 10.938 8.288 7.227l-1.061 1.06L10.939 12l-3.712 3.712 1.06 1.061L12 13.061z' } )
+			);
+		}
 		if ( feature && /^\S+ AI credits per month$/.test( feature.label || '' ) ) {
 			// The glyphs sit in the middle 12 units of the 20-unit box, so the
 			// viewBox is cropped to them; at 16px the sparkles then read at
@@ -12490,7 +12554,7 @@ function untangling_ms_app_js() {
 			),
 			el( 'div', { className: 'ms-plangrid-cta' }, cta ),
 			g.storage ? el( 'div', { className: 'ms-plangrid-storage' },
-				icon( PATHS.cloud, '0 0 24 24', 20 ),
+				icon( PATHS.cloud, '0 0 24 24', 16 ),
 				// No "Add more" here: the Storage card further down the page
 				// sells the add-on (Lucas, 2026-10-23).
 				el( 'span', null, g.storage + ' storage' )
@@ -12499,8 +12563,12 @@ function untangling_ms_app_js() {
 				gridCheckMs( credits ),
 				el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': credits.tip }, credits.label )
 			) : null,
-			// Ladder columns open their list with the pricing grid's own line.
-			col.plus ? el( 'p', { className: 'ms-plangrid-plus' }, 'Everything in ' + col.plus + ', plus:' ) : null,
+			// Upgrade columns open their list with the pricing grid's own line;
+			// the current column (no tier to diff against) opens on the full
+			// list it includes, worded like the Your site widget's chip list.
+			col.plus
+				? el( 'p', { className: 'ms-plangrid-plus' }, 'Everything in ' + col.plus + ', plus:' )
+				: ( col.full ? el( 'p', { className: 'ms-plangrid-plus' }, 'Included with your plan:' ) : null ),
 			el( 'ul', { className: 'ms-plangrid-list' },
 				// The storage row above already says "N GB storage", so the pair's
 				// own storage line (Free/Personal/Premium pairs open with it) would
@@ -12575,7 +12643,7 @@ function untangling_ms_app_js() {
 							var cta = col.isCurrent
 								? el( Button, { variant: 'secondary', disabled: true, __next40pxDefaultSize: true }, 'Current plan' )
 								: el( Button, {
-									variant: 'primary' === g.ctaStyle ? 'primary' : 'secondary',
+									variant: col.isNext ? 'primary' : 'secondary',
 									href: col.checkoutUrl || data.plansUrl,
 									__next40pxDefaultSize: true,
 								}, g.cta || 'Get ' + col.name );
@@ -12621,23 +12689,22 @@ function untangling_ms_app_js() {
 		var body;
 		if ( ! c.allowance ) {
 			body = el( 'div', { className: 'ms-upsell ms-credits-free' },
-				el( 'span', { className: 'ms-upsell-icon' }, icon( PATHS.tip, '0 0 24 24', 24 ) ),
 				el( 'span', { className: 'ms-upsell-main' },
-					el( 'h3', { className: 'ms-upsell-title' }, 'AI credits come with every paid plan' ),
+					el( 'h3', { className: 'ms-upsell-title' }, 'Included with every paid plan' ),
 					// No per-plan allowances here: the plan cards above already say
 					// them. One line on what credits are for, and the support guide
 					// for the rest (Lucas, 2026-10-22).
 					el( 'p', { className: 'ms-upsell-desc' },
-						'Spend them in the WordPress Agent to write, edit, and build. ',
-						el( 'a', { href: 'https://wordpress.com/support/ai/wordpress-agent/', target: '_blank', rel: 'noreferrer' }, 'Learn more about AI' ),
+						'Write, edit, and build with the WordPress Agent. ',
+						el( 'a', { href: 'https://wordpress.com/support/ai/wordpress-agent/', target: '_blank', rel: 'noreferrer' }, 'Learn more' ),
 						'.'
 					)
 				),
-				// "Upgrade", not "See plans": the row is an upsell, and the
+				// "Upgrade plan", not "See plans": the row is an upsell, and the
 				// plan cards above are where the plans are already seen (Lucas,
 				// 2026-10-22). Secondary, so the plan card keeps the page's one
 				// primary button.
-				el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.plansUrl }, 'Upgrade' )
+				el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: data.plansUrl }, 'Upgrade plan' )
 			);
 		} else {
 			// The meter fills with credits USED, left to right, like the
@@ -12646,7 +12713,7 @@ function untangling_ms_app_js() {
 			var pct = Math.max( 0, Math.min( 100, Math.round( ( ( c.allowance - c.left ) / c.allowance ) * 100 ) ) );
 			var useLinks = 'links' === c.cta;
 			var status = c.isLow ? 'low' : ( c.isWarn ? 'warn' : 'ok' );
-			var fineprint = fmtCredits( c.pack.credits ) + ' credits for US$' + Math.round( Number( c.pack.price ) ) + '. One-off, never expire.';
+			var fineprint = fmtCredits( c.pack.credits ) + ' credits for $' + Math.round( Number( c.pack.price ) ) + '. One-off, never expire.';
 			var leftLine = fmtCredits( c.left ) + ' of ' + fmtCredits( c.allowance ) + ' credits left';
 			var actions;
 			if ( useLinks ) {
@@ -12741,9 +12808,7 @@ function untangling_ms_app_js() {
 							variant: isTopTier ? 'primary' : 'secondary',
 							href: msd + '/sites/' + data.siteSlug + '/plans',
 							__next40pxDefaultSize: true,
-							icon: icon( PATHS.external, '0 0 24 24', 20 ),
-							iconPosition: 'right',
-						}, 'Manage' )
+						}, 'Manage ↗' )
 					)
 				),
 				el( CardDivider ),
@@ -12825,7 +12890,7 @@ function untangling_ms_app_js() {
 	// so the Manage link gives way to the CTA. Free has no custom domain to hang
 	// an address on and points at a domain first; paid plans can buy one now.
 	function EmailCardMs() {
-		var addr = 'hello@' + ( data.siteAddress );
+		var addr = 'hello@' + ( isFree ? data.domainUpsell : data.siteAddress );
 		return el( Card, null,
 			el( CardBody, null,
 				cardTitle( 'Email' ),
@@ -12838,7 +12903,7 @@ function untangling_ms_app_js() {
 						// centered, and said the cause after the effect.
 						el( 'p', { className: 'ms-upsell-desc' }, isFree
 							? 'A domain gets you ' + addr + '.'
-							: 'One mailbox, on the domain you already own.'
+							: 'One mailbox on the domain you already own.'
 						)
 					),
 					el( Button, {
@@ -13174,7 +13239,9 @@ function untangling_ms_app_js() {
 		return el( 'a', { className: 'ms-linkfooter', href: href },
 			el( 'span', null, label ),
 			credit ? jetpackCredit( 'ms-logs-credit', 'span' ) : null,
-			icon( internal ? PATHS.chevron : PATHS.external, '0 0 24 24', internal ? 20 : 18 )
+			// In-admin footers (Stats, Newsletter) keep the chevron; the ones
+			// that open the Hosting Dashboard end in ↗ (see extArrow).
+			internal ? icon( PATHS.chevron, '0 0 24 24', 20 ) : extArrow()
 		);
 	}
 
@@ -13310,7 +13377,7 @@ function untangling_ms_app_js() {
 					} )(),
 					// On Free there is nothing to unfold: one row says where the
 					// tools live, and the value is the link into Upgrades.
-					isManaged ? row( 'Developer tools', el( 'a', { href: data.planPageUrl }, 'Comes with Business' ) ) : null
+					isManaged ? row( 'Developer tools', el( 'a', { href: data.planPageUrl }, 'Upgrade to Business' ) ) : null
 				),
 				! isManaged && el( DwDisclosure, { id: 'hosting', title: 'Developer tools' },
 					el( 'div', { className: 'ms-dw-grid' }, tools.map( function ( tool ) {
@@ -13712,10 +13779,10 @@ function untangling_ms_app_js() {
 							el( 'h3', { className: 'ms-dw-site-promo-title' }, 'Do more with ' + compare.next.name ),
 							el( 'p', { className: 'ms-dw-site-promo-desc' }, {
 								Business: 'Plugins, SFTP and SSH, and the tools to run it yourself.',
-								Commerce: 'Sell products and subscriptions, ship worldwide, and track every sale.',
+								Commerce: 'Sell products, ship worldwide, and track every sale.',
 							}[ compare.next.name ] || 'More storage, more design control, and room to grow.' )
 						),
-						el( Button, { variant: 'primary', size: 'compact', icon: upsellDiamond(), iconSize: 14, href: data.plansUrl }, 'Upgrade plan' )
+						el( Button, { variant: 'primary', size: 'compact', icon: upsellDiamond(), iconSize: 16, href: data.plansUrl }, 'Upgrade plan' )
 					)
 					: null
 			)
@@ -13925,9 +13992,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-header { margin-bottom: 24px; }
 .untangling-ms .ms-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .untangling-ms .ms-title,
-.untangling-ms .ms-tl-title { margin: 0; font-size: 32px; line-height: 1.2; font-weight: 500; color: #1e1e1e; }
-.untangling-ms .ms-desc { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: #757575; max-width: 68ch; text-wrap: balance; }
-.untangling-ms .ms-content { display: flex; flex-direction: column; gap: 24px; flex: 1; }
+.untangling-ms .ms-tl-title { margin: 0; font-size: var(--wpds-typography-font-size-2xl, 32px); line-height: var(--wpds-typography-line-height-2xl, 40px); font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-desc { margin: 8px 0 0; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; max-width: 68ch; text-wrap: balance; }
+.untangling-ms .ms-content { display: flex; flex-direction: column; gap: 24px; flex: 1; container: ms-content / inline-size; }
 /* Grow chain so the "Tailored with AI" line (margin-top: auto) sits at the
    bottom of the viewport when the content is short, after it when tall. */
 .untangling-ms .ms-content > .ms-next,
@@ -13936,11 +14003,15 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-new,
 .untangling-ms .ms-new > .ms-tl { display: flex; flex-direction: column; }
 
-/* Grid — MSD overview: 2 columns, 24px gap, 1 column under 1100px.
-   Rows stretch so side-by-side cards share the same bottom edge. */
+/* Grid — MSD overview: 2 columns, 24px gap. Rows stretch so side-by-side
+   cards share the same bottom edge. It collapses on the content well's own
+   width (container query, like the Dashboard widgets), not on the viewport:
+   wp-admin folds its sidebar under 960px, so the well gets wider there, and a
+   1024px window still fits two cards. 640px of content = two ~308px cards,
+   the floor where the Domains and Storage cards still read well. */
 .untangling-ms .ms-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
 .untangling-ms .ms-span2 { grid-column: 1 / -1; }
-@media (max-width: 1100px) {
+@container ms-content (max-width: 639px) {
 	.untangling-ms .ms-grid { grid-template-columns: 1fr; }
 }
 
@@ -13965,8 +14036,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 /* Toggle groups in a title row keep their width — squeezing them wraps labels. */
 .untangling-ms .ms-card-titlerow .components-toggle-group-control { flex-shrink: 0; }
 .untangling-ms .ms-card-title { margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; color: #1e1e1e; }
-.untangling-ms .ms-card-desc { margin: 4px 0 16px; font-size: 13px; line-height: 18px; color: #757575; }
-.untangling-ms .ms-extlink { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; text-decoration: none; color: #3858e9; }
+.untangling-ms .ms-card-desc { margin: 4px 0 16px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
+.untangling-ms .ms-extlink { display: inline-flex; align-items: center; gap: 4px; font-size: var(--wpds-typography-font-size-md, 13px); text-decoration: none; color: #3858e9; }
 .untangling-ms .ms-extlink svg { fill: currentColor; }
 .untangling-ms .ms-extlink:hover { color: #2145e6; text-decoration: underline; }
 
@@ -13991,7 +14062,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-tl { transition: opacity .5s ease, transform .5s ease; }
 .untangling-ms .ms-tl.is-leaving { opacity: 0; transform: translateY(-14px) scale(.985); }
 .untangling-ms .ms-tl-heading { margin-bottom: 24px; }
-.untangling-ms .ms-tl-progress { margin: 8px 0 0; color: #757575; font-size: 14px; }
+.untangling-ms .ms-tl-progress { margin: 8px 0 0; color: #757575; font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-ms .ms-tl-columns { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
 
 /* The task column: a padded grey container so the white cards read as a
@@ -14011,7 +14082,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-tl-chevron svg { fill: #757575; }
 .untangling-ms .ms-tl-card.is-open .ms-tl-chevron { transform: rotate(-90deg); }
 .untangling-ms .ms-tl-card-content { padding: 0 16px 16px; }
-.untangling-ms .ms-tl-subtitle { margin: 0 0 16px; color: #757575; font-size: 13px; }
+.untangling-ms .ms-tl-subtitle { margin: 0 0 16px; color: #757575; font-size: var(--wpds-typography-font-size-md, 13px); }
 /* Wraps: in a narrow column (a 3-up dashboard well) the primary CTA plus
    "Skip for now" have no slack, and longer labels would push out of the card.
    The existing gap already supplies the 8px row gap once a line breaks. */
@@ -14026,7 +14097,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-tl-preview-frame:hover .ms-tl-preview-edit,
 .untangling-ms .ms-tl-preview-frame:focus-within .ms-tl-preview-edit { opacity: 1; }
 .untangling-ms .ms-tl-preview-edit a, .untangling-ms .ms-tl-preview-edit a:hover, .untangling-ms .ms-tl-preview-edit a:focus, .untangling-ms .ms-tl-preview-edit a:active { color: #fff; }
-.untangling-ms .ms-tl-preview-title { margin: 12px 0 2px; font-weight: 600; font-size: 15px; }
+.untangling-ms .ms-tl-preview-title { margin: 12px 0 2px; font-weight: var(--wpds-typography-font-weight-emphasis, 600); font-size: var(--wpds-typography-font-size-lg, 15px); line-height: var(--wpds-typography-line-height-sm, 20px); }
 .untangling-ms .ms-tl-preview-link { font-size: 13px; text-decoration: none; }
 .untangling-ms .ms-tl-preview-link:hover { text-decoration: underline; }
 
@@ -14044,12 +14115,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-stat-line strong { font-size: 20px; font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-chart { display: block; overflow: visible; }
 .untangling-ms .ms-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
-.untangling-ms .ms-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #757575; }
+.untangling-ms .ms-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--wpds-typography-font-size-sm, 12px); color: #757575; }
 .untangling-ms .ms-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
 /* Vitals */
 .untangling-ms .ms-vitals { list-style: none; margin: 8px 0 0; padding: 0; }
-.untangling-ms .ms-vital { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.untangling-ms .ms-vital { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-ms .ms-vital:last-child { border-bottom: none; }
 .untangling-ms .ms-vital-icon { display: flex; }
 .untangling-ms .ms-vital-icon svg { fill: #757575; }
@@ -14070,12 +14141,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-grow-icon svg { fill: #757575; }
 .untangling-ms .ms-grow-item:hover .ms-grow-icon svg, .untangling-ms .ms-advanced-row:hover .ms-grow-icon svg { fill: #3858e9; }
 .untangling-ms .ms-grow-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.untangling-ms .ms-grow-title { font-size: 14px; font-weight: 500; color: #1e1e1e; display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.untangling-ms .ms-grow-title { font-size: var(--wpds-typography-font-size-md, 13px); font-weight: 500; color: #1e1e1e; display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
 .untangling-ms .ms-grow-title .ms-grow-badge { flex-shrink: 0; white-space: nowrap; }
-.untangling-ms .ms-grow-desc { font-size: 12.5px; line-height: 17px; color: #757575; }
+.untangling-ms .ms-grow-desc { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
 .untangling-ms .ms-grow-chevron { display: flex; flex-shrink: 0; align-self: center; }
 .untangling-ms .ms-grow-chevron svg { fill: #949494; }
-.untangling-ms .ms-grow-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 4px; background: #f0f0f0; color: #1e1e1e; font-size: 11px; font-weight: 500; line-height: 16px; }
+.untangling-ms .ms-grow-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 4px; background: #f0f0f0; color: #1e1e1e; font-size: var(--wpds-typography-font-size-sm, 12px); font-weight: 500; line-height: var(--wpds-typography-line-height-xs, 16px); }
 .untangling-ms .ms-grow-badge svg { fill: currentColor; }
 .untangling-ms .ms-grow-badge.is-included { background: #e5f5e9; color: #00753d; }
 /* Next steps (established): the Dia-brief layout — serif section labels in a
@@ -14090,7 +14161,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 }
 .untangling-ms .ms-next { display: flex; flex-direction: column; gap: 24px; animation: ms-rise .38s cubic-bezier(.2,.7,.3,1) both; }
 .untangling-ms .ms-next-main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
-.untangling-ms .ms-next-h2 { margin: 0 0 14px; font-size: 20px; line-height: 1.3; font-weight: 500; color: #1e1e1e; }
+.untangling-ms .ms-next-h2 { margin: 0 0 14px; font-size: var(--wpds-typography-font-size-xl, 20px); line-height: var(--wpds-typography-line-height-lg, 28px); font-weight: 500; color: #1e1e1e; }
 
 /* The caught-up card, shown in the launchpad group once every step is handled. */
 .untangling-ms .ms-hero { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); padding: 24px; animation: ms-rise .35s cubic-bezier(.2,.7,.3,1) both; }
@@ -14108,7 +14179,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 
 /* The provenance line: tailored with AI. The phrase carries a slow gradient
    shimmer on hover, and mousemove scatters ✦ sparks that float up and fade. */
-.untangling-ms .ms-madefor { position: relative; margin: auto 0 0; padding: 16px 0 0; text-align: center; font-size: 12.5px; color: #949494; }
+.untangling-ms .ms-madefor { position: relative; margin: auto 0 0; padding: 16px 0 0; text-align: center; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); color: #949494; }
 .untangling-ms .ms-ai { font-weight: 500; background: linear-gradient(90deg, #3858e9, #b35eb1, #e34c84, #3858e9); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
 .untangling-ms .ms-madefor:hover .ms-ai { animation: ms-ai-flow 1.8s linear infinite; }
 @keyframes ms-ai-flow {
@@ -14127,37 +14198,37 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 
 /* Activity */
 .untangling-ms .ms-activity { list-style: none; margin: 8px 0 0; padding: 0; }
-.untangling-ms .ms-activity-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.untangling-ms .ms-activity-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-ms .ms-activity-row:last-child { border-bottom: none; }
 .untangling-ms .ms-activity-icon { display: flex; }
 .untangling-ms .ms-activity-icon svg { fill: #757575; }
 .untangling-ms .ms-activity-text { flex: 1; color: #1e1e1e; }
-.untangling-ms .ms-activity-time { color: #949494; font-size: 12px; white-space: nowrap; }
+.untangling-ms .ms-activity-time { color: #757575; font-size: var(--wpds-typography-font-size-sm, 12px); white-space: nowrap; }
 
 /* Needs attention */
 .untangling-ms .ms-attention { box-shadow: 0 0 0 1px #f5c8c4; }
 .untangling-ms .ms-attention-item { margin-top: 8px; }
-.untangling-ms .ms-attention-title { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #8a2424; }
+.untangling-ms .ms-attention-title { margin: 0 0 4px; font-size: var(--wpds-typography-font-size-md, 13px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); color: #8a2424; }
 .untangling-ms .ms-attention-text { margin: 0 0 12px; font-size: 13px; color: #757575; }
 
 /* Hosting overview cards — the MSD OverviewCard atom. */
 .untangling-ms .ms-ovcard-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .untangling-ms .ms-ovcard-row.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 1100px) {
+@container ms-content (max-width: 879px) {
+	.untangling-ms .ms-ovcard-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container ms-content (max-width: 639px) {
 	.untangling-ms .ms-ovcard-row, .untangling-ms .ms-ovcard-row.is-two { grid-template-columns: 1fr; }
 }
 
-/* Upsell callout — the HostingFeatureGatedWithCallout look: centered icon,
-   title, muted copy, availability line, primary CTA. is-inline is the
-   bordered in-card variant (Free plan activity log). */
-/* Gated-feature row: icon chip, text, CTA — one line of card height instead of
-   a centered 200px empty state. */
+/* Upsell callout (gated-feature row): title, muted copy, CTA — one line of
+   card height instead of a centered 200px empty state (no icon tile since
+   2026-10-27). is-inline is the bordered in-card variant (Free plan activity
+   log). */
 .untangling-ms .ms-upsell { display: flex; align-items: center; gap: 16px; padding: 20px 0 8px; }
-.untangling-ms .ms-upsell-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: color-mix(in srgb, #3858e9 8%, #fff); }
-.untangling-ms .ms-upsell-icon svg { fill: #3858e9; }
 .untangling-ms .ms-upsell-main { flex: 1 1 auto; min-width: 0; }
 .untangling-ms .ms-upsell-title { margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; color: #1e1e1e; }
-.untangling-ms .ms-upsell-desc { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: #757575; }
+.untangling-ms .ms-upsell-desc { margin: 4px 0 0; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
 .untangling-ms .ms-upsell .components-button { flex: none; }
 .untangling-ms .ms-upsell.is-inline { padding: 16px; margin-top: 16px; border: 1px solid #e0e0e0; border-radius: 8px; }
 /* Same chip and text styles, stacked — for the half-width cards where a row
@@ -14223,7 +14294,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    section titles (.ms-card-title, lg/500), so it matches their size and
    leans on weight instead. Desc is a sentence: md floor, never sm. */
 .untangling-ms .ms-ovcard-heading { font-size: var(--wpds-typography-font-size-lg); line-height: var(--wpds-typography-line-height-sm); font-weight: var(--wpds-typography-font-weight-emphasis); color: #1e1e1e; }
-.untangling-ms .ms-ovcard-desc { font-size: var(--wpds-typography-font-size-md); line-height: 18px; color: #757575; }
+.untangling-ms .ms-ovcard-desc { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; }
 /* Gated variant, following MSD's upsell intent: the ground stays white and the
    eyebrow alone carries the offer, in the admin theme color. The old treatment
    (tinted card + gray plan badge + second CTA line) stated the gate three times
@@ -14247,7 +14318,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    green survives any container that repaints the svgs inside it. */
 .untangling-ms .ms-jp-logo path { fill: #069e08; }
 .untangling-ms .ms-jp-logo polygon { fill: #fff; }
-.untangling-ms .ms-jp-credit { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: #757575; }
+.untangling-ms .ms-jp-credit { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); color: #757575; }
 
 /* Logs table — the DataViews table look: hairline rows, muted mono details. */
 .untangling-ms .ms-logs { width: 100%; border-collapse: collapse; margin-top: 8px; }
@@ -14255,17 +14326,17 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    band the body's own padding already does that. */
 .untangling-ms .components-card__body > .ms-logs:first-child { margin-top: 0; }
 .untangling-ms .ms-logs th { text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .02em; color: #757575; padding: 8px 12px 8px 0; border-bottom: 1px solid #e0e0e0; }
-.untangling-ms .ms-logs td { padding: 10px 12px 10px 0; border-bottom: 1px solid #f0f0f0; vertical-align: top; font-size: 13px; }
+.untangling-ms .ms-logs td { padding: 10px 12px 10px 0; border-bottom: 1px solid #f0f0f0; vertical-align: top; font-size: var(--wpds-typography-font-size-md, 13px); }
 .untangling-ms .ms-logs tbody tr:hover { background: #fafafa; }
 .untangling-ms .ms-logs-sev { width: 90px; white-space: nowrap; }
-.untangling-ms .ms-logs-msg { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 18px; color: #1e1e1e; word-break: break-word; }
+.untangling-ms .ms-logs-msg { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #1e1e1e; word-break: break-word; }
 .untangling-ms .ms-logs-time { width: 170px; white-space: nowrap; color: #757575; }
 .untangling-ms .ms-logs-empty { margin: 24px 0; font-size: 13px; color: #757575; }
 .untangling-ms .ms-logs-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
 /* Fine-print row: centered as one unit, wrapping to two centered lines on narrow
    screens rather than letting the middot dangle. */
 .untangling-ms .ms-logs-credit { color: #949494; }
-.untangling-ms .ms-logs-note { font-size: 12px; color: #949494; }
+.untangling-ms .ms-logs-note { font-size: var(--wpds-typography-font-size-sm, 12px); color: #757575; }
 
 /* Activity view — MSD activity-log row: gray icon tile, bold event title with
    a quiet summary line, actor with an initial avatar. */
@@ -14277,7 +14348,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-activity-summary { color: #757575; }
 .untangling-ms .ms-activity-user { width: 160px; white-space: nowrap; }
 .untangling-ms .ms-activity-actor { display: inline-flex; align-items: center; gap: 8px; color: #757575; }
-.untangling-ms .ms-activity-avatar { width: 24px; height: 24px; border-radius: 50%; background: #e0e0e0; color: #1e1e1e; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.untangling-ms .ms-activity-avatar { width: 24px; height: 24px; border-radius: 50%; background: #e0e0e0; color: #1e1e1e; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); display: inline-flex; align-items: center; justify-content: center; }
 
 /* Fallback Badge intent tones (core here ships no C.Badge) — MSD Badge
    colors: success green, warning amber, error red; neutral stays gray. */
@@ -14298,7 +14369,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-logs-method { display: inline-block; padding: 2px 8px; border-radius: 2px; font-size: 12px; font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-logs-method.is-get { background: #c8e6cf; }
 .untangling-ms .ms-logs-method.is-post { background: #cddef7; }
-.untangling-ms .ms-logs-url { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 18px; color: #757575; word-break: break-all; }
+.untangling-ms .ms-logs-url { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: var(--wpds-typography-font-size-sm, 12px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #757575; word-break: break-all; }
 
 /* Advanced */
 .untangling-ms .ms-advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
@@ -14318,12 +14389,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 @media (max-width: 782px) {
 	.untangling-ms .ms-missing-col.is-get { padding-inline-start: 0; border-inline-start: 0; padding-block-start: var(--wpds-dimension-padding-xl, 24px); border-block-start: 1px solid var(--wpds-color-stroke-surface-neutral, #e0e0e0); }
 }
-.untangling-ms .ms-missing-collabel { margin: 0 0 var(--wpds-dimension-gap-md, 12px); font-size: var(--wpds-typography-font-size-xs, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); font-weight: var(--wpds-typography-font-weight-emphasis, 500); letter-spacing: .04em; text-transform: uppercase; color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
+.untangling-ms .ms-missing-collabel { margin: 0 0 var(--wpds-dimension-gap-md, 12px); font-size: var(--wpds-typography-font-size-xs, 11px); line-height: var(--wpds-typography-line-height-xs, 16px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); letter-spacing: .04em; text-transform: uppercase; color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
 
 /* Left column: what the plan already does. Plain text with a check — it is a
    statement of fact, so it must not look as clickable as the right column. */
 .untangling-ms .ms-missing-have { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md, 12px); }
-.untangling-ms .ms-missing-have li { display: flex; align-items: flex-start; gap: var(--wpds-dimension-gap-sm, 8px); font-size: var(--wpds-typography-font-size-sm, 13px); line-height: var(--wpds-typography-line-height-sm, 18px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-ms .ms-missing-have li { display: flex; align-items: flex-start; gap: var(--wpds-dimension-gap-sm, 8px); font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
 .untangling-ms .ms-missing-check { flex: none; display: inline-flex; }
 .untangling-ms .ms-missing-check svg { fill: var(--wpds-color-foreground-content-success, #007f30); }
 
@@ -14337,8 +14408,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-missing-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--wpds-border-radius-md, 6px); background: var(--wpds-color-background-surface-brand, #ecf0fa); }
 .untangling-ms .ms-missing-icon svg { fill: var(--wpds-color-foreground-interactive-brand, #3858e9); }
 .untangling-ms .ms-missing-text { display: flex; flex-direction: column; min-width: 0; }
-.untangling-ms .ms-missing-row-title { font-size: var(--wpds-typography-font-size-sm, 14px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-emphasis, 500); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
-.untangling-ms .ms-missing-row-desc { margin-top: 2px; font-size: var(--wpds-typography-font-size-xs, 13px); line-height: var(--wpds-typography-line-height-xs, 18px); color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
+.untangling-ms .ms-missing-row-title { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-ms .ms-missing-row-desc { margin-top: 2px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
 
 /* Grouped shape: label rail, one line of capabilities each. */
 .untangling-ms .ms-missing-groups { list-style: none; margin: var(--wpds-dimension-gap-lg, 20px) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--wpds-dimension-gap-md, 12px); }
@@ -14347,19 +14418,19 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 @media (max-width: 782px) {
 	.untangling-ms .ms-missing-group { grid-template-columns: 1fr; gap: var(--wpds-dimension-gap-xs, 4px); }
 }
-.untangling-ms .ms-missing-grouplabel { font-size: var(--wpds-typography-font-size-xs, 12px); line-height: var(--wpds-typography-line-height-xs, 16px); font-weight: var(--wpds-typography-font-weight-emphasis, 500); letter-spacing: .04em; text-transform: uppercase; color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
-.untangling-ms .ms-missing-grouptext { font-size: var(--wpds-typography-font-size-sm, 14px); line-height: var(--wpds-typography-line-height-sm, 20px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
+.untangling-ms .ms-missing-grouplabel { font-size: var(--wpds-typography-font-size-xs, 11px); line-height: var(--wpds-typography-line-height-xs, 16px); font-weight: var(--wpds-typography-font-weight-emphasis, 600); letter-spacing: .04em; text-transform: uppercase; color: var(--wpds-color-foreground-content-neutral-weak, #757575); }
+.untangling-ms .ms-missing-grouptext { font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: var(--wpds-color-foreground-content-neutral, #1e1e1e); }
 
 .untangling-ms .ms-missing-foot { margin-top: var(--wpds-dimension-gap-xl, 24px); padding-top: var(--wpds-dimension-padding-lg, 20px); border-top: 1px solid var(--wpds-color-stroke-surface-neutral, #e0e0e0); }
 
 /* Plan & products */
 .untangling-ms .ms-plan-namerow { display: flex; align-items: center; gap: 10px; }
-.untangling-ms .ms-plan-namerow .ms-card-title { font-size: 20px; line-height: 26px; }
+.untangling-ms .ms-plan-namerow .ms-card-title { font-size: var(--wpds-typography-font-size-xl, 20px); line-height: var(--wpds-typography-line-height-lg, 28px); }
 .untangling-ms .ms-plan-features { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
 @media (max-width: 782px) {
 	.untangling-ms:not(.untangling-dw) .ms-plan-features { grid-template-columns: 1fr; }
 }
-.untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1e1e1e; }
+.untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #1e1e1e; }
 /* The shared tooltip centers on the cursor; in this two-column grid that
    pushes the 300px bubble past the card's left edge, so anchor it to the
    start of the label instead. */
@@ -14386,8 +14457,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 2px; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.25px; box-sizing: border-box; white-space: nowrap; }
 .untangling-ms .ms-plangrid-name { margin: 0 0 8px; font-size: 26px; line-height: 30px; font-weight: 400; color: #101517; }
 .untangling-ms .ms-plangrid-tagline { margin: 0 0 18px; font-size: 13px; line-height: 20px; color: #2c3338; text-wrap: pretty; }
+/* Three columns share one price/CTA baseline even when one tagline is a single line (Free three: "Start your WordPress journey."). Two 20px lines; stacked columns (<=782px) and the two-plan card are left alone. */
+@media (min-width: 783px) {
+	.untangling-ms:not(.untangling-dw) .ms-plangrid.is-three .ms-plangrid-tagline { min-height: 40px; }
+}
 .untangling-ms .ms-plangrid-pricing { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; min-height: 90px; margin: 0 0 16px; }
-.untangling-ms .ms-plangrid-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: 11px; font-weight: 500; color: #00450c; background: rgba(184, 230, 191, 0.68); margin-bottom: 10px; }
+.untangling-ms .ms-plangrid-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: var(--wpds-typography-font-size-sm, 12px); font-weight: 500; color: #00450c; background: rgba(184, 230, 191, 0.68); margin-bottom: 10px; }
 .untangling-ms .ms-plangrid-price { display: flex; align-items: last baseline; gap: 8px; margin: 0 0 8px; line-height: 1; color: #101517; }
 .untangling-ms .ms-plangrid-price span { font-size: 36px; }
 .untangling-ms .ms-plangrid-price s { font-size: 24px; color: #949494; }
@@ -14396,17 +14471,24 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-cta .components-button svg { fill: currentColor; }
 /* "Current plan" is inert: muted text and border on the gray fill, so it reads as disabled (Lucas, 2026-10-22) rather than as a second button to press. */
 .untangling-ms .ms-plangrid-cta .components-button.is-secondary:disabled { background: #f6f7f7; box-shadow: inset 0 0 0 1px #dcdcde; color: #757575; opacity: 1; cursor: default; pointer-events: none; }
-.untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: #2c3338; }
-.untangling-ms .ms-plangrid-storage svg { flex: 0 0 20px; fill: #1e1e1e; }
+.untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: #2c3338; }
+.untangling-ms .ms-plangrid-storage svg { flex: 0 0 16px; fill: #1e1e1e; }
 .untangling-ms .ms-plangrid-storage span { font-weight: 500; }
 /* AI credits: plan meta beside storage, the sparkles at the list's icon size. */
-.untangling-ms .ms-plangrid-credits { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 12px; font-size: 12px; line-height: 16px; color: #2c3338; }
+.untangling-ms .ms-plangrid-credits { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-credits span { font-weight: 500; }
 .untangling-ms .ms-plangrid-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.untangling-ms .ms-plangrid-list li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: #2c3338; }
+.untangling-ms .ms-plangrid-list li { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-check { flex: 0 0 16px; width: 16px; height: 16px; fill: #007017; }
 .untangling-ms .ms-plangrid-check.is-ai { fill: #3858e9; }
-.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; height: 16px; line-height: 16px; padding: 0 6px; border-radius: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0.2px; color: #1e1e1e; background: #f0f0f0; }
+.untangling-ms .ms-plangrid-check.is-no { fill: #757575; }
+.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; height: 16px; line-height: 16px; padding: 0 6px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0.2px; color: #1e1e1e; background: #f0f0f0; }
+/* Feature tooltips in the outer plan columns anchor to the column's edge
+   instead of centering on the cursor: a 300px bubble centered near the last
+   column's right edge spilled past the page and, even hidden, added
+   horizontal scroll between 783 and ~1000px on the three-plan ladder. */
+.untangling-ms .ms-plangrid-col:first-child .untangling-feature-tip::after { left: 0; right: auto; transform: none; }
+.untangling-ms .ms-plangrid-col:last-child .untangling-feature-tip::after { left: auto; right: 0; transform: none; }
 /* The card plus its one tertiary link under it: See all plans leaves the
    page, so it stays outside the card the way the pricing page's Compare
    plans sits under the grid. */
@@ -14422,7 +14504,14 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 	.untangling-ms .ms-plangrid-col, .untangling-ms .ms-plangrid-col + .ms-plangrid-col, .untangling-ms .ms-plangrid.is-three .ms-plangrid-col + .ms-plangrid-col:not(:last-child) { padding: 0; }
 	.untangling-ms .ms-plangrid-col + .ms-plangrid-col,
 	.untangling-ms .ms-planup .ms-plangrid-col + .ms-plangrid-col { border-left: 0; border-top: 1px solid #e0e0e0; padding-top: 24px; padding-bottom: 0; margin: 24px 0 0; }
+	/* The is-three padding reset above is (0,6,0) and outranks this (0,4,0) rule for the middle column; restate its top padding. */
+	.untangling-ms .ms-plangrid.is-three .ms-plangrid-col + .ms-plangrid-col:not(:last-child) { padding-top: 24px; }
 	.untangling-ms .ms-plangrid-badge:empty { display: none; }
+	/* Stacked columns are full width: every tooltip opens from the label's
+	   left edge and never grows past the content well (the ms-content
+	   container's inline size). */
+	.untangling-ms .ms-plangrid-col:first-child .untangling-feature-tip::after,
+	.untangling-ms .ms-plangrid-col:last-child .untangling-feature-tip::after { left: 0; right: auto; transform: none; max-width: min(300px, calc(100cqi - 48px)); }
 }
 /* Card header band — the row above the rule, paired with .ms-linkfooter below
    the one at the bottom: same 16px/24px padding and 15/20 text, the header at
@@ -14442,12 +14531,16 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-linkfooter .ms-logs-credit { position: absolute; left: 50%; transform: translateX( -50% ); }
 .untangling-ms .ms-linkfooter:hover { color: #3858e9; }
 .untangling-ms .ms-linkfooter svg { fill: #757575; }
+/* ↗ on links into the Hosting Dashboard: the label's own type, the muted
+   color the footer icon had; inside a link it takes the link color. */
+.untangling-ms .ms-ext-arrow { font: inherit; white-space: pre; }
+.untangling-ms .ms-linkfooter .ms-ext-arrow { color: #757575; }
 .untangling-ms .ms-linkfooter:hover svg { fill: currentColor; }
 .untangling-ms .ms-storage { margin: 12px 0 8px; }
 .untangling-ms .ms-storage-bar { height: 8px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
 .untangling-ms .ms-storage-fill { height: 100%; border-radius: 4px; background: #3858e9; transition: width .4s ease; }
 .untangling-ms .ms-storage-fill.is-warning { background: #d47608; }
-.untangling-ms .ms-credits .ms-storage-fill.is-warning { background: #dba617; }
+.untangling-ms .ms-credits .ms-storage-fill.is-warning { background: #d47608; }
 .untangling-ms .ms-storage-used { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-storage-note { margin: 2px 0 0; font-size: 13px; color: #757575; }
 .untangling-ms .ms-storage-buy { margin-top: 16px; }
@@ -14455,7 +14548,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    they sit on one baseline, and they stack on narrow cards. */
 .untangling-ms .ms-storage-buy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .untangling-ms .ms-storage-buy-row .components-base-control { flex: 1 1 200px; }
-.untangling-ms .ms-storage-fineprint { margin: 8px 0 0; font-size: 12px; color: #757575; }
+.untangling-ms .ms-storage-fineprint { margin: 8px 0 0; font-size: var(--wpds-typography-font-size-sm, 12px); color: #757575; }
 /* AI credits — one wide card: meter left, one secondary button right. The
    bar reuses the storage meter's track and fill so the two read as one
    family: blue while healthy, the storage amber (is-warning) once under a
@@ -14491,7 +14584,7 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-domain-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap; }
 .untangling-ms .ms-domain-row:last-child { border-bottom: none; }
 .untangling-ms .ms-domain-name { font-weight: 500; color: #1e1e1e; }
-.untangling-ms .ms-domain-note { margin-left: auto; color: #757575; font-size: 12px; }
+.untangling-ms .ms-domain-note { margin-left: auto; color: #757575; font-size: var(--wpds-typography-font-size-sm, 12px); }
 .untangling-ms .ms-domain-note a { color: #3858e9; text-decoration: none; }
 .untangling-ms .ms-domain-note a:hover { text-decoration: underline; }
 
