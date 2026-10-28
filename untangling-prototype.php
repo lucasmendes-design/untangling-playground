@@ -2873,7 +2873,7 @@ function untangling_app_js() {
 	var MARKETPLACE_HELP = {
 		fullscreen: 'Themes + plugins in the chromeless Marketplace.',
 		split: 'Production Atomic: core Themes screen + Appearance → Theme Showcase; plugins keep the Add Plugins tab.',
-		tabs: 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.',
+		tabs: 'Marketplace tabs (first tab) in Add Plugins and Add Themes.',
 	};
 	var PLAN_FILTER_HELP = {
 		included: '“Included with my plan” links on both Marketplace tabs.',
@@ -3828,23 +3828,26 @@ CSS;
  * 2. Plugins screen: Marketplace tab (install_plugins_tabs, like Woo)
  * ---------------------------------------------------------------------- */
 
-// Marketplace sits before Favorites in the tab order. V2 (split) and V3
-// (tabs) — in V1 the plugins marketplace lives in the fullscreen page.
+// Marketplace is the first tab (2026-10-28, was before Favorites) and the
+// landing tab: Add Plugins without ?tab goes to it instead of core's
+// Featured. V2 (split) and V3 (tabs) — in V1 the plugins marketplace lives
+// in the fullscreen page.
 add_filter( 'install_plugins_tabs', function ( $tabs ) {
 	if ( ! in_array( untangling_get_marketplace_mode(), array( 'split', 'tabs' ), true ) ) {
 		return $tabs;
 	}
-	$reordered = array();
-	foreach ( $tabs as $key => $label ) {
-		if ( 'favorites' === $key ) {
-			$reordered['wpcom_marketplace'] = __( 'Marketplace' );
-		}
-		$reordered[ $key ] = $label;
+	return array( 'wpcom_marketplace' => __( 'Marketplace' ) ) + $tabs;
+} );
+add_action( 'admin_init', function () {
+	global $pagenow;
+	if ( 'plugin-install.php' !== $pagenow || isset( $_GET['tab'] ) || isset( $_GET['s'] ) ) {
+		return;
 	}
-	if ( ! isset( $reordered['wpcom_marketplace'] ) ) {
-		$reordered['wpcom_marketplace'] = __( 'Marketplace' );
+	if ( ! in_array( untangling_get_marketplace_mode(), array( 'split', 'tabs' ), true ) ) {
+		return;
 	}
-	return $reordered;
+	wp_safe_redirect( add_query_arg( $_GET, admin_url( 'plugin-install.php?tab=wpcom_marketplace' ) ) );
+	exit;
 } );
 
 // WP renders tab content via install_plugins_{$tab}. Core plugin-card markup
@@ -4191,6 +4194,11 @@ function untangling_plugins_upsell_banner() {
 	if ( ! untangling_is_simple() ) {
 		return;
 	}
+	// V3 (tabs): no banner on Add Plugins (removed 2026-10-28); the plan
+	// signal lives on the Marketplace cards and the Upgrades page.
+	if ( 'tabs' === untangling_get_marketplace_mode() ) {
+		return;
+	}
 	if ( in_array( untangling_get_marketplace_mode(), array( 'split', 'tabs' ), true ) ) {
 		untangling_plugins_upsell_hero();
 		return;
@@ -4284,10 +4292,9 @@ function untangling_plugins_upsell_hero() {
 function untangling_themes_banner() {
 	$assets  = 'https://cdn.jsdelivr.net/gh/Automattic/jetpack@f319779638296460446adc163ff042ef57789b15/projects/packages/jetpack-mu-wpcom/src/features/wpcom-themes/images';
 	$is_tabs = 'tabs' === untangling_get_marketplace_mode();
-	// V3: the discovery banner becomes the plans upsell (same lavender panel,
-	// mirroring the dark plugins hero). Business/Commerce have no plan left to
-	// upsell (partner themes sell per card), so they skip it.
-	if ( $is_tabs && untangling_plan_rank( untangling_get_plan() ) >= untangling_plan_rank( 'Business' ) ) {
+	// V3 (tabs): no banner on either themes screen (removed 2026-10-28; it
+	// used to be the lavender plans upsell mirroring the dark plugins hero).
+	if ( $is_tabs ) {
 		return;
 	}
 	// V3 shows the upsell only on Add Themes; the installed-themes page stays clean.
@@ -4418,6 +4425,19 @@ add_action( 'admin_footer-theme-install.php', 'untangling_themes_banner' );
  * the tab (no data-sort); the panel swaps in client-side and deep-links via
  * ?untangling_browse=marketplace.
  * ---------------------------------------------------------------------- */
+
+// Landing tab: a bare theme-install.php (sidebar "Add Theme", the
+// Appearance → Themes "Add New Theme" button) opens the Marketplace tab
+// instead of core's Popular. Core's own ?browse= / ?search= deep links are
+// left alone.
+add_action( 'admin_init', function () {
+	global $pagenow;
+	if ( 'theme-install.php' !== $pagenow || ! empty( $_GET ) || 'tabs' !== untangling_get_marketplace_mode() ) {
+		return;
+	}
+	wp_safe_redirect( admin_url( 'theme-install.php?untangling_browse=marketplace' ) );
+	exit;
+} );
 
 add_action( 'admin_footer-theme-install.php', function () {
 	if ( 'tabs' !== untangling_get_marketplace_mode() ) {
@@ -4705,8 +4725,8 @@ add_action( 'admin_footer-theme-install.php', function () {
 		tab.href = <?php echo wp_json_encode( $tab_url ); ?>;
 		tab.textContent = <?php echo wp_json_encode( __( 'Marketplace' ) ); ?>;
 		li.appendChild( tab );
-		var favorites = filterLinks.querySelector( '[data-sort="favorites"]' );
-		filterLinks.insertBefore( li, favorites ? favorites.parentNode : null );
+		// First tab (2026-10-28, was before Favorites).
+		filterLinks.insertBefore( li, filterLinks.firstChild );
 
 		var countEl = document.querySelector( '.wp-filter .theme-count' );
 		var visibleCount = <?php echo (int) count( $themes ); ?>;
@@ -8509,7 +8529,7 @@ add_action( 'admin_footer', function () {
 				$mode_hints = array(
 					'fullscreen' => __( 'Themes + plugins in the chromeless Marketplace.' ),
 					'split'      => __( 'Production Atomic: core Themes screen + Appearance → Theme Showcase; plugins keep the Add Plugins tab.' ),
-					'tabs'       => __( 'Marketplace tabs in Add Plugins and Add Themes, plus plans-upsell banners.' ),
+					'tabs'       => __( 'Marketplace tabs (first tab) in Add Plugins and Add Themes.' ),
 				);
 				$seg( __( 'Version' ), 'untangling_marketplace', array( 'fullscreen' => __( 'Fullscreen' ), 'split' => __( 'Split' ), 'tabs' => __( 'Tabs' ) ), $mode, $mode_hints[ $mode ] );
 				// Partner themes on Business/Commerce: sold per theme (production)
@@ -12901,7 +12921,8 @@ function untangling_ms_app_js() {
 			{ domain: data.domainUpsell, badge: [ 'success', 'Available' ], note: 'Free for a year on paid plans', href: data.domainClaimUrl || data.plansUrl },
 		] : [
 			{ domain: custom, badge: [ 'success', 'Primary' ], note: 'Renews with your plan' },
-			{ domain: sub, badge: [ 'default', 'Redirects' ], note: 'Free forever' },
+			// No badge: production shows "Primary" only; it has no "Redirects" badge (2026-10-28).
+			{ domain: sub, note: 'Free forever' },
 		];
 		return el( Card, null,
 			el( CardBody, null,
@@ -12912,7 +12933,7 @@ function untangling_ms_app_js() {
 				el( 'ul', { className: 'ms-domains' }, rows.map( function ( row, i ) {
 					return el( 'li', { key: i, className: 'ms-domain-row' },
 						el( 'span', { className: 'ms-domain-name' }, row.domain ),
-						el( Badge, { intent: row.badge[ 0 ] }, row.badge[ 1 ] ),
+						row.badge && el( Badge, { intent: row.badge[ 0 ] }, row.badge[ 1 ] ),
 						el( 'span', { className: 'ms-domain-note' },
 							row.href ? el( 'a', { href: row.href }, row.note ) : row.note
 						)
