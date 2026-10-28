@@ -402,12 +402,12 @@ function untangling_upsell_diamond() {
 function untangling_plan_card_features( $plan ) {
 	$domain      = array( 'Free domain for one year', sprintf( 'Get a custom domain – like %s – free for the first year.', untangling_get_domain_upsell() ) );
 	$storage_tip = 'Upload more images, videos, audio, and documents to your website.';
-	$ad_free     = array( 'Ad-free experience', 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' );
+	$ad_free     = array( 'No ads for visitors', 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' );
 	$unlimited   = array( 'Unlimited pages, posts, and users', 'Create as much content as you want and invite as many collaborators as you need.' );
 	$premium_themes  = array( 'All premium themes', 'Install any premium theme from the WordPress.com showcase.' );
 	$install_plugins = array( 'Install plugins and themes', 'Install any of the thousands of WordPress plugins and themes.' );
 	$sftp            = array( 'SFTP/SSH and database access', 'Developer access to your site’s files and database.' );
-	$priority        = array( '24/7 priority support', 'Round-the-clock priority support from our expert team.' );
+	$priority        = array( 'Free 24/7 priority support', 'Round-the-clock priority support from our expert team.' );
 	$backups         = array( 'Real-time backups and one-click restores', 'Every change saved. Restore any moment with one click.' );
 
 	$features = array(
@@ -425,7 +425,7 @@ function untangling_plan_card_features( $plan ) {
 			$domain,
 			array( '6 GB storage', $storage_tip ),
 			$ad_free,
-			array( 'Support from our expert team', 'Get help by email from our Happiness Engineers.' ),
+			array( 'Free support', 'Get help by email from our Happiness Engineers.' ),
 			array( 'Dozens of premium themes', 'Install select premium themes from the WordPress.com showcase.' ),
 			array( 'Dozens of premium plugins', 'Install dozens of premium plugins from the WordPress.com marketplace.' ),
 			array( 'Style customization', 'Fine-tune colors, fonts, and layout in the site editor.' ),
@@ -435,10 +435,10 @@ function untangling_plan_card_features( $plan ) {
 			$premium_themes,
 			array( '13 GB storage', $storage_tip ),
 			$domain,
-			array( 'Fast support from our expert team', 'Fast email support from our expert team of Happiness Engineers.' ),
-			array( 'Payments and paid subscriptions', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
+			array( 'Free priority support', 'Fast email support from our expert team of Happiness Engineers.' ),
+			array( 'Add payment buttons', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
 			array( 'Premium stats and analytics', 'See where your visitors come from and what they read.' ),
-			array( 'Upload videos', 'Ad-free, high-definition video hosting with VideoPress.' ),
+			array( 'Ad-free video hosting', 'Ad-free, high-definition video hosting with VideoPress.' ),
 			array( 'Google Analytics integration', 'See who is reading, where they came from, and what they do next.' ),
 		),
 		// Ordered for the people this prototype is built around — bloggers and
@@ -450,7 +450,7 @@ function untangling_plan_card_features( $plan ) {
 			$install_plugins,
 			$premium_themes,
 			array( 'Advanced SEO tools', 'Control how your posts appear in search results and on social.' ),
-			array( 'Payments and paid subscriptions', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
+			array( 'Add payment buttons', 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ),
 			array( 'Google Analytics integration', 'See who is reading, where they came from, and what they do next.' ),
 			array( '50 GB storage', $storage_tip ),
 			$backups,
@@ -458,7 +458,7 @@ function untangling_plan_card_features( $plan ) {
 		),
 		'Commerce' => array(
 			array( 'Sell products and subscriptions', 'Sell physical and digital goods and recurring subscriptions.' ),
-			array( 'Premium store designs', 'Professionally designed store themes built for selling.' ),
+			array( 'Premium store themes', 'Professionally designed store themes built for selling.' ),
 			$install_plugins,
 			array( '50 GB storage', $storage_tip ),
 			array( 'Store analytics', 'Track sales, revenue, and your best-selling products.' ),
@@ -543,7 +543,7 @@ function untangling_plan_compare( $plan = null ) {
 	);
 
 	$storage_tip = __( 'Upload more images, videos, audio, and documents to your website.' );
-	$support_247 = array( __( '24/7 priority support' ), __( 'Round-the-clock priority support from our expert team.' ) );
+	$support_247 = array( __( 'Free 24/7 priority support' ), __( 'Round-the-clock priority support from our expert team.' ) );
 
 	// Keyed by the plan you are on: the tier we recommend next, then the two
 	// columns of paired rows (yours first, theirs second).
@@ -561,8 +561,8 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( '13 GB storage' ), $storage_tip ),
 				array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ) ),
 				array( __( 'Free domain for one year' ), sprintf( __( 'Get a custom domain – like %s – free for the first year.' ), untangling_get_domain_upsell() ) ),
-				array( __( 'Ad-free experience' ), __( 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' ) ),
-				array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
+				array( __( 'No ads for visitors' ), __( 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' ) ),
+				array( __( 'Free priority support' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
 			),
 		),
 		'Personal' => array(
@@ -571,15 +571,15 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( '6 GB storage' ), $storage_tip ),
 				array( __( 'Dozens of premium themes' ), __( 'Install select premium themes from the WordPress.com showcase.' ) ),
 				array( __( 'Dozens of premium plugins' ), __( 'Install dozens of premium plugins from the WordPress.com marketplace.' ) ),
-				array( __( 'Support from our expert team' ), __( 'Get help by email from our Happiness Engineers.' ) ),
-				array( __( 'Ad-free experience' ), __( 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' ) ),
+				array( __( 'Free support' ), __( 'Get help by email from our Happiness Engineers.' ) ),
+				array( __( 'No ads for visitors' ), __( 'Your visitors browse ad-free. WordPress.com ads are removed from your site.' ) ),
 			),
 			array(
 				array( __( '13 GB storage' ), $storage_tip ),
 				array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ) ),
 				array( __( 'All premium plugins' ), __( 'Install any premium plugin from the WordPress.com marketplace.' ) ),
-				array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
-				array( __( 'Payments and paid subscriptions' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
+				array( __( 'Free priority support' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
+				array( __( 'Add payment buttons' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 			),
 		),
 		'Premium' => array(
@@ -588,8 +588,8 @@ function untangling_plan_compare( $plan = null ) {
 				array( __( '13 GB storage' ), $storage_tip ),
 				array( __( 'All premium themes' ), __( 'Install any premium theme from the WordPress.com showcase.' ) ),
 				array( __( 'Premium stats and analytics' ), __( 'See where your visitors come from and what they read.' ) ),
-				array( __( 'Fast support from our expert team' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
-				array( __( 'Payments and paid subscriptions' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
+				array( __( 'Free priority support' ), __( 'Fast email support from our expert team of Happiness Engineers.' ) ),
+				array( __( 'Add payment buttons' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 			),
 			array(
 				array( __( '50 GB storage' ), $storage_tip ),
@@ -605,7 +605,7 @@ function untangling_plan_compare( $plan = null ) {
 		'Business' => array(
 			'Commerce',
 			array(
-				array( __( 'Accept payments and donations' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
+				array( __( 'Add payment buttons' ), __( 'Collect payments, donations, and paid subscriptions with PayPal and Stripe.' ) ),
 				array( __( 'Install any plugin or theme' ), __( 'Install any of the thousands of WordPress plugins and themes.' ) ),
 				array( __( 'Advanced SEO tools' ), __( 'Control how your posts appear in search results and on social.' ) ),
 				array( __( 'Google Analytics integration' ), __( 'See who is reading, where they came from, and what they do next.' ) ),
@@ -613,7 +613,7 @@ function untangling_plan_compare( $plan = null ) {
 			),
 			array(
 				array( __( 'Sell products and subscriptions' ), __( 'Sell physical and digital goods and recurring subscriptions.' ) ),
-				array( __( 'Premium store designs and plugins' ), __( 'Store themes and premium store plugins built for selling.' ) ),
+				array( __( 'Premium store themes and plugins' ), __( 'Store themes and premium store plugins built for selling.' ) ),
 				array( __( 'Sell and ship in 60+ countries' ), __( 'Accept payments and ship worldwide.' ) ),
 				array( __( 'Store analytics' ), __( 'Track sales, revenue, and your best-selling products.' ) ),
 				$support_247,
@@ -4952,44 +4952,17 @@ add_action( 'admin_footer-theme-install.php', function () {
 }, 11 );
 
 /* -------------------------------------------------------------------------
- * 3b. Unified upgrade overlay (placeholder for the opinionated-checkout project).
- * Every upgrade CTA (class `untangling-upgrade`) opens this same overlay
- * instead of dumping the user somewhere else — the opinionated-flow idea.
+ * 3b. Plans links → the fullscreen pricing page.
+ * The placeholder "Choose a plan" overlay (hardcoded € prices, four columns,
+ * the pre-redesign look) was retired on 2026-10-28: every upgrade CTA already
+ * carries its own Marketplace pricing/checkout URL, and the few legacy links
+ * that still point at the MSD's /plans (which redirects to /sites in the
+ * dashboard) are sent to the pricing grid's generic entry instead.
  * ---------------------------------------------------------------------- */
 
 add_action( 'admin_footer', function () {
-	$msd     = UNTANGLING_MSD_URL;
-	$current = untangling_get_plan();
-	$plans   = array(
-		array( 'Personal', '€4', __( 'Free domain, no ads, premium themes' ) ),
-		array( 'Premium', '€8', __( 'Premium themes, monetization' ) ),
-		array( 'Business', '€25', __( 'Plugins, SFTP/SSH, database' ) ),
-		array( 'Commerce', '€45', __( 'Sell products, store extensions' ) ),
-	);
+	$pricing = untangling_marketplace_url( 'themes', array( 'ustep' => 'pricing', 'back' => rawurlencode( untangling_current_admin_url() ) ) );
 	?>
-	<div id="untangling-overlay" hidden>
-		<div class="untangling-overlay-backdrop"></div>
-		<div class="untangling-overlay-modal" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Choose a plan' ); ?>">
-			<button type="button" class="untangling-overlay-close" aria-label="<?php esc_attr_e( 'Close' ); ?>">&times;</button>
-			<h1><?php esc_html_e( 'Choose a plan' ); ?></h1>
-			<p class="untangling-overlay-note"><?php esc_html_e( 'Prototype placeholder: the unified plans → domains → checkout overlay. Every upgrade CTA in WP Admin and the Hosting Dashboard opens this same flow.' ); ?></p>
-			<div class="untangling-overlay-grid">
-				<?php foreach ( $plans as $plan ) : list( $name, $price, $blurb ) = $plan; ?>
-					<div class="untangling-overlay-plan<?php echo $name === $current ? ' is-current' : ''; ?>">
-						<h2><?php echo esc_html( $name ); ?></h2>
-						<p class="untangling-overlay-price"><?php echo esc_html( $price ); ?><span>/<?php esc_html_e( 'month' ); ?></span></p>
-						<p class="untangling-meta"><?php echo esc_html( $blurb ); ?></p>
-						<?php if ( $name === $current ) : ?>
-							<span class="button" disabled><?php esc_html_e( 'Your plan' ); ?></span>
-						<?php else : ?>
-							<?php // /plans redirects logged-out to wordpress.com/pricing on the dev server; billing renders. ?>
-							<a class="button button-primary" href="<?php echo esc_url( $msd . '/me/billing' ); ?>"><?php esc_html_e( 'Select' ); ?></a>
-						<?php endif; ?>
-					</div>
-				<?php endforeach; ?>
-			</div>
-		</div>
-	</div>
 	<script>
 	// Every MSD-bound link carries the wp-admin page it was clicked on
 	// (stamped at click time), so the MSD "Back to site" card returns here.
@@ -5007,33 +4980,20 @@ add_action( 'admin_footer', function () {
 		}, true );
 	} )();
 	( function () {
-		var overlay = document.getElementById( 'untangling-overlay' );
-		if ( ! overlay ) {
-			return;
-		}
+		// Legacy "/plans" links (MSD route with no logged-in landing in the
+		// dashboard) land on the fullscreen pricing grid, generic entry.
+		// Matched on the pathname: the stamper above has already appended
+		// ref/back to the href by the time this listener runs.
+		var msd     = <?php echo wp_json_encode( UNTANGLING_MSD_URL ); ?>;
+		var pricing = <?php echo wp_json_encode( $pricing ); ?>;
 		document.addEventListener( 'click', function ( event ) {
-			// Sidebar "Plans" opens the same overlay: /plans has no logged-in
-			// landing on the local dev server (it 302s to wordpress.com/pricing).
-			// CTAs that point at the fullscreen upgrade flow (Marketplace
-			// pricing/checkout) navigate there instead of opening the overlay.
-			var trigger = event.target.closest( '.untangling-upgrade, #adminmenu a[href$="/plans"], #wpadminbar a[href$="/plans"]' );
-			if ( trigger && trigger.href && -1 !== trigger.href.indexOf( 'page=untangling-marketplace' ) ) {
+			var link = event.target.closest ? event.target.closest( 'a[href]' ) : null;
+			if ( ! link || 0 !== link.href.indexOf( msd ) || ! /\/plans\/?$/.test( new URL( link.href ).pathname ) ) {
 				return;
 			}
-			if ( trigger ) {
-				event.preventDefault();
-				overlay.hidden = false;
-				return;
-			}
-			if ( event.target.closest( '.untangling-overlay-close' ) || event.target.classList.contains( 'untangling-overlay-backdrop' ) ) {
-				overlay.hidden = true;
-			}
-		} );
-		document.addEventListener( 'keydown', function ( event ) {
-			if ( 'Escape' === event.key ) {
-				overlay.hidden = true;
-			}
-		} );
+			event.preventDefault();
+			window.location.href = pricing;
+		}, true );
 	} )();
 	</script>
 	<?php
@@ -6410,42 +6370,54 @@ function untangling_claim_domain_price( $domain ) {
 	return isset( $prices[ $tld ] ) ? $prices[ $tld ] : 13;
 }
 
-// The fullscreen pricing grid, mirroring Calypso's pricing grid redesign
-// (ExPlat calypso_pricing_differentiation_202607, arm six_plan_new_design:
-// the new column design with the production copy). Feature labels are the
-// production strings from calypso-products; the inline pills follow
-// getPricingDifferentiationFeatureBadgeText. Enterprise is left out on
-// purpose. `price` is the monthly US$ amount billed annually; `original`
-// is the undiscounted monthly price behind the Save % pill.
+// The fullscreen pricing grid, mirroring Calypso's pricing grid redesign as
+// shipped to every user on 2026-10-27 (wp-calypso PR 115859: the former
+// ExPlat calypso_pricing_differentiation_202607 arms six_plan_new_description
+// + six_plan_new_features, now hard-coded in
+// use-plans-grid-redesign-experiment.ts). Taglines, feature rows, their order
+// and the inline pills are the production strings from calypso-products
+// (getPlansGridRedesignFeatureSlugsForPlan + the title overrides and
+// getPricingDifferentiationFeatureBadgeText in plans-grid-next). One
+// deliberate difference: Personal keeps "Dozens of premium themes" as in the
+// Figma frame (production says "All premium themes" there). Enterprise is left
+// out on purpose. `price` is the monthly US$ amount billed annually;
+// `original` is the undiscounted monthly price behind the Save % pill.
 function untangling_plan_grid() {
 	// Rows are [ label, pill, tooltip ]; the tooltips are the features'
 	// getDescription( { isExperimentVariant: true } ) strings, which is what
 	// the redesigned grid shows on hover (Plans2023Tooltip).
-	$domain_tip  = sprintf( __( 'Get a custom domain – like %s – free for the first year.' ), untangling_get_domain_upsell() );
-	$builder_tip = __( 'Skip the blank screen — create and launch a WordPress.com website in minutes by chatting with AI.' );
-	$unlimited   = array( __( 'Unlimited pages, posts, users, and visitors' ), '', __( 'Grow your site without limits — unlimited content, users, and traffic.' ) );
-	$domain      = array( __( 'Free domain for one year' ), '', $domain_tip );
-	$no_ads      = array( __( 'Ad-free experience' ), '', __( 'Free sites display WordPress.com ads to visitors. Upgrade to Personal to turn them off.' ) );
-	$builder_lim = array( __( 'Guided website builder (usage limits apply)' ), '', $builder_tip );
-	$builder     = array( __( 'Create your site with a guided website builder' ), '', $builder_tip );
-	$themes_some = array( __( 'Dozens of premium themes' ), '', __( 'Install select premium themes from the WordPress.com marketplace.' ) );
-	$themes_all  = array( __( 'All premium themes' ), '', __( 'Install any premium theme from the WordPress.com marketplace.' ) );
-	$plugins     = array( __( 'Extend your site with WordPress plugins' ), '', __( 'Install any of over 60,000 plugins from the WordPress.com marketplace, or upload a plugin directly to your site.' ) );
-	$stats       = array( __( 'Premium stats and analytics' ), '', __( 'Access all stats & analytics, including UTM tracking and device insights.' ) );
-	$payments    = array( __( 'Payments and paid subscriptions' ), '', __( 'Collect payments and donations with PayPal and Stripe.' ) );
-	$support     = array( __( 'Support from our expert team' ), '', __( 'Get support from our expert, friendly Happiness team.' ) );
-	$support_247 = array( __( '24/7 priority support' ), '', __( 'Your support questions answered first by our expert, friendly Happiness team.' ) );
-	$videopress  = array( __( 'Use VideoPress with 250 GB dedicated storage' ), '', __( 'Showcase your video beautifully with the high-quality, ad-free VideoPress player.' ) );
-	$assistant   = array( __( 'Built-in site assistant' ), '', __( 'Use the WordPress AI Assistant to generate content, design, and manage your site — all without leaving WordPress.' ) );
-	$biz_email   = array( __( 'Free business email account for one year' ), '', __( 'Build and grow your online presence with a professional email address at your domain name, powered by Titan' ) );
-	$email_mkt   = array( __( 'Email marketing' ), '', __( 'Create and automate beautiful emails to 500 subscribers right from your WordPress dashboard, with the MailPoet Business plan.' ) );
-	$ads_credit  = array( __( 'Free advertising credits worth $200' ), '', __( 'Promote your content with Blaze ads.' ) );
-	$backups     = array( __( 'Real-time backups and one-click restores' ), '', __( 'Protect against disaster with easy backups and restores.' ) );
-	$dev_tools   = array( __( 'SFTP/SSH, WP-CLI, Git commands, and GitHub Deployments' ), '', __( 'Access your site via SSH and manage it with WP-CLI. Deploy from GitHub with a few clicks.' ) );
+	$domain_tip   = sprintf( __( 'Get a custom domain – like %s – free for the first year.' ), untangling_get_domain_upsell() );
+	$builder_tip  = __( 'Skip the blank screen — create and launch a WordPress.com website in minutes by chatting with AI.' );
+	$support_tip  = __( 'Get support from our expert, friendly Happiness team.' );
+	$unlimited    = array( __( 'Unlimited pages, posts, users, and visitors' ), '', __( 'Create and collaborate freely — no caps or restrictions.' ) );
+	$domain       = array( __( 'Free domain for one year' ), '', $domain_tip );
+	$no_ads       = array( __( 'No ads for visitors' ), '', __( 'Free sites display WordPress.com ads to visitors. Upgrade to Personal to turn them off.' ) );
+	$builder_lim  = array( __( 'Guided website builder (usage limits apply)' ), '', $builder_tip );
+	$builder      = array( __( 'Create your site with a guided website builder' ), '', $builder_tip );
+	$themes_some  = array( __( 'Dozens of premium themes' ), '', __( 'Install select premium themes from the WordPress.com marketplace.' ) );
+	$themes_all   = array( __( 'All premium themes' ), '', __( 'Install any premium theme from the WordPress.com marketplace.' ) );
+	$themes_store = array( __( 'Premium store themes' ), '', __( 'Jumpstart your store’s design with a professionally designed theme.' ) );
+	$plugins      = array( __( 'Extend your site with WordPress plugins' ), '', __( 'Install any of over 60,000 plugins from the WordPress.com marketplace, or upload a plugin directly to your site.' ) );
+	$stats        = array( __( 'Premium stats and analytics' ), '', __( 'Access all stats & analytics, including UTM tracking and device insights.' ) );
+	$payments     = array( __( 'Add payment buttons' ), '', __( 'Collect payments and donations with PayPal and Stripe.' ) );
+	$seo          = array( __( 'Advanced SEO tools' ), '', __( 'Rank well in search with built-in search engine optimization tools.' ) );
+	$support      = array( __( 'Free support' ), '', $support_tip );
+	$support_prio = array( __( 'Free priority support' ), '', $support_tip );
+	$support_247  = array( __( 'Free 24/7 priority support' ), '', __( 'Your support questions answered first by our expert, friendly Happiness team.' ) );
+	$video        = array( __( 'Ad-free video hosting' ), '', __( 'Host your videos on your own site.' ) );
+	$videopress   = array( __( 'Ad-free premium video hosting (250GB)' ), '', __( 'Showcase your video beautifully with the high-quality, ad-free VideoPress player.' ) );
+	$biz_email    = array( __( 'Free business email for one year' ), '', __( 'Build and grow your online presence with a professional email address at your domain name, powered by Titan' ) );
+	$email_mkt    = array( __( 'Built-in email marketing' ), '', __( 'Create and automate beautiful emails to 500 subscribers right from your WordPress dashboard, with the MailPoet Business plan.' ) );
+	$ads_credit   = array( __( '$200 in ad credits' ), '', __( 'Promote your content with Blaze ads.' ) );
+	$backups      = array( __( 'Real-time backups and one-click restores' ), '', __( 'Protect against disaster with easy backups and restores.' ) );
+	$dev_tools    = array( __( 'SFTP/SSH, WP-CLI, Git commands, and GitHub Deployments' ), '', __( 'Access your site via SSH and manage it with WP-CLI. Deploy from GitHub with a few clicks.' ) );
+	$onboarding   = array( __( 'One-on-one onboarding call' ), '', __( 'Talk with a WordPress.com expert to set up your site.' ) );
+	$woo          = array( __( 'Ecommerce tools and WooCommerce experience' ), '', __( 'Enjoy a hosting solution tailored to enhance the performance and security of sites running WooCommerce.' ) );
+	$countries    = array( __( 'Sell in 60+ countries' ), '', __( 'Grow globally by accepting 135+ currencies.' ) );
 
 	return array(
 		'Free'     => array(
-			'tagline'   => __( 'Start your WordPress journey.' ),
+			'tagline'   => __( 'For exploring WordPress.' ),
 			'price'     => 0,
 			'original'  => 0,
 			'save'      => 0,
@@ -6457,7 +6429,7 @@ function untangling_plan_grid() {
 			'features'  => array( $unlimited ),
 		),
 		'Personal' => array(
-			'tagline'   => __( 'Build your presence with a site you can customize.' ),
+			'tagline'   => __( 'For making a personal site or blog truly yours.' ),
 			'price'     => 4,
 			'original'  => 9,
 			'save'      => 55,
@@ -6477,7 +6449,7 @@ function untangling_plan_grid() {
 			),
 		),
 		'Premium'  => array(
-			'tagline'   => __( 'Accept payments on your site and reach more people.' ),
+			'tagline'   => __( 'For creators and professionals building a credible presence.' ),
 			'price'     => 8,
 			'original'  => 18,
 			'save'      => 55,
@@ -6490,17 +6462,18 @@ function untangling_plan_grid() {
 				$unlimited,
 				$domain,
 				$no_ads,
-				$builder_lim,
+				$builder,
 				$themes_all,
-				$support,
+				$support_prio,
 				$plugins,
 				$stats,
 				array( $payments[0], __( 'New' ), $payments[2] ),
-				array( __( 'Upload videos' ), '', __( 'Host your videos on your own site.' ) ),
+				$seo,
+				$video,
 			),
 		),
 		'Business' => array(
-			'tagline'   => __( 'Grow your business with powerful tools and priority support.' ),
+			'tagline'   => __( 'For businesses and developers who need powerful tools and priority support.' ),
 			'price'     => 25,
 			'original'  => 40,
 			'save'      => 37,
@@ -6519,17 +6492,18 @@ function untangling_plan_grid() {
 				$plugins,
 				$stats,
 				$payments,
+				$seo,
 				$videopress,
-				$assistant,
 				array( $biz_email[0], __( 'Email' ), $biz_email[2] ),
 				array( $email_mkt[0], __( 'New' ), $email_mkt[2] ),
 				$ads_credit,
 				$backups,
 				$dev_tools,
+				$onboarding,
 			),
 		),
 		'Commerce' => array(
-			'tagline'   => __( 'Run an online store and keep more of what you earn.' ),
+			'tagline'   => __( 'For merchants growing an online store.' ),
 			'price'     => 45,
 			'original'  => 70,
 			'save'      => 35,
@@ -6543,21 +6517,57 @@ function untangling_plan_grid() {
 				$domain,
 				$no_ads,
 				$builder,
-				array( __( 'Premium store designs' ), '', __( 'Jumpstart your store’s design with a professionally designed theme.' ) ),
+				$themes_store,
 				$support_247,
 				$plugins,
 				$stats,
 				$payments,
+				$seo,
 				$videopress,
-				$assistant,
 				$biz_email,
 				$email_mkt,
 				$ads_credit,
 				$backups,
 				$dev_tools,
-				array( __( 'Ecommerce tools and WooCommerce experience' ), '', __( 'Enjoy a hosting solution tailored to enhance the performance and security of sites running WooCommerce.' ) ),
-				array( __( 'Sell in 60+ countries' ), '', __( 'Grow globally by accepting 135+ currencies.' ) ),
+				$onboarding,
+				$woo,
+				$countries,
 			),
+		),
+	);
+}
+
+// The "Paid plans include:" row under the pricing page title — production's
+// DifferentiatorHeader (plans-features-main/components/plans-page-subheader.tsx):
+// four platform promises every paid plan shares, each with its own inline
+// icon and a Plans2023Tooltip on hover. Copy and glyphs verbatim; the
+// viewBoxes are cropped to the glyph so the 4px gap to the label is measured
+// from the visible edge, as upstream does.
+function untangling_plan_differentiators() {
+	return array(
+		array(
+			'id'    => 'unlimited-traffic',
+			'label' => __( 'Unlimited traffic' ),
+			'tip'   => __( 'No slowdowns, no caps, no matter how much traffic your site gets.' ),
+			'icon'  => '<svg width="10" height="13" viewBox="5 4 10 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.375 4.1665H10.625V16.6665H9.375V4.1665ZM5 8.33317H6.25V16.6665H5V8.33317ZM15 11.6665H13.75V16.6665H15V11.6665Z" fill="currentColor"/></svg>',
+		),
+		array(
+			'id'    => 'managed-hosting',
+			'label' => __( 'Managed hosting' ),
+			'tip'   => __( 'Updates, security, and backups, all taken care of for you.' ),
+			'icon'  => '<svg width="14" height="14" viewBox="3 3 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.4793 13.0468C15.0918 12.149 15.4185 11.087 15.4168 10.0002C15.4184 9.00851 15.1465 8.03562 14.631 7.1885L13.5793 7.866C13.9527 8.49016 14.1668 9.22016 14.1668 10.0002C14.1682 10.8471 13.9103 11.6742 13.4277 12.3702L14.4793 13.0468ZM12.8535 14.6052L12.176 13.5543C11.5214 13.956 10.7682 14.1681 10.0002 14.1668C9.20183 14.1668 8.45683 13.9418 7.82266 13.5535L7.146 14.6043C8.00266 15.1368 8.9915 15.4183 10.0002 15.4168C11.0085 15.4184 11.997 15.1372 12.8535 14.6052ZM5.52016 13.0468C4.90803 12.1489 4.58154 11.0869 4.5835 10.0002C4.5835 8.971 4.87016 8.0085 5.36933 7.18933L6.42016 7.866C6.03489 8.51111 5.83212 9.24876 5.8335 10.0002C5.8335 10.8802 6.10683 11.6968 6.57266 12.3693L5.52016 13.0468ZM7.671 6.54433C8.35877 6.07966 9.17014 5.83204 10.0002 5.8335C10.8627 5.8335 11.6635 6.09516 12.3285 6.54433L13.0052 5.49266C12.1159 4.89823 11.0698 4.58175 10.0002 4.5835C8.93012 4.58184 7.88377 4.89861 6.99433 5.4935L7.671 6.54433ZM10.0002 16.6668C11.7683 16.6668 13.464 15.9645 14.7142 14.7142C15.9645 13.464 16.6668 11.7683 16.6668 10.0002C16.6668 8.23205 15.9645 6.53636 14.7142 5.28612C13.464 4.03588 11.7683 3.3335 10.0002 3.3335C8.23205 3.3335 6.53636 4.03588 5.28612 5.28612C4.03588 6.53636 3.3335 8.23205 3.3335 10.0002C3.3335 11.7683 4.03588 13.464 5.28612 14.7142C6.53636 15.9645 8.23205 16.6668 10.0002 16.6668ZM10.0002 12.9168C10.3832 12.9168 10.7625 12.8414 11.1163 12.6948C11.4702 12.5482 11.7917 12.3334 12.0626 12.0626C12.3334 11.7917 12.5482 11.4702 12.6948 11.1163C12.8414 10.7625 12.9168 10.3832 12.9168 10.0002C12.9168 9.61714 12.8414 9.23787 12.6948 8.884C12.5482 8.53014 12.3334 8.20861 12.0626 7.93777C11.7917 7.66693 11.4702 7.45209 11.1163 7.30551C10.7625 7.15894 10.3832 7.0835 10.0002 7.0835C9.22661 7.0835 8.48475 7.39079 7.93777 7.93777C7.39079 8.48475 7.0835 9.22661 7.0835 10.0002C7.0835 10.7737 7.39079 11.5156 7.93777 12.0626C8.48475 12.6095 9.22661 12.9168 10.0002 12.9168Z" fill="currentColor"/></svg>',
+		),
+		array(
+			'id'    => 'built-in-security',
+			'label' => __( 'Built-in security' ),
+			'tip'   => __( 'Protected from malware, attacks, and spam, right out of the box.' ),
+			'icon'  => '<svg width="12" height="15" viewBox="4 2 12 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 2.64648L15.625 5.20315V9.01482C15.625 12.2648 13.5383 15.3398 10.5958 16.3106C10.2089 16.4383 9.79114 16.4383 9.40417 16.3106C6.4625 15.3407 4.375 12.264 4.375 9.01482V5.20315L10 2.64648ZM5.625 6.00815V9.01482C5.625 11.7757 7.4125 14.3382 9.79583 15.1232C9.92833 15.1673 10.0717 15.1673 10.2042 15.1232C12.5875 14.3382 14.375 11.7757 14.375 9.01482V6.00815L10 4.01982L5.625 6.00815Z" fill="currentColor"/></svg>',
+		),
+		array(
+			'id'    => 'fast-site-loading',
+			'label' => __( 'Fast site loading' ),
+			'tip'   => __( 'Fast loading worldwide with global CDN and free SSL built in.' ),
+			'icon'  => '<svg width="14" height="12" viewBox="3 4 14 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M10.0005 4.1665C11.1296 4.16656 12.2287 4.4542 13.2017 4.98682L12.271 5.9165C11.5657 5.59092 10.7922 5.41655 10.0005 5.4165C8.5639 5.4165 7.18526 5.98662 6.16943 7.00244C5.15361 8.01826 4.5835 9.39691 4.5835 10.8335C4.58358 12.2699 5.15379 13.6478 6.16943 14.6636L5.28564 15.5474C4.03558 14.2972 3.33358 12.6014 3.3335 10.8335C3.3335 9.06539 4.0354 7.36889 5.28564 6.11865C6.53589 4.86841 8.23238 4.1665 10.0005 4.1665ZM15.8511 7.64014C16.3808 8.61114 16.6665 9.7075 16.6665 10.8335C16.6664 12.6015 15.9645 14.2972 14.7144 15.5474L13.8306 14.6636C14.8463 13.6478 15.4164 12.27 15.4165 10.8335C15.4165 10.0448 15.2436 9.274 14.9204 8.5708L15.8511 7.64014ZM14.5591 5.39111C14.8032 5.14763 15.199 5.14723 15.4429 5.39111C15.6865 5.63501 15.6863 6.03085 15.4429 6.2749L11.2065 10.5103C11.2341 10.6134 11.2505 10.7216 11.2505 10.8335C11.2504 11.5237 10.6907 12.0833 10.0005 12.0835C9.31017 12.0835 8.75055 11.5238 8.75049 10.8335C8.75049 10.1431 9.31013 9.5835 10.0005 9.5835C10.1119 9.58353 10.22 9.59909 10.3228 9.62646L14.5591 5.39111Z" fill="currentColor"/></svg>',
 		),
 	);
 }
@@ -6606,18 +6616,30 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 	?>
 	<div class="untangling-mkt-hero">
 		<h1 class="untangling-mkt-brandfont"><?php echo esc_html( $ctx ? $ctx['title'] : __( 'There’s a plan for you' ) ); ?></h1>
-		<p><?php
-		if ( $ctx ) {
-			// The need already named the plan in its own sentence, so this half
-			// only has to say where the visitor is standing today.
-			echo esc_html( $ctx['lede'] . ' ' . sprintf( __( 'You’re currently on the %s plan.' ), $plan ) );
-		} else {
-			echo esc_html( $item
-				? sprintf( __( 'Unlock %1$s with the %2$s plan or higher. You’re currently on the %3$s plan.' ), $item['name'], $item['tier'], $plan )
-				: sprintf( __( 'Whatever site you’re building, there’s a plan to make it happen sooner. You’re currently on the %s plan.' ), $plan )
-			);
-		}
-		?></p>
+		<?php if ( $ctx || $item ) : ?>
+			<p><?php
+			if ( $ctx ) {
+				// The need already named the plan in its own sentence, so this half
+				// only has to say where the visitor is standing today.
+				echo esc_html( $ctx['lede'] . ' ' . sprintf( __( 'You’re currently on the %s plan.' ), $plan ) );
+			} else {
+				echo esc_html( sprintf( __( 'Unlock %1$s with the %2$s plan or higher. You’re currently on the %3$s plan.' ), $item['name'], $item['tier'], $plan ) );
+			}
+			?></p>
+		<?php endif; ?>
+		<?php
+		// Production's differentiator row sits under the heading on every entry
+		// (its generic "Whatever site you’re building…" subhead goes away when
+		// the row is on; the item/need ledes stack above it, as the standard
+		// subheader does upstream). The current column already says "Current
+		// plan", so the generic entry no longer repeats the plan name here.
+		?>
+		<p class="untangling-mkt-plan-diffs">
+			<span class="untangling-mkt-plan-diffs-prefix"><?php esc_html_e( 'Paid plans include:' ); ?></span>
+			<?php foreach ( untangling_plan_differentiators() as $diff ) : ?>
+				<span class="untangling-mkt-plan-diff untangling-feature-tip" id="untangling-plan-diff-<?php echo esc_attr( $diff['id'] ); ?>" tabindex="0" data-tip="<?php echo esc_attr( $diff['tip'] ); ?>"><span class="untangling-mkt-plan-diff-icon"><?php echo $diff['icon']; // Static inline SVG, no user input. ?></span><span class="untangling-mkt-plan-diff-label"><?php echo esc_html( $diff['label'] ); ?></span></span>
+			<?php endforeach; ?>
+		</p>
 	</div>
 	<div class="untangling-mkt-plans is-redesign">
 		<?php foreach ( untangling_plan_grid() as $name => $col ) : ?>
@@ -6690,7 +6712,8 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 						<span class="untangling-mkt-plan-save untangling-feature-tip" tabindex="0" data-tip="<?php echo esc_attr( sprintf( __( '$%1$s/year vs. $%2$s paying monthly' ), $col['price'] * 12, $col['original'] * 12 ) ); ?>"><?php echo esc_html( sprintf( __( 'Save %d%%' ), $col['save'] ) ); ?></span>
 					<?php endif; ?>
 					<p class="untangling-mkt-plan-price"><span>$<?php echo esc_html( $col['price'] ); ?></span><?php if ( $col['original'] ) : ?><s>$<?php echo esc_html( $col['original'] ); ?></s><?php endif; ?></p>
-					<p class="untangling-mkt-plan-billing"><?php esc_html_e( 'per month, billed every 12 months' ); ?></p>
+					<?php // Free has no term: plans-grid-next's billing timeframe prints "No expiration date" under $0. ?>
+					<p class="untangling-mkt-plan-billing"><?php echo esc_html( $col['price'] ? __( 'per month, billed every 12 months' ) : __( 'No expiration date' ) ); ?></p>
 				</div>
 				<?php if ( $is_current ) : ?>
 					<span class="untangling-mkt-button is-disabled"><?php esc_html_e( 'Current plan' ); ?></span>
@@ -7600,6 +7623,18 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	@media ( min-width: 960px ) { .untangling-mkt-hero h1 { font-size: 44px; line-height: 1.15; } }
 	.untangling-mkt-hero p { font-size: 14px; max-width: 660px; margin: 8px auto 0; color: var(--mkt-gray-80); text-wrap: balance; }
 	@media ( min-width: 960px ) { .untangling-mkt-hero p { font-size: 16px; } }
+	/* "Paid plans include:" row (production DifferentiatorHeader; Figma: 12px
+	   under the title box, 16/24 gray-800, 20px icon + 4px gap, label with a
+	   1px dashed gray-700 underline, items 8px apart, wrapping and left-aligned
+	   on narrow screens). It carries the same dark tooltip as the feature rows. */
+	.untangling-mkt-hero .untangling-mkt-plan-diffs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 8px; max-width: none; margin: 12px auto 0; font-size: 14px; line-height: 20px; color: #2f2f2f; text-wrap: initial; }
+	@media ( min-width: 960px ) { .untangling-mkt-hero .untangling-mkt-plan-diffs { font-size: 16px; line-height: 24px; } }
+	@media ( max-width: 599px ) { .untangling-mkt-hero .untangling-mkt-plan-diffs { justify-content: flex-start; text-align: left; } .untangling-mkt-plan-diffs-prefix { flex-basis: 100%; } }
+	.untangling-mkt-plan-diffs-prefix { white-space: nowrap; }
+	.untangling-mkt-plan-diff { display: inline-flex; align-items: center; white-space: nowrap; color: inherit; }
+	.untangling-mkt-plan-diff-icon { display: inline-flex; align-items: center; justify-content: center; margin-right: 4px; flex-shrink: 0; color: inherit; }
+	.untangling-mkt-plan-diff-icon svg { display: block; color: inherit; }
+	.untangling-mkt-plan-diff-label { border-bottom: 1px dashed #757575; }
 	/* 3rem heading→content gap, like the stepper's ContentWrapper. */
 	.untangling-mkt-search { position: relative; max-width: 680px; margin: 48px auto 0; color: var(--mkt-gray-50); }
 	.untangling-mkt-search svg { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); }
@@ -7768,29 +7803,35 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-button.is-secondary:hover { background: var(--mkt-blue-tint); color: var(--mkt-blue); }
 	.untangling-mkt-button.is-disabled { background: var(--mkt-gray-0); color: var(--mkt-gray-50); cursor: default; }
 
-	/* Pricing — mirrors Calypso's pricing grid redesign (ExPlat
-	   calypso_pricing_differentiation_202607, arm six_plan_new_design — the
-	   `.plans-grid-next.is-plans-grid-redesign-experiment` rules in
-	   packages/plans-grid-next features-grid/style.scss + plan-button/style.scss):
-	   one bordered row of 280px-max columns sharing 1px #e0e0e0 rules, sans
-	   plan names (26px), Save pill + 36px price + struck original, 40px CTA
-	   (filled on Premium/Business, outlined elsewhere), cloud storage row,
-	   green-check feature rows, and badges floating on the top rule. */
-	.untangling-mkt-plans { --mkt-grid-rule: #e0e0e0; --mkt-grid-green: #007017; --mkt-grid-green-dark: #00450c; --mkt-grid-struck: #949494; --mkt-blue-dark: #1d35b4; display: flex; flex-wrap: nowrap; gap: 0; justify-content: center; margin-top: 48px; align-items: stretch; }
-	.untangling-mkt-plan { flex: 1 1 0; min-width: 0; max-width: 280px; box-sizing: border-box; border: 1px solid var(--mkt-grid-rule); border-radius: 0; margin-left: -1px; padding: 32px 16px 16px; display: flex; flex-direction: column; position: relative; background: #fff; color: var(--mkt-gray-80); }
+	/* Pricing — mirrors Calypso's pricing grid redesign as shipped on
+	   2026-10-27 (the `.plans-grid-next.is-plans-grid-redesign-experiment`
+	   rules in packages/plans-grid-next features-grid/style.scss +
+	   plan-button/style.scss, values checked against the Figma "Combined
+	   winning variants" frame): one bordered row of 280px-max columns sharing
+	   1px #e0e0e0 rules, sans plan names (26px), Save pill + 36px price +
+	   struck original, 40px CTA (filled on Premium/Business, outlined
+	   elsewhere), cloud storage row, green-check feature rows, and badges
+	   floating on the top rule. Greys are the Figma's gray-900/800 (#1e1e1e /
+	   #2f2f2f); green pills carry a 1px inset ring and gray-700 text. The
+	   60px gap above the grid = production's 3rem + the 12px the badge
+	   overhangs, so the badge sits 12px under the differentiator row. */
+	.untangling-mkt-plans { --mkt-grid-rule: #e0e0e0; --mkt-grid-green: #007017; --mkt-grid-green-dark: #005c12; --mkt-grid-pill-bg: rgba(184, 230, 191, 0.68); --mkt-grid-pill-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08); --mkt-grid-ink: #1e1e1e; --mkt-grid-text: #2f2f2f; --mkt-grid-struck: #949494; --mkt-blue-dark: #1d35b4; display: flex; flex-wrap: nowrap; gap: 0; justify-content: center; margin-top: 60px; align-items: stretch; }
+	.untangling-mkt-plan { flex: 1 1 0; min-width: 0; max-width: 280px; box-sizing: border-box; border: 1px solid var(--mkt-grid-rule); border-radius: 0; margin-left: -1px; padding: 32px 16px 16px; display: flex; flex-direction: column; position: relative; background: #fff; color: var(--mkt-grid-text); }
 	.untangling-mkt-plan:first-child { margin-left: 0; border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
 	.untangling-mkt-plan:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-	/* Badge: a 24px pill centred on the top rule, 16px in from the column edge. */
-	.untangling-mkt-plan-pill { position: absolute; top: -12px; left: 16px; z-index: 1; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 2px; font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: 0.25px; white-space: nowrap; box-sizing: border-box; max-width: calc( 100% - 32px ); overflow: hidden; text-overflow: ellipsis; }
-	.untangling-mkt-plan-pill.is-light { background: #fff; border: 1px solid var(--mkt-grid-rule); color: var(--mkt-gray-100); }
-	.untangling-mkt-plan-pill.is-dark { background: var(--mkt-gray-100); border: 1px solid var(--mkt-gray-100); color: #fff; }
-	.untangling-mkt-plan h2 { font-size: 26px; line-height: 30px; font-weight: 400; letter-spacing: 0; margin: 0 0 8px; color: var(--mkt-gray-100); }
-	.untangling-mkt-plan-tagline { font-size: 13px; line-height: 20px; min-height: 40px; margin: 0 0 18px; color: var(--mkt-gray-80); text-wrap: pretty; }
+	/* Badge: a 24px pill centred on the top rule, 16px in from the column edge
+	   (Figma: 8px side padding, 12/20 medium, gray-900 ink). */
+	.untangling-mkt-plan-pill { position: absolute; top: -12px; left: 16px; z-index: 1; display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 2px; font-size: 12px; font-weight: 500; line-height: 20px; letter-spacing: 0.25px; white-space: nowrap; box-sizing: border-box; max-width: calc( 100% - 32px ); overflow: hidden; text-overflow: ellipsis; }
+	.untangling-mkt-plan-pill.is-light { background: #fff; border: 1px solid var(--mkt-grid-rule); color: var(--mkt-grid-ink); }
+	.untangling-mkt-plan-pill.is-dark { background: var(--mkt-grid-ink); border: 1px solid var(--mkt-grid-ink); color: #fff; }
+	.untangling-mkt-plan h2 { font-size: 26px; line-height: 30px; font-weight: 400; letter-spacing: 0; margin: 0 0 8px; color: var(--mkt-grid-ink); }
+	/* Three 20px lines reserved (Figma: the plan-name block is 98px = 30 name + 8 + 60), so Business's longer tagline does not push its price block below the others. */
+	.untangling-mkt-plan-tagline { font-size: 13px; line-height: 20px; min-height: 60px; margin: 0 0 20px; color: var(--mkt-grid-text); text-wrap: pretty; }
 	/* Price block: Save pill, price + struck original, billing line. Free has
 	   no pill or struck price, so the block bottom-aligns to keep prices level. */
 	.untangling-mkt-plan-pricing { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; min-height: 90px; margin: 0 0 16px; }
-	.untangling-mkt-plan-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--mkt-grid-green-dark); background: rgba(184, 230, 191, 0.68); margin-bottom: 10px; }
-	.untangling-mkt-plan-price { display: flex; align-items: last baseline; gap: 8px; margin: 0 0 8px; line-height: 1; color: var(--mkt-gray-100); }
+	.untangling-mkt-plan-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--mkt-grid-green-dark); background: var(--mkt-grid-pill-bg); box-shadow: var(--mkt-grid-pill-ring); margin-bottom: 10px; }
+	.untangling-mkt-plan-price { display: flex; align-items: last baseline; gap: 8px; margin: 0 0 8px; line-height: 1; color: var(--mkt-grid-ink); }
 	.untangling-mkt-plan-price span { font-size: 36px; letter-spacing: 0; }
 	.untangling-mkt-plan-price s { font-size: 24px; color: var(--mkt-grid-struck); }
 	.untangling-mkt-plan-billing { font-size: 12px; line-height: 16px; margin: 0; color: var(--mkt-gray-50); }
@@ -7802,23 +7843,28 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-plan .untangling-mkt-button.is-disabled { background: var(--mkt-gray-0); color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px var(--mkt-gray-10); }
 	/* Storage row: the first row of the features list (Figma: wrapper gap 20px
 	   from the CTA, then 8px between rows), not a block of its own. */
-	.untangling-mkt-plan-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-plan-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: var(--mkt-grid-text); }
 	.untangling-mkt-plan-storage svg { flex: 0 0 17px; width: 17px; height: 12px; color: #000; }
 	.untangling-mkt-plan-storage span { font-weight: 500; }
 	.untangling-mkt-plan-addmore { color: #1e1e1ea3; text-decoration: underline; margin-left: 2px; }
 	.untangling-mkt-plan-addmore:hover { color: var(--mkt-gray-100); }
 	/* Feature rows: 16px green check, 12px text, pill pushed to the right. */
 	.untangling-mkt-plan ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-	.untangling-mkt-plan li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: var(--mkt-gray-80); }
+	.untangling-mkt-plan li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: var(--mkt-grid-text); }
 	.untangling-mkt-plan li > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
 	.untangling-mkt-check { flex: 0 0 16px; width: 16px; height: 16px; fill: var(--mkt-grid-green); }
-	.untangling-mkt-plan-fpill { flex: 0 0 auto; margin-inline-start: auto; display: inline-block; padding: 0 4px; border-radius: 2px; font-style: normal; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--mkt-grid-green-dark); background: rgba(184, 230, 191, 0.64); }
+	.untangling-mkt-plan-fpill { flex: 0 0 auto; margin-inline-start: auto; display: inline-block; padding: 0 4px; border-radius: 2px; font-style: normal; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--mkt-grid-green-dark); background: var(--mkt-grid-pill-bg); box-shadow: var(--mkt-grid-pill-ring); }
 	/* Tooltips (Plans2023Tooltip): dark 210px box, radius 4, 8px/10px, above the
-	   hover area, on the Save pill and on every feature label. */
-	.untangling-mkt-plan .untangling-feature-tip { position: relative; cursor: default; outline: none; }
-	.untangling-mkt-plan .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: 0; width: 210px; box-sizing: border-box; background: var(--mkt-gray-100); color: #fff; font-size: 13px; font-weight: 400; line-height: 18px; letter-spacing: 0; text-align: start; padding: 8px 10px; border-radius: 4px; overflow-wrap: break-word; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
+	   hover area, on the Save pill, on every feature label and on the four
+	   differentiator labels under the title. */
+	.untangling-mkt-plan .untangling-feature-tip,
+	.untangling-mkt-plan-diffs .untangling-feature-tip { position: relative; cursor: default; outline: none; }
+	.untangling-mkt-plan .untangling-feature-tip::after,
+	.untangling-mkt-plan-diffs .untangling-feature-tip::after { content: attr(data-tip); position: absolute; bottom: calc( 100% + 8px ); left: 0; width: 210px; box-sizing: border-box; background: var(--mkt-gray-100); color: #fff; font-size: 13px; font-weight: 400; line-height: 18px; letter-spacing: 0; text-align: start; white-space: normal; padding: 8px 10px; border-radius: 4px; overflow-wrap: break-word; opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 10; }
 	.untangling-mkt-plan .untangling-feature-tip:hover::after,
-	.untangling-mkt-plan .untangling-feature-tip:focus-visible::after { opacity: 1; }
+	.untangling-mkt-plan .untangling-feature-tip:focus-visible::after,
+	.untangling-mkt-plan-diffs .untangling-feature-tip:hover::after,
+	.untangling-mkt-plan-diffs .untangling-feature-tip:focus-visible::after { opacity: 1; }
 	.untangling-mkt-plan-compare { text-align: center; margin: 40px 0 0; }
 	.untangling-mkt-button.is-compare { box-sizing: border-box; height: 40px; padding: 8px 16px; border-radius: 2px; font-size: 13px; font-weight: 500; line-height: 20px; background: transparent; color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px #ccc; }
 	.untangling-mkt-button.is-compare:hover { background: var(--mkt-gray-0); color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px #ccc; }
@@ -9110,18 +9156,6 @@ add_action( 'admin_enqueue_scripts', function () {
 		.untangling-plugins-upsell h2 { margin: 0 0 2px; font-size: 15px; }
 		.untangling-plugins-upsell p { margin: 0; color: #646970; }
 
-		/* Unified upgrade overlay (placeholder) */
-		.untangling-overlay-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100001; }
-		.untangling-overlay-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 8px; padding: 32px; z-index: 100002; width: min(720px, calc(100vw - 48px)); box-shadow: 0 12px 32px rgba(0,0,0,.25); }
-		.untangling-overlay-modal h1 { margin-top: 0; }
-		.untangling-overlay-close { position: absolute; top: 10px; right: 14px; border: none; background: none; font-size: 26px; line-height: 1; cursor: pointer; color: #646970; }
-		.untangling-overlay-note { color: #646970; max-width: 600px; }
-		.untangling-overlay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
-		.untangling-overlay-plan { border: 1px solid #dcdcde; border-radius: 4px; padding: 16px 20px; }
-		.untangling-overlay-plan.is-current { border-color: #3858e9; box-shadow: inset 0 0 0 1px #3858e9; }
-		.untangling-overlay-plan h2 { margin: 0; font-size: 14px; }
-		.untangling-overlay-price { font-size: 24px; font-weight: 600; margin: 4px 0; }
-		.untangling-overlay-price span { font-size: 12px; color: #646970; font-weight: 400; }
 		.untangling-card .untangling-upgrade { margin-top: 8px; }
 
 		/* Omnibar mock — spacing matched to .masterbar__item (padding 0 8px, 24px svgs) */
@@ -12515,7 +12549,7 @@ function untangling_ms_app_js() {
 
 	// The topics a feature label states, for de-duplicating the collapsed
 	// pair rows against the pricing grid's wording of the same feature. A
-	// label can carry several ("Premium store designs and plugins" is themes
+	// label can carry several ("Premium store themes and plugins" is themes
 	// and plugins); a label with none is always kept.
 	function compareColMs( col, isCurrent, cta ) {
 		var g = col.grid || {};
@@ -12552,7 +12586,7 @@ function untangling_ms_app_js() {
 					el( 'span', null, '$' + ( g.price || 0 ) ),
 					g.original ? el( 's', null, '$' + g.original ) : null
 				),
-				el( 'p', { className: 'ms-plangrid-billing' }, 'per month, billed every 12 months' )
+				el( 'p', { className: 'ms-plangrid-billing' }, g.price ? 'per month, billed every 12 months' : 'No expiration date' )
 			),
 			el( 'div', { className: 'ms-plangrid-cta' }, cta ),
 			g.storage ? el( 'div', { className: 'ms-plangrid-storage' },
@@ -14456,17 +14490,18 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
    card's top and bottom borders. */
 .untangling-ms .ms-planup .ms-plangrid-col + .ms-plangrid-col { margin: -24px 0; padding-top: 28px; padding-bottom: 32px; }
 .untangling-ms .ms-plangrid-badge { height: 24px; margin-bottom: 12px; }
-.untangling-ms .ms-plangrid-pill.is-light { background: #fff; border: 1px solid #e0e0e0; color: #101517; }
-.untangling-ms .ms-plangrid-pill.is-dark { background: #101517; border: 1px solid #101517; color: #fff; }
-.untangling-ms .ms-plangrid-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 2px; font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.25px; box-sizing: border-box; white-space: nowrap; }
+/* Pills and badges follow the fullscreen grid (Figma gray-900 ink, 8px side padding). */
+.untangling-ms .ms-plangrid-pill.is-light { background: #fff; border: 1px solid #e0e0e0; color: #1e1e1e; }
+.untangling-ms .ms-plangrid-pill.is-dark { background: #1e1e1e; border: 1px solid #1e1e1e; color: #fff; }
+.untangling-ms .ms-plangrid-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 2px; font-size: 12px; line-height: 20px; font-weight: 500; letter-spacing: 0.25px; box-sizing: border-box; white-space: nowrap; }
 .untangling-ms .ms-plangrid-name { margin: 0 0 8px; font-size: 26px; line-height: 30px; font-weight: 400; color: #101517; }
 .untangling-ms .ms-plangrid-tagline { margin: 0 0 18px; font-size: 13px; line-height: 20px; color: #2c3338; text-wrap: pretty; }
-/* Three columns share one price/CTA baseline even when one tagline is a single line (Free three: "Start your WordPress journey."). Two 20px lines; stacked columns (<=782px) and the two-plan card are left alone. */
+/* Three columns share one price/CTA baseline whatever the tagline length (Free: one line; Business: three). Three 20px lines, as on the fullscreen grid; stacked columns (<=782px) and the two-plan card are left alone. */
 @media (min-width: 783px) {
-	.untangling-ms:not(.untangling-dw) .ms-plangrid.is-three .ms-plangrid-tagline { min-height: 40px; }
+	.untangling-ms:not(.untangling-dw) .ms-plangrid.is-three .ms-plangrid-tagline { min-height: 60px; }
 }
 .untangling-ms .ms-plangrid-pricing { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; min-height: 90px; margin: 0 0 16px; }
-.untangling-ms .ms-plangrid-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: var(--wpds-typography-font-size-sm, 12px); font-weight: 500; color: #00450c; background: rgba(184, 230, 191, 0.68); margin-bottom: 10px; }
+.untangling-ms .ms-plangrid-save { display: inline-block; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 2px; font-size: var(--wpds-typography-font-size-sm, 12px); font-weight: 500; color: #005c12; background: rgba(184, 230, 191, 0.68); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); margin-bottom: 10px; }
 .untangling-ms .ms-plangrid-price { display: flex; align-items: last baseline; gap: 8px; margin: 0 0 8px; line-height: 1; color: #101517; }
 .untangling-ms .ms-plangrid-price span { font-size: 36px; }
 .untangling-ms .ms-plangrid-price s { font-size: 24px; color: #949494; }
@@ -14486,7 +14521,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-check { flex: 0 0 16px; width: 16px; height: 16px; fill: #007017; }
 .untangling-ms .ms-plangrid-check.is-ai { fill: #3858e9; }
 .untangling-ms .ms-plangrid-check.is-no { fill: #757575; }
-.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; height: 16px; line-height: 16px; padding: 0 6px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0.2px; color: #1e1e1e; background: #f0f0f0; }
+/* Row pills (New / Free / Email) are the grid's green pill, not a grey chip, so the slice reads like the fullscreen columns. */
+.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; margin-inline-start: auto; height: 16px; line-height: 16px; padding: 0 4px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0; color: #005c12; background: rgba(184, 230, 191, 0.68); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 /* Feature tooltips in the outer plan columns anchor to the column's edge
    instead of centering on the cursor: a 300px bubble centered near the last
    column's right edge spilled past the page and, even hidden, added
