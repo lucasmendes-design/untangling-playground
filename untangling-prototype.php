@@ -7840,7 +7840,8 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-plan .untangling-mkt-button.is-primary:hover { background: #2a46ce; }
 	.untangling-mkt-button.is-outline { background: #fff; color: var(--mkt-blue); box-shadow: inset 0 0 0 1px var(--mkt-blue); }
 	.untangling-mkt-button.is-outline:hover { background: #fff; color: var(--mkt-blue-dark, #1d35b4); box-shadow: inset 0 0 0 1px var(--mkt-blue-dark, #1d35b4); }
-	.untangling-mkt-plan .untangling-mkt-button.is-disabled { background: var(--mkt-gray-0); color: var(--mkt-gray-100); box-shadow: inset 0 0 0 1px var(--mkt-gray-10); }
+	/* "Current plan" is inert: the same WPDS disabled secondary look as the Upgrades/Dashboard ladder (`.ms-plangrid-cta`): no fill, gray-600 text, 1px neutral-disabled stroke. The old gray-filled, dark-text look drifted from the wp-admin grids (2026-10-28). */
+	.untangling-mkt-plan .untangling-mkt-button.is-disabled { background: transparent; color: #949494; box-shadow: inset 0 0 0 1px var(--wpds-color-stroke-interactive-neutral-disabled, #dbdbdb); cursor: default; pointer-events: none; }
 	/* Storage row: the first row of the features list (Figma: wrapper gap 20px
 	   from the CTA, then 8px between rows), not a block of its own. */
 	.untangling-mkt-plan-storage { display: flex; align-items: center; gap: 4px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: var(--mkt-grid-text); }
@@ -7853,8 +7854,7 @@ function untangling_marketplace_styles( $chromeless = true ) {
 	.untangling-mkt-plan li { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 16px; color: var(--mkt-grid-text); }
 	.untangling-mkt-plan li > span { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
 	.untangling-mkt-check { flex: 0 0 16px; width: 16px; height: 16px; fill: var(--mkt-grid-green); }
-	.untangling-mkt-plan-fpill { flex: 0 0 auto; margin-inline-start: auto; display: inline-block; padding: 0 4px; border-radius: 2px; font-style: normal; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--mkt-grid-green-dark); background: var(--mkt-grid-pill-bg); box-shadow: var(--mkt-grid-pill-ring); }
-	/* Tooltips (Plans2023Tooltip): dark 210px box, radius 4, 8px/10px, above the
+	.untangling-mkt-plan-fpill { flex: 0 0 auto; margin-inline-start: auto; display: inline-block; padding: 0 4px; border-radius: 2px; font-style: normal; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--mkt-grid-green-dark); background: var(--mkt-grid-pill-bg); box-shadow: var(--mkt-grid-pill-ring); }	/* Tooltips (Plans2023Tooltip): dark 210px box, radius 4, 8px/10px, above the
 	   hover area, on the Save pill, on every feature label and on the four
 	   differentiator labels under the title. */
 	.untangling-mkt-plan .untangling-feature-tip,
@@ -14521,8 +14521,8 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-check { flex: 0 0 16px; width: 16px; height: 16px; fill: #007017; }
 .untangling-ms .ms-plangrid-check.is-ai { fill: #3858e9; }
 .untangling-ms .ms-plangrid-check.is-no { fill: #757575; }
-/* Row pills (New / Free / Email) are the grid's green pill, not a grey chip, so the slice reads like the fullscreen columns. */
-.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; margin-inline-start: auto; height: 16px; line-height: 16px; padding: 0 4px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0; color: #005c12; background: rgba(184, 230, 191, 0.68); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+/* Row pills (New / Free / Email) are the grid's green pill, not a grey chip, so the slice reads like the fullscreen columns. They sit right after the label here: these columns are wide, and a pill pushed to the far edge floats away from its feature (Lucas, 2026-10-28). */
+.untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; height: 16px; line-height: 16px; padding: 0 4px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0; color: #005c12; background: rgba(184, 230, 191, 0.68); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 /* Feature tooltips in the outer plan columns anchor to the column's edge
    instead of centering on the cursor: a 300px bubble centered near the last
    column's right edge spilled past the page and, even hidden, added
