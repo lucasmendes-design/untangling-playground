@@ -49,7 +49,7 @@
 		},
 		{
 			"step": "runPHP",
-			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'untangling_site_type', 'atomic' ); update_option( 'untangling_marketplace', 'tabs' ); update_option( 'untangling_plan_filter', 'included' ); update_option( 'untangling_upsell', 'none' ); update_option( 'blogname', 'Aperture Diaries' ); untangling_seed_run( false );"
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'untangling_site_type', 'atomic' ); update_option( 'untangling_upsell', 'none' ); update_option( 'blogname', 'Aperture Diaries' ); untangling_seed_run( false );"
 		}
 	]
 }

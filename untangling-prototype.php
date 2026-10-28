@@ -397,7 +397,7 @@ function untangling_upsell_diamond() {
 // What each plan includes, as {label, tip} pairs — the plan card lists them
 // with the same hover tooltips as the pricing page, so a visitor can read
 // what a feature actually means without leaving the card. Eight per plan
-// (four rows in the card's two-column grid); copy follows
+// (four rows in the card's two-column grid), twelve on Commerce; copy follows
 // untangling_plan_pricing() and wordpress.com/pricing.
 function untangling_plan_card_features( $plan ) {
 	$domain      = array( 'Free domain for one year', sprintf( 'Get a custom domain – like %s – free for the first year.', untangling_get_domain_upsell() ) );
@@ -456,13 +456,20 @@ function untangling_plan_card_features( $plan ) {
 			$backups,
 			$priority,
 		),
+		// Twelve, store-first (the Dashboard widget shows the first six): what
+		// Commerce is for, then what it inherits from Business (Lucas,
+		// 2026-10-28: eight read thin on the top tier).
 		'Commerce' => array(
 			array( 'Sell products and subscriptions', 'Sell physical and digital goods and recurring subscriptions.' ),
+			array( 'Unlimited products and services', 'List as many products, services, and variations as you need.' ),
+			array( 'Sell in 60+ countries', 'Accept payments and ship worldwide.' ),
+			array( 'Shipping carrier integrations', 'Live rates and labels from major carriers, inside your store.' ),
+			array( 'Store analytics', 'Track sales, revenue, and your best-selling products.' ),
+			array( 'Marketing and email tools', 'Coupons, abandoned-cart emails, and campaigns from your store.' ),
 			array( 'Premium store themes', 'Professionally designed store themes built for selling.' ),
 			$install_plugins,
 			array( '50 GB storage', $storage_tip ),
-			array( 'Store analytics', 'Track sales, revenue, and your best-selling products.' ),
-			array( 'Sell in 60+ countries', 'Accept payments and ship worldwide.' ),
+			$backups,
 			$sftp,
 			$priority,
 		),
@@ -500,12 +507,10 @@ function untangling_get_plan_meta( $for_plan = null ) {
 		'Business' => array(
 			'renew'    => 'Renews March 14, 2027',
 			'renewsOn' => '2027-03-14',
-			// The 4th entry is the "needs attention" flag that drove the My Site
-			// AttentionCard (storage almost full). Dropped on 2026-08-18: a
-			// storage alarm is not a next step, and Atomic (Business) opened on
-			// a red banner before the page had said anything else. The note on
-			// the storage meter still carries the pressure where storage lives.
-			'storage'  => array( 41.8, 50, 'Almost full. New uploads may fail.' ),
+			// Healthy numbers only: Business carried 41.8/50 + an "Almost full"
+			// note until 2026-10-28, a hidden tight state. Pressure now comes
+			// from the Usage switch below, on every plan.
+			'storage'  => array( 23.6, 50, null ),
 		),
 		'Commerce' => array(
 			'renew'    => 'Renews March 14, 2027',
@@ -515,6 +520,18 @@ function untangling_get_plan_meta( $for_plan = null ) {
 	);
 	$plan = $for_plan && isset( $plans[ $for_plan ] ) ? $for_plan : untangling_get_plan();
 	$meta = $plans[ $plan ];
+	// Storage follows the Usage switch (Lucas, 2026-10-28): the same state
+	// drives the AI credits meter, so the Upgrades cards, the Hosting widget
+	// row and the REST /site payload (MSD site card) all agree. 'ok' keeps the
+	// table's healthy numbers; 'warn' sits at 80% of the plan; 'low' at 95%.
+	// No note line in either: the red meter and the Running low badge say it
+	// (Lucas, 2026-10-28; the "Almost full. New uploads may fail." line went).
+	$usage = untangling_ms_usage_state();
+	if ( 'warn' === $usage ) {
+		$meta['storage'] = array( round( $meta['storage'][1] * 0.8, 2 ), $meta['storage'][1], null );
+	} elseif ( 'low' === $usage ) {
+		$meta['storage'] = array( round( $meta['storage'][1] * 0.95, 2 ), $meta['storage'][1], null );
+	}
 	$meta['features'] = untangling_plan_card_features( $plan );
 	return $meta;
 }
@@ -822,17 +839,12 @@ function untangling_is_simple() {
  * tab like Add Plugins, the Theme Showcase sidebar entry disappears, and both
  * banners upsell plans. The fullscreen page keeps serving the
  * pricing/checkout steps (and V2's plugin details) only.
- * Switch with ?untangling_marketplace=fullscreen|split|tabs (persisted), or
- * from the Prototype controls.
+ * Tabs is the design (Lucas, 2026-10-28): the Version segment, the
+ * ?untangling_marketplace= switch and UNTANGLING_FORCE_MARKETPLACE are gone.
+ * The fullscreen/split branches below stay as dead code behind this getter.
  */
 function untangling_get_marketplace_mode() {
-	if ( defined( 'UNTANGLING_FORCE_MARKETPLACE' ) ) {
-		return UNTANGLING_FORCE_MARKETPLACE;
-	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_marketplace'] ) && in_array( $_GET['untangling_marketplace'], array( 'fullscreen', 'split', 'tabs' ), true ) ) {
-		update_option( 'untangling_marketplace', $_GET['untangling_marketplace'] );
-	}
-	return get_option( 'untangling_marketplace', 'tabs' );
+	return 'tabs';
 }
 
 function untangling_marketplace_url( $tab = 'themes', $args = array() ) {
@@ -840,36 +852,13 @@ function untangling_marketplace_url( $tab = 'themes', $args = array() ) {
 }
 
 /**
- * Plan filter for the V3 Marketplace tabs — two comparable treatments,
- * switched from Prototype controls: 'included' renders an
- * All plans / Included-with-my-plan link pair under the category row;
- * 'dropdown' renders a right-aligned tier select on the category row.
- * Switch with ?untangling_plan_filter=included|dropdown (persisted).
- */
-function untangling_get_plan_filter() {
-	if ( defined( 'UNTANGLING_FORCE_PLAN_FILTER' ) ) {
-		return UNTANGLING_FORCE_PLAN_FILTER;
-	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_plan_filter'] ) && in_array( $_GET['untangling_plan_filter'], array( 'included', 'dropdown' ), true ) ) {
-		update_option( 'untangling_plan_filter', $_GET['untangling_plan_filter'] );
-	}
-	return get_option( 'untangling_plan_filter', 'included' );
-}
-
-/**
- * Partner themes on Business/Commerce: 'subscription' sells each partner
- * theme as its own subscription, annual by default (production behaviour);
- * 'included' treats them as part of the plan (the earlier prototype shortcut).
- * Switch with ?untangling_partner_themes=subscription|included (persisted).
+ * Partner themes on Business/Commerce are sold per theme, annual by default,
+ * as in production. The 'included' shortcut and its Prototype controls
+ * segment were retired on 2026-10-28 (Lucas); callers still compare against
+ * the string so the subscription branches read as before.
  */
 function untangling_get_partner_themes() {
-	if ( defined( 'UNTANGLING_FORCE_PARTNER_THEMES' ) ) {
-		return UNTANGLING_FORCE_PARTNER_THEMES;
-	}
-	if ( ! untangling_is_locked_demo() && isset( $_GET['untangling_partner_themes'] ) && in_array( $_GET['untangling_partner_themes'], array( 'subscription', 'included' ), true ) ) {
-		update_option( 'untangling_partner_themes', $_GET['untangling_partner_themes'] );
-	}
-	return get_option( 'untangling_partner_themes', 'subscription' );
+	return 'subscription';
 }
 
 // Partner theme subscriptions bought through the checkout mimic (slugs).
@@ -977,22 +966,11 @@ function untangling_ms_get_state() {
 	return get_option( 'untangling_ms_lp_complete' ) ? 'established' : 'new';
 }
 
-/**
- * Hosting health for the Hosting page's state cards. The MSD derives this from
- * real activity (last backup activity name, scan threat count); nothing here
- * has a backup or a scanner to report on, so the scenario is a demo switch.
- * 'ok' is every card green; 'attention' is the failure branch MSD renders when
- * a backup errors or the scanner finds threats.
- */
-function untangling_ms_hosting_state() {
-	if ( defined( 'UNTANGLING_FORCE_MS_HOSTING' ) ) {
-		return UNTANGLING_FORCE_MS_HOSTING;
-	}
-	$override = get_option( 'untangling_ms_hosting' );
-	return in_array( $override, array( 'ok', 'attention' ), true ) ? $override : 'ok';
-}
-
-function untangling_plan_filter_styles() {
+// The category row on both Marketplace tabs. The custom plan filter that
+// shared this row ("Plan: All plans | Included with my plan", or a tier
+// dropdown) was retired on 2026-10-28 (Lucas): the tabs keep core's own
+// filters only.
+function untangling_filter_row_styles() {
 	static $printed = false;
 	if ( $printed ) {
 		return;
@@ -1002,39 +980,8 @@ function untangling_plan_filter_styles() {
 	<style>
 	.untangling-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 12px 0 20px; }
 	.untangling-filter-row .subsubsub { float: none; margin: 0; }
-	.untangling-plan-view { display: flex; align-items: center; gap: 8px; }
-	.untangling-plan-view select { min-width: 200px; }
-	ul.subsubsub.untangling-plan-filters { white-space: nowrap; }
-	.untangling-plan-label { color: #646970; margin-inline-end: 4px; }
 	.untangling-upsell-hero, .untangling-marketplace { clear: both; }
 	</style>
-	<?php
-}
-
-function untangling_plan_filter_links( $total, $included_count ) {
-	untangling_plan_filter_styles();
-	?>
-	<ul class="subsubsub untangling-plan-filters">
-		<li><span class="untangling-plan-label"><?php esc_html_e( 'Plan:' ); ?></span></li>
-		<li><a href="#" data-plan="all" class="current" aria-current="page"><?php esc_html_e( 'All plans' ); ?> <span class="count">(<?php echo esc_html( number_format_i18n( $total ) ); ?>)</span></a> |</li>
-		<li><a href="#" data-plan="included"><?php esc_html_e( 'Included with my plan' ); ?> <span class="count">(<?php echo esc_html( number_format_i18n( $included_count ) ); ?>)</span></a></li>
-	</ul>
-	<?php
-}
-
-function untangling_plan_filter_dropdown( $tiers ) {
-	untangling_plan_filter_styles();
-	?>
-	<label class="untangling-plan-view">
-		<span><?php esc_html_e( 'Plan' ); ?></span>
-		<select data-plan-filter>
-			<option value="all"><?php esc_html_e( 'All plans' ); ?></option>
-			<option value="included"><?php esc_html_e( 'Included with my plan' ); ?></option>
-			<?php foreach ( $tiers as $tier ) : ?>
-				<option value="<?php echo esc_attr( $tier ); ?>"><?php echo esc_html( $tier ); ?></option>
-			<?php endforeach; ?>
-		</select>
-	</label>
 	<?php
 }
 
@@ -1042,9 +989,6 @@ function untangling_plan_filter_dropdown( $tiers ) {
 // Marketplace persists activate/install mimics (never the real theme — the
 // six sites keep their seeded look), Prototype controls reset everything.
 add_action( 'admin_init', function () {
-	// The theme surfaces read this toggle while rendering the page body, so
-	// persist a switch here, before any of them run.
-	untangling_get_partner_themes();
 	if ( isset( $_GET['untangling_set_plan'] ) ) {
 		untangling_set_plan( (string) wp_unslash( $_GET['untangling_set_plan'] ) );
 	}
@@ -1105,14 +1049,11 @@ add_action( 'admin_init', function () {
 			delete_option( 'untangling_ms_lp_complete' );
 		}
 	}
-	if ( isset( $_GET['untangling_ms_hosting'] ) && in_array( $_GET['untangling_ms_hosting'], array( 'ok', 'attention' ), true ) ) {
-		update_option( 'untangling_ms_hosting', $_GET['untangling_ms_hosting'] );
-	}
-	if ( isset( $_GET['untangling_ms_credits'] ) && in_array( $_GET['untangling_ms_credits'], array( 'ok', 'warn', 'low' ), true ) ) {
-		update_option( 'untangling_ms_credits', $_GET['untangling_ms_credits'] );
-	}
-	if ( isset( $_GET['untangling_ms_credits_cta'] ) && in_array( $_GET['untangling_ms_credits_cta'], array( 'buttons', 'links' ), true ) ) {
-		update_option( 'untangling_ms_credits_cta', $_GET['untangling_ms_credits_cta'] );
+	// Usage (Storage + AI credits meters). The old untangling_ms_credits
+	// param still lands here so copied links from before 2026-10-28 work.
+	$usage_param = isset( $_GET['untangling_ms_usage'] ) ? $_GET['untangling_ms_usage'] : ( isset( $_GET['untangling_ms_credits'] ) ? $_GET['untangling_ms_credits'] : null );
+	if ( null !== $usage_param && in_array( $usage_param, array( 'ok', 'warn', 'low' ), true ) ) {
+		update_option( 'untangling_ms_usage', $usage_param );
 	}
 	if ( isset( $_GET['untangling_ms_upgrades'] ) && in_array( $_GET['untangling_ms_upgrades'], array( 'two', 'three' ), true ) ) {
 		update_option( 'untangling_ms_upgrades', $_GET['untangling_ms_upgrades'] );
@@ -1156,17 +1097,12 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_ms_lp_complete' );
 		delete_option( 'untangling_ms_state' );
 		delete_option( 'untangling_ms_storage_addon' );
-		delete_option( 'untangling_ms_hosting' );
-		delete_option( 'untangling_ms_credits' );
-		delete_option( 'untangling_ms_credits_cta' );
+		delete_option( 'untangling_ms_usage' );
 		delete_option( 'untangling_ms_upgrades' );
 		delete_option( 'untangling_ms_credit_topup' );
 		delete_option( 'untangling_ms_credit_last' );
 		delete_option( 'untangling_hosting_design' );
 		delete_option( 'untangling_upsell' );
-		delete_option( 'untangling_marketplace' );
-		delete_option( 'untangling_plan_filter' );
-		delete_option( 'untangling_partner_themes' );
 		delete_option( 'untangling_variant' );
 		// The dashboard variant's designed first look lives partly in user
 		// meta (Screen Options hides, drag order, collapsed boxes) — a full
@@ -1370,7 +1306,7 @@ add_action( 'admin_enqueue_scripts', function ( $hook ) {
 				'checkoutUrl'  => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'plan' => 'Premium', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 				'siteType'     => untangling_get_site_type(),
 				'marketplace'  => untangling_get_marketplace_mode(),
-				'planFilter'   => untangling_get_plan_filter(),
+				'planFilter'   => 'included',
 				'planOverride' => (bool) get_option( 'untangling_plan_override' ),
 				'locked'       => untangling_is_locked_demo(),
 				'plan'         => untangling_get_plan(),
@@ -3896,14 +3832,6 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 	$categories = untangling_marketplace_plugin_categories();
 	$current    = ( isset( $_GET['category'] ) && isset( $categories[ $_GET['category'] ] ) ) ? sanitize_key( $_GET['category'] ) : 'all';
 
-	$is_tabs        = 'tabs' === untangling_get_marketplace_mode();
-	$plan_filter    = untangling_get_plan_filter();
-	$included_count = 0;
-	foreach ( $plugins as $p ) {
-		if ( untangling_plan_rank( $plan ) >= untangling_plan_rank( $p[5] ) ) {
-			$included_count++;
-		}
-	}
 	// Category row: core subsubsub list with counts, like the Posts screen.
 	$counts = array_count_values( array_column( $plugins, 10 ) );
 	$items  = array();
@@ -3914,13 +3842,9 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 	}
 	untangling_plugins_upsell_banner();
 
+	untangling_filter_row_styles();
 	echo '<div class="untangling-filter-row">';
 	echo '<ul class="subsubsub untangling-cat-filters">' . implode( " |</li>\n", $items ) . '</li></ul>';
-	if ( $is_tabs && 'included' === $plan_filter ) {
-		untangling_plan_filter_links( count( $plugins ), $included_count );
-	} elseif ( $is_tabs && 'dropdown' === $plan_filter ) {
-		untangling_plan_filter_dropdown( array( 'Personal', 'Premium', 'Business', 'Commerce' ) );
-	}
 	echo '</div>';
 
 	echo '<div class="wp-list-table widefat plugin-install untangling-marketplace"><div id="the-list">';
@@ -3972,34 +3896,22 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 	<script>
 	( function () {
 		var links = document.querySelectorAll( '.untangling-cat-filters a' );
-		var planLinks = document.querySelectorAll( '.untangling-plan-filters a' );
-		var planSelect = document.querySelector( '[data-plan-filter]' );
 		var cards = document.querySelectorAll( '.untangling-marketplace .plugin-card' );
 		var category = <?php echo wp_json_encode( $current ); ?>;
-		var planChoice = 'all';
 		function catOk( card, key ) {
 			return 'all' === key || card.dataset.category === key;
-		}
-		function planOk( card, choice ) {
-			return 'all' === choice || ( 'included' === choice ? !! card.dataset.included : card.dataset.tier === choice );
 		}
 		function refreshCounts() {
 			links.forEach( function ( link ) {
 				var n = 0;
-				cards.forEach( function ( card ) { if ( catOk( card, link.dataset.category ) && planOk( card, planChoice ) ) { n++; } } );
-				var count = link.querySelector( '.count' );
-				if ( count ) { count.textContent = '(' + n + ')'; }
-			} );
-			planLinks.forEach( function ( link ) {
-				var n = 0;
-				cards.forEach( function ( card ) { if ( catOk( card, category ) && planOk( card, link.dataset.plan ) ) { n++; } } );
+				cards.forEach( function ( card ) { if ( catOk( card, link.dataset.category ) ) { n++; } } );
 				var count = link.querySelector( '.count' );
 				if ( count ) { count.textContent = '(' + n + ')'; }
 			} );
 		}
 		function applyFilters() {
 			cards.forEach( function ( card ) {
-				card.style.display = ( catOk( card, category ) && planOk( card, planChoice ) ) ? '' : 'none';
+				card.style.display = catOk( card, category ) ? '' : 'none';
 			} );
 			refreshCounts();
 		}
@@ -4015,23 +3927,6 @@ add_action( 'install_plugins_wpcom_marketplace', function () {
 				window.history.replaceState( null, '', link.href );
 			} );
 		} );
-		planLinks.forEach( function ( link ) {
-			link.addEventListener( 'click', function ( event ) {
-				event.preventDefault();
-				planChoice = link.dataset.plan;
-				planLinks.forEach( function ( other ) {
-					other.classList.toggle( 'current', other === link );
-					if ( other === link ) { other.setAttribute( 'aria-current', 'page' ); } else { other.removeAttribute( 'aria-current' ); }
-				} );
-				applyFilters();
-			} );
-		} );
-		if ( planSelect ) {
-			planSelect.addEventListener( 'change', function () {
-				planChoice = planSelect.value;
-				applyFilters();
-			} );
-		}
 	} )();
 	</script>
 	<?php
@@ -4450,14 +4345,6 @@ add_action( 'admin_footer-theme-install.php', function () {
 	$themes      = untangling_marketplace_themes();
 	$tab_url     = admin_url( 'theme-install.php?untangling_browse=marketplace' );
 
-	$plan_filter    = untangling_get_plan_filter();
-	$included_count = 0;
-	foreach ( $themes as $t ) {
-		if ( untangling_theme_state( $t[2], $t[0], $plan, $t[6] )['owned'] ) {
-			$included_count++;
-		}
-	}
-
 	// Theme categories from the dotcom showcase (the subjects the shared
 	// catalog already carries), rendered like the plugins tab's subsubsub.
 	$categories = array(
@@ -4576,16 +4463,10 @@ add_action( 'admin_footer-theme-install.php', function () {
 	#untangling-theme-marketplace .theme:focus-within .untangling-tab-details { opacity: 1; }
 	#untangling-theme-marketplace .theme:focus-within .theme-actions { opacity: 1; }
 	</style>
+	<?php untangling_filter_row_styles(); ?>
 	<div id="untangling-theme-marketplace" hidden>
 		<div class="untangling-filter-row">
 			<ul class="subsubsub untangling-cat-filters"><?php echo implode( " |</li>\n", $items ) . '</li>'; ?></ul>
-			<?php
-			if ( 'included' === $plan_filter ) {
-				untangling_plan_filter_links( count( $themes ), $included_count );
-			} else {
-				untangling_plan_filter_dropdown( array( 'Free', 'Personal', 'Premium', 'Business', 'Commerce' ) );
-			}
-			?>
 		</div>
 		<div class="theme-browser rendered">
 			<?php // Core's Installer view removes every `.themes` under .wrap at render — a custom grid class keeps the cards out of its reach (card CSS only needs .theme-browser). ?>
@@ -4889,38 +4770,24 @@ add_action( 'admin_footer-theme-install.php', function () {
 			if ( link && link.classList.contains( 'button-primary' ) ) {
 				return;
 			}
-			if ( link || ! event.target.closest( '.untangling-cat-filters, .untangling-plan-filters' ) ) {
+			if ( link || ! event.target.closest( '.untangling-cat-filters' ) ) {
 				event.preventDefault();
 				openOverlay( parseInt( card.dataset.idx, 10 ) );
 			}
 		} );
 
-		// Category + plan filters — same client-side swap as the plugins tab;
-		// the filter-bar counter tracks the combined result.
+		// Category filter — same client-side swap as the plugins tab; the
+		// filter-bar counter tracks the result.
 		var catLinks = panel.querySelectorAll( '.untangling-cat-filters a' );
-		var planLinks = panel.querySelectorAll( '.untangling-plan-filters a' );
-		var planSelect = panel.querySelector( '[data-plan-filter]' );
 		var cards = panel.querySelectorAll( '.theme' );
 		var category = 'all';
-		var planChoice = 'all';
 		function catOk( card, key ) {
 			return 'all' === key || card.dataset.category === key;
 		}
-		function planOk( card, choice ) {
-			return 'all' === choice || ( 'included' === choice ? !! card.dataset.included : card.dataset.tier === choice );
-		}
-		// Counts follow the other filter, so every click visibly changes the
-		// row even when the surviving cards happen to lead the grid.
 		function refreshCounts() {
 			catLinks.forEach( function ( link ) {
 				var n = 0;
-				cards.forEach( function ( card ) { if ( catOk( card, link.dataset.category ) && planOk( card, planChoice ) ) { n++; } } );
-				var count = link.querySelector( '.count' );
-				if ( count ) { count.textContent = '(' + n + ')'; }
-			} );
-			planLinks.forEach( function ( link ) {
-				var n = 0;
-				cards.forEach( function ( card ) { if ( catOk( card, category ) && planOk( card, link.dataset.plan ) ) { n++; } } );
+				cards.forEach( function ( card ) { if ( catOk( card, link.dataset.category ) ) { n++; } } );
 				var count = link.querySelector( '.count' );
 				if ( count ) { count.textContent = '(' + n + ')'; }
 			} );
@@ -4928,7 +4795,7 @@ add_action( 'admin_footer-theme-install.php', function () {
 		function applyFilters() {
 			var shown = 0;
 			cards.forEach( function ( card ) {
-				var match = catOk( card, category ) && planOk( card, planChoice );
+				var match = catOk( card, category );
 				card.style.display = match ? '' : 'none';
 				if ( match ) {
 					shown++;
@@ -4949,23 +4816,6 @@ add_action( 'admin_footer-theme-install.php', function () {
 				applyFilters();
 			} );
 		} );
-		planLinks.forEach( function ( link ) {
-			link.addEventListener( 'click', function ( event ) {
-				event.preventDefault();
-				planChoice = link.dataset.plan;
-				planLinks.forEach( function ( other ) {
-					other.classList.toggle( 'current', other === link );
-					if ( other === link ) { other.setAttribute( 'aria-current', 'page' ); } else { other.removeAttribute( 'aria-current' ); }
-				} );
-				applyFilters();
-			} );
-		} );
-		if ( planSelect ) {
-			planSelect.addEventListener( 'change', function () {
-				planChoice = planSelect.value;
-				applyFilters();
-			} );
-		}
 	} )();
 	</script>
 	<?php
@@ -5337,26 +5187,17 @@ function untangling_format_credits( $n ) {
 	return ( floor( $k ) == $k ? (string) (int) $k : number_format_i18n( $k, 1 ) ) . 'k';
 }
 
-// Demo switch for the credits meter: 'ok' = mid-month usage (blue), 'warn' =
-// a fifth of the allowance left (amber), 'low' = the combined balance under
-// the 10k notice line (red).
-function untangling_ms_credits_state() {
-	if ( defined( 'UNTANGLING_FORCE_MS_CREDITS' ) ) {
-		return UNTANGLING_FORCE_MS_CREDITS;
+// Usage — one demo switch for both meters on the Upgrades page (Lucas,
+// 2026-10-28; it drove the credits meter alone as untangling_ms_credits
+// before). 'ok' = mid-month usage, blue; 'warn' = storage at 80% and a fifth
+// of the credits left, amber + "Getting low"; 'low' = storage at 95% and the
+// combined credits under the 10k line, red + "Running low".
+function untangling_ms_usage_state() {
+	if ( defined( 'UNTANGLING_FORCE_MS_USAGE' ) ) {
+		return UNTANGLING_FORCE_MS_USAGE;
 	}
-	$state = get_option( 'untangling_ms_credits' );
+	$state = get_option( 'untangling_ms_usage' );
 	return in_array( $state, array( 'ok', 'warn', 'low' ), true ) ? $state : 'ok';
-}
-
-// Two treatments for the card's actions: 'buttons' (the pair on their own
-// row) and 'links' (text links beside the balance — lighter, for a card that
-// should not outweigh the plan above it).
-function untangling_ms_credits_cta() {
-	if ( defined( 'UNTANGLING_FORCE_MS_CREDITS_CTA' ) ) {
-		return UNTANGLING_FORCE_MS_CREDITS_CTA;
-	}
-	$cta = get_option( 'untangling_ms_credits_cta' );
-	return in_array( $cta, array( 'buttons', 'links' ), true ) ? $cta : 'buttons';
 }
 
 // The Upgrades card, two ways (Lucas, 2026-10-22): 'three' (the default) =
@@ -5424,7 +5265,7 @@ function untangling_plan_ladder( $plan = null ) {
 		if ( $is_current ) {
 			// The current column is the reference: the full list the plan
 			// includes, in the Your site widget's order, with the plan's own
-			// credits row first so the renderer lifts it beside storage. No
+			// credits row first, as the first checked item. No
 			// "Everything in X, plus:" line — there is nothing to diff against.
 			$below   = null;
 			$credits = untangling_plan_credits_row( $name );
@@ -5494,7 +5335,7 @@ function untangling_plan_ladder( $plan = null ) {
 // fifth of the allowance is already under 10k (Lucas, 2026-10-23).
 function untangling_ms_credits_data( $plan ) {
 	$allowance = untangling_ai_credits_allowance( $plan );
-	$state     = untangling_ms_credits_state();
+	$state     = untangling_ms_usage_state();
 	$topup     = (int) get_option( 'untangling_ms_credit_topup', 0 );
 	// Mid-month usage per plan (72% left on Personal is the design's worked
 	// example); the warn state leaves a fifth of the allowance; the low state
@@ -5532,7 +5373,6 @@ function untangling_ms_credits_data( $plan ) {
 		'pack'      => untangling_ai_credits_pack(),
 		'packs'     => untangling_ai_credits_packs(),
 		'state'     => $state,
-		'cta'       => untangling_ms_credits_cta(),
 		'addUrl'    => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'credits', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 	);
 }
@@ -8337,10 +8177,9 @@ add_action( 'admin_footer', function () {
 	}
 	$is_mkt   = $screen && 'toplevel_page_untangling-marketplace' === $screen->id;
 	$type     = untangling_get_site_type();
-	$mode     = untangling_get_marketplace_mode();
 	$plan     = untangling_get_plan();
 	$override = (bool) get_option( 'untangling_plan_override' );
-	$ms_dirty = get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_hosting' ) || get_option( 'untangling_ms_credits' ) || get_option( 'untangling_ms_credit_topup' );
+	$ms_dirty = get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_usage' ) || get_option( 'untangling_ms_credit_topup' );
 	// A theme subscription is the one Marketplace purchase with no plan change
 	// behind it, so it has to surface the Reset button on its own.
 	$mkt_dirty = (bool) get_option( 'untangling_mkt_subscribed' );
@@ -8452,33 +8291,22 @@ add_action( 'admin_footer', function () {
 					? __( 'Setup unfinished: Site Setup sits below Dashboard in the sidebar.' )
 					: __( 'Setup behind you: Site Setup leaves the sidebar. WooCommerce, Yoast SEO, and Elementor widgets join the dashboard.' );
 				$seg( __( 'Site state' ), 'untangling_ms_state', array( 'new' => __( 'Just created' ), 'established' => __( 'Established' ) ), $ms_state, $state_hint );
-				// Hosting health has no real source in the prototype — no backup
-				// runs, no scanner — so the failure branch needs a switch to be
-				// demoable at all. Plans below Business gate both cards, so the
-				// segment only means something on Atomic.
-				$ms_hosting = untangling_ms_hosting_state();
-				$seg( __( 'Hosting state' ), 'untangling_ms_hosting', array( 'ok' => __( 'All good' ), 'attention' => __( 'Needs attention' ) ), $ms_hosting, 'attention' === $ms_hosting
-					? __( 'Hosting: a failed backup and threats found — both cards turn red.' )
-					: __( 'Hosting: backups current and no threats — both cards turn green.' ) );
-				// The credits meter has no real ledger behind it, so the low
-				// state needs a switch to be demoable. Free has no allowance
-				// and shows the offer row whatever the switch says.
-				$ms_credits = untangling_ms_credits_state();
-				$credits_hints = array(
-					'ok'   => __( 'Credits: a mid-month balance, blue meter. Free sites see the offer instead.' ),
-					'warn' => __( 'Credits: a fifth of the allowance left — yellow meter and a Getting low badge, on every tier.' ),
-					'low'  => __( 'Credits: under 10k left in total — red meter, no badge or notice line. A bought pack clears it.' ),
+				// Neither meter has a real ledger behind it, so the pressure
+				// states need a switch to be demoable. One switch drives both
+				// (Lucas, 2026-10-28). Free has no credits allowance and shows
+				// the offer row whatever the switch says.
+				$ms_usage    = untangling_ms_usage_state();
+				$usage_hints = array(
+					'ok'   => __( 'Usage: mid-month numbers, blue meters on Storage and AI credits. Free sites see the credits offer instead.' ),
+					'warn' => __( 'Usage: storage at 80% and a fifth of the credits left — amber meters and a Getting low badge on both cards.' ),
+					'low'  => __( 'Usage: storage at 95% and under 10k credits in total — red meters and a Running low badge on both cards. A bought add-on or pack clears its own meter.' ),
 				);
-				$seg( __( 'AI credits' ), 'untangling_ms_credits', array( 'ok' => __( 'Healthy' ), 'warn' => __( 'Getting low' ), 'low' => __( 'Running low' ) ), $ms_credits, $credits_hints[ $ms_credits ] );
-				$ms_credits_cta = untangling_ms_credits_cta();
-				$seg( __( 'Credits actions' ), 'untangling_ms_credits_cta', array( 'buttons' => __( 'Button' ), 'links' => __( 'Link' ) ), $ms_credits_cta, 'links' === $ms_credits_cta
-					? __( 'Add credits as a text link beside the balance — the lighter card.' )
-					: __( 'A pack picker with a secondary Add credits button under the meter, like the Storage card. Upgrading lives on the plan card, which keeps the one primary button.' ) );
+				$seg( __( 'Usage' ), 'untangling_ms_usage', array( 'ok' => __( 'Healthy' ), 'warn' => __( 'Getting low' ), 'low' => __( 'Running low' ) ), $ms_usage, $usage_hints[ $ms_usage ] );
 				// The Upgrades card: the current plan beside the recommended
 				// next tier, or the current plan followed by up to two higher
 				// tiers (Business has one above it, so it is the two-plan card).
 				$ms_upgrades = untangling_ms_upgrades_card();
-				$seg( __( 'Upgrades card' ), 'untangling_ms_upgrades', array( 'three' => __( 'Three plans' ), 'two' => __( 'Two plans' ) ), $ms_upgrades, 'three' === $ms_upgrades
+				$seg( __( 'Upgrade card layout' ), 'untangling_ms_upgrades', array( 'three' => __( 'Three plans' ), 'two' => __( 'Two plans' ) ), $ms_upgrades, 'three' === $ms_upgrades
 					? __( 'Your plan first, with everything it includes, then up to two tiers above it and what each one adds. Business has one tier above it, so it is the one card with two plans.' )
 					: __( 'The plan you are on beside the one tier we recommend next, rows paired line by line.' ) );
 				$group( __( 'wp-admin' ) );
@@ -8523,32 +8351,6 @@ add_action( 'admin_footer', function () {
 				), $upsell, $upsell_hints[ $upsell ]
 					. ( 'none' === $upsell ? '' : ' ' . ( 'Free' === $plan ? __( 'Selling the free domain here.' ) : __( 'Selling the 2-year renewal here.' ) ) ), 'is-grid' );
 
-				$group( __( 'Plugins and Themes' ) );
-				// One line about the selected mode only — the segments reload the
-				// page, so the hint re-renders with each choice.
-				$mode_hints = array(
-					'fullscreen' => __( 'Themes + plugins in the chromeless Marketplace.' ),
-					'split'      => __( 'Production Atomic: core Themes screen + Appearance → Theme Showcase; plugins keep the Add Plugins tab.' ),
-					'tabs'       => __( 'Marketplace tabs (first tab) in Add Plugins and Add Themes.' ),
-				);
-				$seg( __( 'Version' ), 'untangling_marketplace', array( 'fullscreen' => __( 'Fullscreen' ), 'split' => __( 'Split' ), 'tabs' => __( 'Tabs' ) ), $mode, $mode_hints[ $mode ] );
-				// Partner themes on Business/Commerce: sold per theme (production)
-				// or bundled with the plan (the earlier shortcut). Applies to all
-				// three versions.
-				$partner       = untangling_get_partner_themes();
-				$partner_hints = array(
-					'subscription' => __( 'Partner themes need their own subscription on Business and Commerce, annual by default, as in production.' ),
-					'included'     => __( 'Partner themes come with Business and Commerce.' ),
-				);
-				$seg( __( 'Partner themes' ), 'untangling_partner_themes', array( 'subscription' => __( 'Subscription' ), 'included' => __( 'Included' ) ), $partner, $partner_hints[ $partner ] );
-				if ( 'tabs' === $mode ) {
-					$filter_hints = array(
-						'included' => __( '“Included with my plan” links on both Marketplace tabs.' ),
-						'dropdown' => __( 'A tier dropdown on both Marketplace tabs.' ),
-					);
-					$filter = untangling_get_plan_filter();
-					$seg( __( 'Plan filter' ), 'untangling_plan_filter', array( 'included' => __( 'Included' ), 'dropdown' => __( 'Dropdown' ) ), $filter, $filter_hints[ $filter ] );
-				}
 				?>
 			</div>
 			<div class="untangling-gproto-foot">
@@ -8569,7 +8371,6 @@ add_action( 'admin_footer', function () {
 		}
 		var fab = wrap.querySelector( '.untangling-gproto-fab' );
 		var panel = wrap.querySelector( '.untangling-gproto-panel' );
-		var mkt = document.querySelector( '.untangling-mkt' );
 		var body = wrap.querySelector( '.untangling-gproto-body' );
 
 		// Every segment reloads the page, so a panel that forgot it was open shut
@@ -8670,25 +8471,6 @@ add_action( 'admin_footer', function () {
 				}
 				var key = button.closest( '.untangling-gproto-seg' ).dataset.key;
 				var value = button.dataset.value;
-				// Leaving Split while on its in-admin showcase/details page
-				// lands on core Themes — the page only registers in Split.
-				if ( 'untangling_marketplace' === key && 'split' !== value && -1 !== window.location.search.indexOf( 'page=untangling-themes' ) ) {
-					window.location.href = <?php echo wp_json_encode( admin_url( 'themes.php' ) ); ?> + '?untangling_marketplace=' + value;
-					return;
-				}
-				// Leaving Fullscreen while browsing its catalog lands on the
-				// equivalent in-admin home: the Add Plugins Marketplace tab,
-				// or (Tabs) the Add Themes Marketplace tab.
-				if ( 'untangling_marketplace' === key && mkt ) {
-					if ( 'plugins' === mkt.dataset.mkt && ( 'split' === value || 'tabs' === value ) ) {
-						window.location.href = <?php echo wp_json_encode( admin_url( 'plugin-install.php?tab=wpcom_marketplace' ) ); ?> + '&untangling_marketplace=' + value;
-						return;
-					}
-					if ( 'themes' === mkt.dataset.mkt && 'tabs' === value ) {
-						window.location.href = <?php echo wp_json_encode( admin_url( 'theme-install.php?untangling_browse=marketplace&untangling_marketplace=tabs' ) ); ?>;
-						return;
-					}
-				}
 				go( key, value );
 			} );
 		} );
@@ -9284,6 +9066,11 @@ function untangling_ms_data() {
 		$meta['storage'][2]  = sprintf( __( 'Includes the +%d GB add-on.' ), $storage_addon );
 		$meta['storage'][3]  = false;
 	}
+	// The Storage card's meter status: the Usage switch, unless a bought
+	// add-on has stretched the meter — then it is healthy again, the way a
+	// credits pack relaxes the credits meter.
+	$usage          = untangling_ms_usage_state();
+	$storage_status = $storage_addon ? 'ok' : $usage;
 
 	// Signals: the seeded content the Next steps pool grounds its "why" in.
 	$comments       = get_comments( array( 'number' => 1, 'status' => 'approve' ) );
@@ -9445,13 +9232,14 @@ function untangling_ms_data() {
 		'storagePricing'  => untangling_storage_addon_pricing(),
 		'storageAddonUrl' => untangling_marketplace_url( 'themes', array( 'ustep' => 'checkout', 'addon' => 'storage', 'ctx' => 'ms', 'back' => rawurlencode( untangling_current_admin_url() ) ) ),
 		'credits'         => untangling_ms_credits_data( $plan ),
+		'usage'           => $usage,
+		'storageStatus'   => $storage_status,
 		'signals'      => array(
 			'comment'    => $signal_comment,
 			'lastPost'   => $signal_post,
 			'topProduct' => $signal_product,
 		),
 		'attention'    => $attention,
-		'hosting'      => untangling_ms_hosting_state(),
 		'logs'         => $logs,
 		'activity'     => $activity,
 		'serverLogs'   => $server_logs,
@@ -10007,10 +9795,12 @@ add_action( 'wp_dashboard_setup', function () {
 	// side / high, as the newsletter package registers it; the designed layout
 	// (untangling_dw_layout, priority 10) then moves it to the top of column 2,
 	// which is why this runs early.
-	// Both carry the Jetpack mark in the title, like the prototype's own
-	// Jetpack-backed widgets (untangling_dw_jetpack_title) — the wordmark
-	// footers production signs them off with are dropped for the same reason.
-	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', untangling_dw_jetpack_title( __( 'Daily Writing Prompt' ) ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
+	// Jetpack Stats carries the Jetpack mark in the title, like the
+	// prototype's own Jetpack-backed widgets (untangling_dw_jetpack_title) —
+	// the wordmark footers production signs them off with are dropped for the
+	// same reason. The Daily Writing Prompt carries no mark (Lucas,
+	// 2026-10-28): it is not promoted as a Jetpack feature.
+	wp_add_dashboard_widget( 'wpcom_daily_writing_prompt', __( 'Daily Writing Prompt' ), 'untangling_pw_render_prompt', null, array(), 'side', 'high' );
 }, 5 );
 
 // Core's Welcome panel shows or hides on the `show_welcome_panel` user meta
@@ -12491,14 +12281,12 @@ function untangling_ms_app_js() {
 	// keeps its tool cards and only the order changes — the logs are what a
 	// person opens this page to read.
 	function HostingPageCreator() {
-		var bad = 'attention' === data.hosting;
+		// All good is the design (Lucas, 2026-10-28): the "Needs attention"
+		// branch (failed backup, threats found) and its Hosting state switch
+		// are gone. This page is unreachable anyway (ms=hosting redirects).
 		var stateCards = [
-			bad
-				? { icon: 'cloud', label: 'Backups', heading: 'Backup failed', desc: 'Last successful backup was 3 days ago.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/backups' }
-				: { icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' },
-			bad
-				? { icon: 'shield', label: 'Security', heading: '2 risks found', desc: 'Auto fixes are available.', intent: 'error', href: msd + '/sites/' + data.siteSlug + '/scan' }
-				: { icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' },
+			{ icon: 'cloud', label: 'Backups', heading: 'Backed up 2 hours ago', desc: 'Automatic, every day. Restore any moment with one click.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/backups' },
+			{ icon: 'shield', label: 'Security', heading: 'No threats found', desc: 'Last scan finished this morning. Scans run daily.', intent: 'success', href: msd + '/sites/' + data.siteSlug + '/scan' },
 			{ icon: 'layout', label: 'Staging', heading: 'No staging site yet', desc: 'Test changes on a private copy before they go live.', href: msd + '/sites/' + data.siteSlug },
 		];
 		return el( Shell, {
@@ -12538,28 +12326,16 @@ function untangling_ms_app_js() {
 	// via planCompare[*].grid. Both columns read like the grid's (green checks,
 	// dark text); only the CTA tells them apart — the grid's own label and
 	// style on the upgrade column, an inert "Current plan" on the other.
-	// Row marker: the green check for every feature, except the plan's AI
-	// credits line, which gets Calypso's sparkles icon (packages/components
-	// icons/sparkles, the mark the Stats AI empty state uses) in the admin
-	// blue so the Agent allowance stands out from the list (Lucas,
-	// 2026-10-22). Drawback rows ("No AI credits included", "WordPress.com ads
-	// displayed") carry feature.negative from PHP and get a grey closeSmall x
-	// in the same 16px box, so a drawback no longer reads as a benefit
-	// (2026-10-27).
+	// Row marker: the green check for every feature, the AI credits line
+	// included (its blue sparkles icon went on 2026-10-28, Lucas: the row is
+	// one more checked item, not plan meta). Drawback rows ("No AI credits
+	// included", "WordPress.com ads displayed") carry feature.negative from
+	// PHP and get a grey closeSmall x in the same 16px box, so a drawback no
+	// longer reads as a benefit (2026-10-27).
 	function gridCheckMs( feature ) {
 		if ( feature && feature.negative ) {
 			return el( 'svg', { className: 'ms-plangrid-check is-no', viewBox: '0 0 24 24', 'aria-hidden': true, focusable: false },
 				el( 'path', { d: 'M12 13.06l3.712 3.713 1.061-1.06L13.061 12l3.712-3.712-1.06-1.06L12 10.938 8.288 7.227l-1.061 1.06L10.939 12l-3.712 3.712 1.06 1.061L12 13.061z' } )
-			);
-		}
-		if ( feature && /^\S+ AI credits per month$/.test( feature.label || '' ) ) {
-			// The glyphs sit in the middle 12 units of the 20-unit box, so the
-			// viewBox is cropped to them; at 16px the sparkles then read at
-			// the check's own size instead of a 10px speck.
-			return el( 'svg', { className: 'ms-plangrid-check is-ai', viewBox: '3.5 3.5 13 13', 'aria-hidden': true, focusable: false },
-				el( 'path', { d: 'M6.24997 4L6.88636 5.61358L8.49994 6.24997L6.88636 6.88636L6.24997 8.49994L5.61358 6.88636L4 6.24997L5.61358 5.61358L6.24997 4Z' } ),
-				el( 'path', { d: 'M13 4L13.8485 6.15144L15.9999 6.99996L13.8485 7.84848L13 9.99992L12.1514 7.84848L10 6.99996L12.1514 6.15144L13 4Z' } ),
-				el( 'path', { d: 'M9.24995 8.49927L10.3106 11.1886L12.9999 12.2492L10.3106 13.3099L9.24995 15.9992L8.18931 13.3099L5.5 12.2492L8.18931 11.1886L9.24995 8.49927Z' } )
 			);
 		}
 		return el( 'svg', { className: 'ms-plangrid-check', viewBox: '0 0 24 24', 'aria-hidden': true, focusable: false },
@@ -12576,16 +12352,13 @@ function untangling_ms_app_js() {
 		// The paired rows from untangling_plan_compare(), and only those: the
 		// card is the short comparison, the complete lists live on the
 		// pricing page behind See all plans (Lucas, 2026-10-22).
-		// The AI credits line leaves the list and sits with the storage row,
-		// above "Everything in X, plus:" — it is plan meta like storage, not
-		// one of the rows the tier adds (Lucas, 2026-10-23).
-		var credits = null;
+		// The AI credits line is an ordinary list row again, first under the
+		// "Included with your plan:" / "Everything in X, plus:" line, with the
+		// green check like every other feature (Lucas, 2026-10-28). It sat
+		// beside the storage row with a sparkles icon from 2026-10-23 to
+		// 2026-10-28.
 		var rows = col.features.filter( function ( feature ) {
 			if ( g.storage && /GB storage$/.test( feature.label ) ) {
-				return false;
-			}
-			if ( ! credits && /AI credits/.test( feature.label || '' ) ) {
-				credits = feature;
 				return false;
 			}
 			return true;
@@ -12614,10 +12387,6 @@ function untangling_ms_app_js() {
 				// No "Add more" here: the Storage card further down the page
 				// sells the add-on (Lucas, 2026-10-23).
 				el( 'span', null, g.storage + ' storage' )
-			) : null,
-			credits ? el( 'div', { className: 'ms-plangrid-credits' },
-				gridCheckMs( credits ),
-				el( 'span', { className: 'untangling-feature-tip', tabIndex: 0, 'data-tip': credits.tip }, credits.label )
 			) : null,
 			// Upgrade columns open their list with the pricing grid's own line;
 			// the current column (no tier to diff against) opens on the full
@@ -12678,7 +12447,7 @@ function untangling_ms_app_js() {
 		);
 	}
 
-	// Three plans (Prototype controls → Upgrades card): the tiers above you,
+	// Three plans (Prototype controls → Upgrade card layout): the tiers above you,
 	// without the current plan — unless fewer than three remain, when the
 	// current plan takes the first column (Premium: 3 columns, Business: 2).
 	// Same shell and See all plans as the two-plan card; each column opens
@@ -12720,12 +12489,15 @@ function untangling_ms_app_js() {
 	// only when the site owns packs, and a single secondary action, Add
 	// credits — upgrading stays on the plan card above, so the page keeps one
 	// primary button (Lucas, 2026-10-22). The meter carries three statuses:
-	// blue (healthy), yellow (under a quarter of the allowance left, "Getting
-	// low" badge), red (combined balance under 10k — the meter alone says it:
-	// no badge, no notice line, the balance line keeps its normal colour;
-	// Lucas, 2026-10-23). Both thresholds watch the combined balance (plan +
-	// packs), so a site with plenty of top-ups never sees them. Free has no
-	// allowance and gets the offer row instead of a meter.
+	// blue (healthy), amber (under a quarter of the allowance left, "Getting
+	// low" badge), red (combined balance under 10k, "Running low" badge — the
+	// badge joined the low state on 2026-10-28 so both meters read the same;
+	// no notice line, the balance line keeps its normal colour). Both
+	// thresholds watch the combined balance (plan + packs), so a site with
+	// plenty of top-ups never sees them. Free has no allowance and gets the
+	// offer row instead of a meter. The actions are the pack picker + Add
+	// credits row only: the "links" treatment went with its switch
+	// (2026-10-28).
 	function fmtCredits( n ) {
 		n = Number( n ) || 0;
 		if ( n < 1000 ) {
@@ -12769,43 +12541,31 @@ function untangling_ms_app_js() {
 			// Storage bar: the two cards side by side read the same way
 			// (Lucas, 2026-10-23). The balance line still says what is left.
 			var pct = Math.max( 0, Math.min( 100, Math.round( ( ( c.allowance - c.left ) / c.allowance ) * 100 ) ) );
-			var useLinks = 'links' === c.cta;
 			var status = c.isLow ? 'low' : ( c.isWarn ? 'warn' : 'ok' );
-			var fineprint = fmtCredits( c.pack.credits ) + ' credits for $' + Math.round( Number( c.pack.price ) ) + '. One-off, never expire.';
 			var leftLine = fmtCredits( c.left ) + ' of ' + fmtCredits( c.allowance ) + ' credits left';
-			var actions;
-			if ( useLinks ) {
-				// Link: Add credits in the plan-row link style, on the balance
-				// line itself. The pack price lives in the checkout, so the
-				// line stays one idea long.
-				actions = el( 'span', { className: 'ms-credits-links' },
-					el( 'a', { className: 'ms-credits-link', href: c.addUrl, title: fineprint }, 'Add credits' )
-				);
-			} else {
-				// Button: a pack picker and one secondary Add credits, the same
-				// row as the Storage card's (Lucas, 2026-10-23). The option text
-				// carries size, price and the one-off nature, so there is no
-				// fine print under the row.
-				var SelectControl = C.SelectControl;
-				var packOptions = Object.keys( c.packs || {} ).map( function ( credits ) {
-					return { value: credits, label: '+' + fmtCredits( credits ) + ' credits — $' + Number( c.packs[ credits ] ).toFixed( 2 ) + ', never expire' };
-				} );
-				actions = el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
-					el( 'div', { className: 'ms-storage-buy-row' },
-						SelectControl && packOptions.length ? el( SelectControl, {
-							label: 'AI credits pack size',
-							hideLabelFromVision: true,
-							value: pack,
-							options: packOptions,
-							onChange: setPack,
-							__nextHasNoMarginBottom: true,
-							__next40pxDefaultSize: true,
-						} ) : null,
-						el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: c.addUrl + '&credits=' + pack }, 'Add credits' )
-					)
-				);
-			}
-			body = el( 'div', { className: 'ms-credits is-' + status + ( useLinks ? ' is-links' : '' ) },
+			// A pack picker and one secondary Add credits, the same row as the
+			// Storage card's (Lucas, 2026-10-23). The option text carries size,
+			// price and the one-off nature, so there is no fine print under
+			// the row.
+			var SelectControl = C.SelectControl;
+			var packOptions = Object.keys( c.packs || {} ).map( function ( credits ) {
+				return { value: credits, label: '+' + fmtCredits( credits ) + ' credits — $' + Number( c.packs[ credits ] ).toFixed( 2 ) + ', never expire' };
+			} );
+			var actions = el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
+				el( 'div', { className: 'ms-storage-buy-row' },
+					SelectControl && packOptions.length ? el( SelectControl, {
+						label: 'AI credits pack size',
+						hideLabelFromVision: true,
+						value: pack,
+						options: packOptions,
+						onChange: setPack,
+						__nextHasNoMarginBottom: true,
+						__next40pxDefaultSize: true,
+					} ) : null,
+					el( Button, { variant: 'secondary', __next40pxDefaultSize: true, href: c.addUrl + '&credits=' + pack }, 'Add credits' )
+				)
+			);
+			body = el( 'div', { className: 'ms-credits is-' + status },
 				el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Monthly plan credits' },
 					el( 'div', { className: 'ms-storage-fill' + ( c.isLow ? ' is-low' : ( c.isWarn ? ' is-warning' : '' ) ), style: { width: pct + '%' } } )
 				),
@@ -12815,20 +12575,19 @@ function untangling_ms_app_js() {
 				el( 'div', { className: 'ms-credits-leftrow' },
 					el( 'p', { className: 'ms-credits-left' }, leftLine ),
 					el( 'span', { className: 'ms-credits-meta' },
-						el( 'span', { className: 'ms-credits-reset' }, 'Resets ' + c.resets, el( 'strong', null, 'Used ' + pct + '%' ) ),
-						useLinks ? actions : null
+						el( 'span', { className: 'ms-credits-reset' }, 'Resets ' + c.resets, el( 'strong', null, 'Used ' + pct + '%' ) )
 					)
 				),
 				c.topup > 0 && el( 'div', { className: 'ms-credits-topups' },
 					el( 'span', null, 'Top-ups' ),
 					el( 'span', null, fmtCredits( c.topup ) + ' credits left' )
 				),
-				useLinks ? null : actions
+				actions
 			);
 		}
 		return el( Card, { className: props && props.half ? null : 'ms-span2' },
 			el( CardBody, null,
-				cardTitle( 'AI credits', c.allowance && c.isWarn ? el( Badge, { intent: 'warning' }, 'Getting low' ) : null ),
+				cardTitle( 'AI credits', c.allowance && c.isLow ? el( Badge, { intent: 'error' }, 'Running low' ) : ( c.allowance && c.isWarn ? el( Badge, { intent: 'warning' }, 'Getting low' ) : null ) ),
 				body
 			)
 		);
@@ -12846,7 +12605,7 @@ function untangling_ms_app_js() {
 		if ( compare.current && compare.next ) {
 			return el( PlanUpgradeCardMs );
 		}
-		return el( Card, { className: 'ms-span2' },
+		return el( Card, { className: 'ms-span2 ms-plancard' },
 			el( CardBody, null,
 				el( 'div', { className: 'ms-card-titlerow ms-card-linkrow' },
 					el( 'div', null,
@@ -12858,19 +12617,20 @@ function untangling_ms_app_js() {
 					),
 					// Two jobs, two buttons: Upgrade opens the same pricing step
 					// Compare plans used to, and Manage hands the plan itself over
-					// to the Hosting Dashboard. Nothing to upgrade to on the top
-					// tier, so Manage takes the primary there.
+					// to the Hosting Dashboard. Manage stays secondary on the top
+					// tier too (Lucas, 2026-10-28): the card states a plan, it
+					// does not sell one, so a filled button had nothing to push.
 					el( HStack, { justify: 'flex-end', spacing: 2, expanded: false },
 						! isTopTier && el( Button, { variant: 'primary', href: data.plansUrl, __next40pxDefaultSize: true }, 'Upgrade' ),
 						el( Button, {
-							variant: isTopTier ? 'primary' : 'secondary',
+							variant: 'secondary',
 							href: msd + '/sites/' + data.siteSlug + '/plans',
 							__next40pxDefaultSize: true,
-						}, 'Manage ↗' )
+						}, 'Manage plan ↗' )
 					)
 				),
 				el( CardDivider ),
-				el( 'ul', { className: 'ms-plan-features' },
+				el( 'ul', { className: 'ms-plan-features is-plancard' },
 					( meta.features || [] ).map( function ( feature, i ) {
 						return el( 'li', { key: i },
 							el( 'span', { className: 'ms-plan-check' }, icon( PATHS.check, '0 0 24 24', 18 ) ),
@@ -12888,30 +12648,7 @@ function untangling_ms_app_js() {
 	// props.ctaHref / props.ctaLabel (optional): a link on the right of the
 	// numbers line, shown only while the bar is in warning territory — the
 	// place that has no room for a full add-on picker (the dashboard widget).
-	function StorageMeter( props ) {
-		props = props || {};
-		var storage = meta.storage || [ 0, 1, null ];
-		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
-		var isTight = pct > 80;
-		var showCta = isTight && props.ctaHref;
-		return el( 'div', { className: 'ms-storage' },
-			el( 'div', { className: 'ms-storage-bar' },
-				el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
-			),
-			el( 'p', { className: 'ms-storage-used' + ( showCta ? ' has-cta' : '' ) },
-				// Non-breaking as in the dashboard widget's Storage row: the
-				// numbers keep their units, and "used" keeps its amount.
-				el( 'span', null, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' ),
-				showCta && el( 'a', { className: 'ms-storage-cta', href: props.ctaHref }, props.ctaLabel || 'Add storage' )
-			),
-			// storage[2] carries a caution when space is tight and a plain note
-			// once an add-on is bought. The amber bar already says "almost
-			// full", so only the neutral note is worth a line of its own.
-			storage[ 2 ] && ! isTight && el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] )
-		);
-	}
-
-	function DomainsCardMs() {
+		function DomainsCardMs() {
 		var sub = data.wpcomDomain;
 		// The custom domain: the plan-aware address on paid plans (Free
 		// identities get their upsell domain once the plan is paid).
@@ -13000,13 +12737,16 @@ function untangling_ms_app_js() {
 		// classes are the credits card's own so the two cannot drift apart.
 		var storage = meta.storage || [ 0, 1, null ];
 		var pct = Math.min( 100, Math.round( ( storage[ 0 ] / storage[ 1 ] ) * 100 ) );
-		var isTight = pct > 80;
+		// The meter follows the Usage switch, like the AI credits meter beside
+		// it (Lucas, 2026-10-28): PHP wrote the numbers above from the same
+		// state, and a bought add-on relaxes it to healthy.
+		var isLow = 'low' === data.storageStatus, isWarn = 'warn' === data.storageStatus;
 		return el( Card, null,
 			el( CardBody, null,
-				cardTitle( 'Storage' ),
-				el( 'div', { className: 'ms-credits' },
+				cardTitle( 'Storage', isLow ? el( Badge, { intent: 'error' }, 'Running low' ) : ( isWarn ? el( Badge, { intent: 'warning' }, 'Getting low' ) : null ) ),
+				el( 'div', { className: 'ms-credits is-' + ( isLow ? 'low' : ( isWarn ? 'warn' : 'ok' ) ) },
 					el( 'div', { className: 'ms-storage-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Plan storage' },
-						el( 'div', { className: 'ms-storage-fill' + ( isTight ? ' is-warning' : '' ), style: { width: pct + '%' } } )
+						el( 'div', { className: 'ms-storage-fill' + ( isLow ? ' is-low' : ( isWarn ? ' is-warning' : '' ) ), style: { width: pct + '%' } } )
 					),
 					el( 'div', { className: 'ms-credits-leftrow' },
 						el( 'p', { className: 'ms-credits-left' }, storage[ 0 ] + '\u00a0GB of ' + storage[ 1 ] + '\u00a0GB\u00a0used' ),
@@ -13014,7 +12754,9 @@ function untangling_ms_app_js() {
 							el( 'span', { className: 'ms-credits-reset' }, 'Used', el( 'strong', null, pct + '%' ) )
 						)
 					),
-					storage[ 2 ] && ! isTight ? el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] ) : null,
+					// The only note is the add-on line once one is bought; the
+					// pressure states carry none (the meter and badge say it).
+					storage[ 2 ] ? el( 'p', { className: 'ms-storage-note' }, storage[ 2 ] ) : null,
 					el( 'div', { className: 'ms-credits-actions ms-storage-buy' },
 						el( 'div', { className: 'ms-storage-buy-row' },
 							SelectControl && el( SelectControl, {
@@ -14077,7 +13819,10 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 /* Cards — level-3 section headers on Card bodies, per the monitoring-card shell. */
 .untangling-ms .components-card { border-radius: 8px; box-shadow: 0 0 0 1px #e0e0e0; }
 .untangling-ms .components-card__body { padding: 24px; }
-.untangling-ms .ms-card-titlerow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 0 0 4px; }
+/* A badge sits beside the title, not at the card's far edge (Lucas, 2026-10-28). */
+.untangling-ms .ms-card-titlerow { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 0 0 4px; }
+/* Title + action rows (plan card, Domains, Performance): the action sits on the card's right edge, not beside the title (2026-10-28). */
+.untangling-ms .ms-card-linkrow { justify-content: space-between; gap: 16px; }
 
 /* Segmented control (hand-rolled — see Segmented in the app JS): quiet gray
    track, white pill slides under the active option. Radii hardcoded — the
@@ -14489,6 +14234,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 @media (max-width: 782px) {
 	.untangling-ms:not(.untangling-dw) .ms-plan-features { grid-template-columns: 1fr; }
 }
+/* The top-tier plan card (Commerce): the header gets room under the divider, rows sit at 12px, and the twelve features go three-up once the card is wide enough for 3 × ~260px labels (2026-10-28). */
+.untangling-ms .ms-plancard .ms-card-desc { margin-bottom: 20px; }
+.untangling-ms .ms-plan-features.is-plancard { margin-top: 20px; gap: 12px 32px; }
+@media (min-width: 1200px) {
+	.untangling-ms:not(.untangling-dw) .ms-plan-features.is-plancard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .untangling-ms .ms-plan-features li { display: flex; align-items: center; gap: 8px; font-size: var(--wpds-typography-font-size-md, 13px); line-height: var(--wpds-typography-line-height-sm, 20px); color: #1e1e1e; }
 /* The shared tooltip centers on the cursor; in this two-column grid that
    pushes the 300px bubble past the card's left edge, so anchor it to the
@@ -14501,22 +14252,32 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 /* Plan upgrade card = two grid columns sharing one rule (mirrors the
    fullscreen pricing grid's column anatomy; no nested cards). */
 .untangling-ms .ms-plangrid { display: grid; grid-template-columns: 1fr 1fr; }
-.untangling-ms .ms-plangrid-col { min-width: 0; display: flex; flex-direction: column; padding: 4px 24px 8px 0; }
-.untangling-ms .ms-plangrid-col + .ms-plangrid-col { border-left: 1px solid #e0e0e0; padding: 4px 0 8px 24px; }
+/* Columns are positioned so the badge can straddle the card's top border
+   like the fullscreen grid's pill (Lucas, 2026-10-28). Top padding puts the
+   plan name 32px under the border on every column, as in the grid
+   (first column: 24px card padding + 8px; the others pull up through the
+   card padding and pad 32px themselves). */
+.untangling-ms .ms-plangrid-col { position: relative; min-width: 0; display: flex; flex-direction: column; padding: 8px 24px 8px 0; }
+.untangling-ms .ms-plangrid-col + .ms-plangrid-col { border-left: 1px solid #e0e0e0; padding: 8px 0 8px 24px; }
 .untangling-ms .ms-plangrid.is-three { grid-template-columns: 1fr 1fr 1fr; }
 .untangling-ms .ms-plangrid.is-three .ms-plangrid-col + .ms-plangrid-col:not(:last-child) { padding-right: 24px; }
 .untangling-ms .ms-plangrid-plus { margin: 0 0 8px; font-size: 12px; line-height: 16px; font-weight: 500; color: #2c3338; }
 /* The divider runs edge to edge: the second column pulls up and down through
    the card body's 24px padding and pads itself back, so the rule touches the
    card's top and bottom borders. */
-.untangling-ms .ms-planup .ms-plangrid-col + .ms-plangrid-col { margin: -24px 0; padding-top: 28px; padding-bottom: 32px; }
-.untangling-ms .ms-plangrid-badge { height: 24px; margin-bottom: 12px; }
+.untangling-ms .ms-planup .ms-plangrid-col + .ms-plangrid-col { margin: -24px 0; padding-top: 32px; padding-bottom: 32px; }
+/* The badge sits on the card's top rule, half above it, flush with the
+   column's content edge — the fullscreen grid's pill placement (top -12px),
+   not a row inside the column. It reserves no space in the flow. */
+.untangling-ms .ms-plangrid-badge { position: absolute; top: -36px; left: 0; height: 24px; margin: 0; z-index: 1; }
+.untangling-ms .ms-plangrid-col + .ms-plangrid-col .ms-plangrid-badge { top: -12px; left: 24px; }
 /* Pills and badges follow the fullscreen grid (Figma gray-900 ink, 8px side padding). */
 .untangling-ms .ms-plangrid-pill.is-light { background: #fff; border: 1px solid #e0e0e0; color: #1e1e1e; }
 .untangling-ms .ms-plangrid-pill.is-dark { background: #1e1e1e; border: 1px solid #1e1e1e; color: #fff; }
 .untangling-ms .ms-plangrid-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 2px; font-size: 12px; line-height: 20px; font-weight: 500; letter-spacing: 0.25px; box-sizing: border-box; white-space: nowrap; }
 .untangling-ms .ms-plangrid-name { margin: 0 0 8px; font-size: 26px; line-height: 30px; font-weight: 400; color: #101517; }
-.untangling-ms .ms-plangrid-tagline { margin: 0 0 18px; font-size: 13px; line-height: 20px; color: #2c3338; text-wrap: pretty; }
+/* 18px → 12px under the tagline (Lucas, 2026-10-28): the three-line reserve below already holds the price row away from a one-line tagline, so the extra margin read as too much air. */
+.untangling-ms .ms-plangrid-tagline { margin: 0 0 12px; font-size: 13px; line-height: 20px; color: #2c3338; text-wrap: pretty; }
 /* Three columns share one price/CTA baseline whatever the tagline length (Free: one line; Business: three). Three 20px lines, as on the fullscreen grid; stacked columns (<=782px) and the two-plan card are left alone. */
 @media (min-width: 783px) {
 	.untangling-ms:not(.untangling-dw) .ms-plangrid.is-three .ms-plangrid-tagline { min-height: 60px; }
@@ -14531,16 +14292,12 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-plangrid-cta .components-button svg { fill: currentColor; }
 /* "Current plan" is inert. It follows the WPDS disabled secondary button (no fill, gray-600 text, 1px neutral-disabled stroke) instead of the earlier gray-filled look, which read heavier than the live buttons (Lucas, 2026-10-27). */
 .untangling-ms .ms-plangrid-cta .components-button.is-secondary:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--wpds-color-stroke-interactive-neutral-disabled, #dbdbdb); color: #949494; opacity: 1; cursor: default; pointer-events: none; }
-.untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; font-size: 12px; line-height: 16px; color: #2c3338; }
+.untangling-ms .ms-plangrid-storage { display: flex; align-items: center; gap: 8px; margin: 20px 0 12px; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-storage svg { flex: 0 0 16px; fill: #1e1e1e; }
 .untangling-ms .ms-plangrid-storage span { font-weight: 500; }
-/* AI credits: plan meta beside storage, the sparkles at the list's icon size. */
-.untangling-ms .ms-plangrid-credits { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; font-size: 12px; line-height: 16px; color: #2c3338; }
-.untangling-ms .ms-plangrid-credits span { font-weight: 500; }
 .untangling-ms .ms-plangrid-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .untangling-ms .ms-plangrid-list li { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12px; line-height: 16px; color: #2c3338; }
 .untangling-ms .ms-plangrid-check { flex: 0 0 16px; width: 16px; height: 16px; fill: #007017; }
-.untangling-ms .ms-plangrid-check.is-ai { fill: #3858e9; }
 .untangling-ms .ms-plangrid-check.is-no { fill: #757575; }
 /* Row pills (New / Free / Email) are the grid's green pill, not a grey chip, so the slice reads like the fullscreen columns. They sit right after the label here: these columns are wide, and a pill pushed to the far edge floats away from its feature (Lucas, 2026-10-28). */
 .untangling-ms .ms-plangrid-featpill { display: inline-block; flex: none; height: 16px; line-height: 16px; padding: 0 4px; border-radius: 2px; font-size: var(--wpds-typography-font-size-xs, 11px); font-weight: 500; letter-spacing: 0; color: #005c12; background: rgba(184, 230, 191, 0.68); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
@@ -14567,6 +14324,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 	.untangling-ms .ms-planup .ms-plangrid-col + .ms-plangrid-col { border-left: 0; border-top: 1px solid #e0e0e0; padding-top: 24px; padding-bottom: 0; margin: 24px 0 0; }
 	/* The is-three padding reset above is (0,6,0) and outranks this (0,4,0) rule for the middle column; restate its top padding. */
 	.untangling-ms .ms-plangrid.is-three .ms-plangrid-col + .ms-plangrid-col:not(:last-child) { padding-top: 24px; }
+	/* Stacked columns: the badge goes back into the flow above the name,
+	   as the fullscreen grid does under 782px. */
+	.untangling-ms .ms-plangrid-badge, .untangling-ms .ms-plangrid-col + .ms-plangrid-col .ms-plangrid-badge { position: static; margin-bottom: 12px; }
 	.untangling-ms .ms-plangrid-badge:empty { display: none; }
 	/* Stacked columns are full width: every tooltip opens from the label's
 	   left edge and never grows past the content well (the ms-content
@@ -14624,11 +14384,6 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-credits-reset strong { font-weight: 500; color: #1e1e1e; }
 .untangling-ms .ms-credits-leftrow { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 .untangling-ms .ms-credits-left { margin: 0; font-size: 13px; font-weight: 500; color: #1e1e1e; }
-/* Links treatment: the two actions ride on the balance line, in the same
-   link style as the Domains card's "Free for a year on paid plans". */
-.untangling-ms .ms-credits-links { display: inline-flex; gap: 16px; font-size: 13px; }
-.untangling-ms .ms-credits-link { color: #3858e9; text-decoration: none; }
-.untangling-ms .ms-credits-link:hover { text-decoration: underline; }
 .untangling-ms .ms-credits-topups { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 13px; color: #757575; }
 .untangling-ms .ms-storage-fill.is-low { background: #cc1818; }
 /* Buttons treatment: a row under the meter — fine print left, the pair right,
@@ -14638,13 +14393,9 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 .untangling-ms .ms-credits-actions .ms-storage-buy-row { flex: 1; }
 /* Half-width cards (AI credits beside Storage): the picker stretches to the
    button, which keeps its own width at the right edge — the plain
-   .ms-storage-buy-row behaviour, in both cards (Lucas, 2026-10-23). */
-.untangling-ms .ms-credits-buttons { display: flex; gap: 8px; margin-left: auto; }
-/* .ms-credits-free keeps the .is-stacked padding (16px 0 4px), same as the Email
-   card, so the two upsells on the row sit at the same height. */
-@media (max-width: 782px) {
-	.untangling-ms .ms-credits-buttons { margin-left: 0; }
-}
+   .ms-storage-buy-row behaviour, in both cards (Lucas, 2026-10-23).
+   .ms-credits-free keeps the .is-stacked padding (16px 0 4px), same as the
+   Email card, so the two upsells on the row sit at the same height. */
 .untangling-ms .ms-domains { list-style: none; margin: 8px 0 0; padding: 0; }
 .untangling-ms .ms-domain-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap; }
 .untangling-ms .ms-domain-row:last-child { border-bottom: none; }

@@ -72,21 +72,27 @@ same components. Their state is namespaced `untangling_ms_*`.
 `index.php`.
 
 Other panel controls: Plan (Free | Personal | Premium | Business | Commerce),
-Site state (Just created | Established), Hosting state
-(All good | Needs attention), Site type (Atomic | Simple, Business and
-Commerce only), Upsell placement
-(None | Menu top | Menu foot | Omnibar), Plugins & themes version
-(Fullscreen | Split | Tabs), Partner themes (Subscription | Included), Plan
-filter (Included | Dropdown), "Copy link to this view", and "Reset demo"
-(clears options, theme subscriptions and the dashboard's Screen
-Options / order user meta so the designed first look returns).
+Site state (Just created | Established), Usage (Healthy | Getting low |
+Running low; drives the Storage and AI credits meters on the Upgrades page
+together, the Hosting widget's storage row and the REST `/site` storage),
+Upgrade card layout (Three plans | Two plans), Site type (Atomic | Simple, Business
+and Commerce only), Upsell placement (None | Menu top | Menu foot | Omnibar),
+"Copy link to this view", and "Reset demo" (clears options, theme
+subscriptions and the dashboard's Screen Options / order user meta so the
+designed first look returns).
 
-Designed defaults: Dashboard · Just created · All good · Atomic · Upsell None ·
-Tabs · Subscription · Included.
+Designed defaults: Dashboard · Just created · Healthy · Atomic · Upsell None.
 
-Partner themes (the six priced third-party themes in the catalog) follow the
-`Partner themes` toggle on Business and Commerce sites. `Subscription` is the
-production behaviour: each partner theme is sold on its own, annual by
+Retired toggles (decisions made, the design is fixed): Hosting state (All
+good is the design), Credits actions (the pack picker + Add credits row),
+Plugins & themes version (Tabs is the only marketplace version; the
+fullscreen page serves pricing/checkout only), Partner themes (per-theme
+subscriptions, as below) and the custom Plan filter (the Marketplace tabs
+keep only their category row and core's own filters).
+
+Partner themes (the six priced third-party themes in the catalog) are sold
+per theme on Business and Commerce sites, as in production: each partner
+theme is sold on its own, annual by
 default. The card shows `US$7.20/mo, billed annually` and a `Subscribe`
 action; the theme view shows `Available for US$7.20/month, billed annually` +
 `Partner` and an Annually / Monthly radio (annual first with `Save 20%`,
@@ -97,8 +103,7 @@ choice; the confirmation says "Congrats on your new theme" with the renewal
 line (`Renews yearly at US$86.40` or `Renews monthly at US$9.00`) and
 `Activate this design`; afterwards the theme reads `Subscribed` with an
 `Activate` action and its renewal line. Price rule: the catalog carries the
-monthly price, annual = twelve months with 20% off. `Included` is the earlier
-shortcut where those themes come with the plan. On lower plans nothing
+monthly price, annual = twelve months with 20% off. On lower plans nothing
 changes except the plan upsell checkout also carries the theme line (annual by
 default, same select) and marks it subscribed. Subscriptions persist in
 `untangling_mkt_subscribed` + `untangling_mkt_subscribed_terms` (reset clears

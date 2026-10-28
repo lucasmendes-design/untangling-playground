@@ -2,10 +2,10 @@
 
 A self-contained WordPress Playground demo of the WP Admin side of the
 untangling prototype: the all-in Dashboard, Simple/Atomic site type
-mimic, Marketplace (fullscreen / split / tabs), theme details pages, and the
-upgrade flow. Use the floating **Prototype controls** panel (bottom-right of
-every wp-admin screen) to switch site state, plan, and marketplace
-versions live.
+mimic, the Marketplace tabs in Add Plugins and Add Themes, theme details
+pages, and the upgrade flow. Use the floating **Prototype controls** panel
+(bottom-right of every wp-admin screen) to switch site state, plan, usage
+and upsell placement live.
 
 **Try it:**
 [Open in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-quickstart.json)
