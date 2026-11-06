@@ -550,14 +550,8 @@ function untangling_mktf_purchased_modal() {
 	<div class="untangling-mktf-dialog-wrap is-open" id="untangling-mktf-moved" role="dialog" aria-modal="true" aria-labelledby="untangling-mktf-moved-title">
 		<div class="untangling-mktf-dialog">
 			<button type="button" class="untangling-mktf-dialog-close" aria-label="<?php esc_attr_e( 'Close' ); ?>">✕</button>
-			<h2 id="untangling-mktf-moved-title"><?php esc_html_e( 'Your site now runs on managed hosting' ); ?></h2>
-			<p><?php echo esc_html( sprintf( __( '%s is active, and your site moved to WordPress.com’s managed infrastructure. The hard parts are handled:' ), untangling_mktf_product( $slug )['name'] ) ); ?></p>
-			<ul class="untangling-mktf-dialog-list">
-				<li><?php esc_html_e( 'Faster, more reliable hosting, with backups, security, and updates taken care of.' ); ?></li>
-				<li><?php esc_html_e( '24/7 expert support, included in your plan.' ); ?></li>
-				<li><?php esc_html_e( 'Your address changed. Every link to the old one redirects on its own. Nothing to do on your side.' ); ?></li>
-				<li><?php esc_html_e( 'A free domain for a year is included. Add it whenever you like.' ); ?></li>
-			</ul>
+			<h2 id="untangling-mktf-moved-title"><?php esc_html_e( 'Your site has a new address' ); ?></h2>
+			<p><?php esc_html_e( 'Plugins run on managed hosting, so your site moved. Links to the old address keep working. Prefer a custom domain? Your plan includes one, free for a year.' ); ?></p>
 			<div class="untangling-mktf-addr"><span><?php echo esc_html( $old ); ?></span><em class="is-old"><?php esc_html_e( 'redirects' ); ?></em></div>
 			<div class="untangling-mktf-addr"><span><?php echo esc_html( $new ); ?></span><em class="is-new"><?php esc_html_e( 'current' ); ?></em></div>
 			<div class="untangling-mktf-dialog-actions">
