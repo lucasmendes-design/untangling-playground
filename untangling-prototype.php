@@ -1090,6 +1090,9 @@ add_action( 'admin_init', function () {
 		delete_option( 'untangling_mkt_installed' );
 		delete_option( 'untangling_mkt_subscribed' );
 		delete_option( 'untangling_mkt_subscribed_terms' );
+		delete_option( 'untangling_mkt_plugins_owned' );
+		delete_option( 'untangling_mkt_tab' );
+		delete_option( 'untangling_mkt_default_tab' );
 		delete_option( 'untangling_lp_done' );
 		delete_option( 'untangling_lp_complete' );
 		delete_option( 'untangling_ms_plan_override' );
@@ -3782,7 +3785,11 @@ add_action( 'admin_init', function () {
 	if ( ! in_array( untangling_get_marketplace_mode(), array( 'split', 'tabs' ), true ) ) {
 		return;
 	}
-	wp_safe_redirect( add_query_arg( $_GET, admin_url( 'plugin-install.php?tab=wpcom_marketplace' ) ) );
+	// Prototype controls "Default tab": core opens the first tab in the row
+	// when none is given, and Marketplace stays first either way, so
+	// Featured has to be asked for by name.
+	$landing = ( untangling_mktf_enabled() && 'featured' === untangling_get_mkt_default_tab() ) ? 'featured' : 'wpcom_marketplace';
+	wp_safe_redirect( add_query_arg( $_GET, admin_url( 'plugin-install.php?tab=' . $landing ) ) );
 	exit;
 } );
 
@@ -3827,6 +3834,12 @@ function untangling_marketplace_plugin_categories() {
 }
 
 add_action( 'install_plugins_wpcom_marketplace', function () {
+	// Free and Personal sites get the production-shaped tab (before/after
+	// modes) from untangling-marketplace-free.php; paid tiers keep this one.
+	if ( untangling_mktf_enabled() ) {
+		untangling_mktf_render_tab();
+		return;
+	}
 	$plan       = untangling_get_plan();
 	$plugins    = untangling_marketplace_plugins();
 	$categories = untangling_marketplace_plugin_categories();
@@ -6097,6 +6110,10 @@ function untangling_marketplace_plugin_details() {
 // description, and the purchase box on the right.
 function untangling_marketplace_plugin_details_step( $plan ) {
 	$slug = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
+	if ( untangling_mktf_enabled() && untangling_mktf_product( $slug ) ) {
+		untangling_mktf_details_step();
+		return;
+	}
 	$row  = null;
 	foreach ( untangling_marketplace_plugins() as $p ) {
 		if ( $p[0] === $slug ) {
@@ -6606,6 +6623,10 @@ function untangling_marketplace_pricing_step( $plan, $type ) {
 
 function untangling_marketplace_checkout_step( $plan, $type ) {
 	$slug = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
+	if ( 'plugin' === $type && untangling_mktf_enabled() && untangling_mktf_product( $slug ) ) {
+		untangling_mktf_checkout_step();
+		return;
+	}
 	$item = untangling_marketplace_find_item( $type, $slug );
 	if ( ! $item && $slug ) {
 		echo '<div class="untangling-mkt-hero"><h1 class="untangling-mkt-brandfont">' . esc_html__( 'Item not found' ) . '</h1></div>';
@@ -6857,6 +6878,10 @@ function untangling_marketplace_checkout_step( $plan, $type ) {
 
 function untangling_marketplace_done_step( $type ) {
 	$slug  = isset( $_GET['slug'] ) ? sanitize_key( $_GET['slug'] ) : '';
+	if ( 'plugin' === $type && untangling_mktf_product( $slug ) && untangling_mktf_is_owned( $slug ) ) {
+		untangling_mktf_done_step();
+		return;
+	}
 	$item  = untangling_marketplace_find_item( $type, $slug );
 	$is_ms = isset( $_GET['ctx'] ) && 'ms' === $_GET['ctx'];
 	// Already overridden by untangling_set_plan / untangling_ms_set_plan on this request.
@@ -8182,7 +8207,7 @@ add_action( 'admin_footer', function () {
 	$ms_dirty = get_option( 'untangling_ms_lp_done' ) || get_option( 'untangling_ms_lp_complete' ) || get_option( 'untangling_ms_state' ) || get_option( 'untangling_ms_storage_addon' ) || get_option( 'untangling_ms_usage' ) || get_option( 'untangling_ms_credit_topup' );
 	// A theme subscription is the one Marketplace purchase with no plan change
 	// behind it, so it has to surface the Reset button on its own.
-	$mkt_dirty = (bool) get_option( 'untangling_mkt_subscribed' );
+	$mkt_dirty = (bool) get_option( 'untangling_mkt_subscribed' ) || (bool) get_option( 'untangling_mkt_plugins_owned' );
 
 	// One control: label, segments, and the line explaining the current choice.
 	// The hint is hidden by default — seven of them stacked made the panel taller
@@ -8333,6 +8358,17 @@ add_action( 'admin_footer', function () {
 						? __( 'Atomic: installs, uploads and Updates are live. Personal and lower are always Simple.' )
 						: __( 'Simple on a Business plan, as before the first plugin install: install actions become upgrade CTAs. Personal and lower are always Simple.' ) );
 				}
+				// Marketplace tab on Free/Personal Simple sites: the production
+				// replica (before) or the proposal (after), plus which Add
+				// Plugins tab a visit lands on.
+				$mkt_tab = untangling_get_mkt_tab();
+				$seg( __( 'Marketplace tab (Free)' ), 'untangling_mkt_tab', array( 'production' => __( 'Production' ), 'proposal' => __( 'Proposal' ) ), $mkt_tab, 'production' === $mkt_tab
+					? __( 'As live in Nov 2026: “Upgrade and purchase” on every card, yearly price, details modal without a price, the address dialog before checkout, then the thank-you page.' )
+					: __( 'One explainer block, “Purchase” with the monthly price, an in-admin product page, monthly in the cart, and the address notice after paying. Applies on Free and Personal sites.' ) );
+				$mkt_default = untangling_get_mkt_default_tab();
+				$seg( __( 'Default tab' ), 'untangling_mkt_default_tab', array( 'marketplace' => __( 'Marketplace' ), 'featured' => __( 'Featured' ) ), $mkt_default, 'marketplace' === $mkt_default
+					? __( 'Add Plugins opens on Marketplace, as in production.' )
+					: __( 'Add Plugins opens on Featured (free plugins); Marketplace stays the first tab.' ) );
 				// Placement of the upsell nudge. What it sells follows the
 				// plan: the free domain on Free, the two-year renewal
 				// on Atomic — same card, same placements.
@@ -8927,8 +8963,11 @@ add_action( 'admin_enqueue_scripts', function () {
 			.plugin-install-php .wrap .plugin-card .plugin-action-buttons { float: right; margin: 0 0 1em; text-align: right; }
 			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li { display: block; }
 			.plugin-install-php .wrap .plugin-card .plugin-action-buttons li .button { margin-right: 0; }
+			/* Current core margins `.desc > p` itself (`.desc` is margin-inline: 0),
+			   so the wrapper must not carry the 200px too: both applied left
+			   the text 27px wide (seen 2026-11-06). */
+			.plugin-install-php .wrap .plugin-card .desc { margin-right: 0; }
 			.plugin-install-php .wrap .plugin-card .name,
-			.plugin-install-php .wrap .plugin-card .desc,
 			.plugin-install-php .wrap .plugin-card .desc > p { margin-right: 200px; }
 		}
 		@container ( max-width: 599px ) {
@@ -14422,3 +14461,6 @@ body.toplevel_page_untangling-mysite #wpfooter { display: none; }
 }
 CSS;
 }
+
+// Marketplace tab for Free/Personal sites: production replica + proposal (2026-11-06).
+require_once __DIR__ . '/untangling-marketplace-free.php';

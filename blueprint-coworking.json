@@ -33,6 +33,14 @@
 		},
 		{
 			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-marketplace-free.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-marketplace-free.php"
+			}
+		},
+		{
+			"step": "writeFile",
 			"path": "/wordpress/wp-content/mu-plugins/zz-untangling-seeder.php",
 			"data": {
 				"resource": "url",

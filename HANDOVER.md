@@ -153,6 +153,8 @@ MSD (Calypso branch `prototype/untangling-ia`):
 - Same site, landing on Add Themes → Marketplace tab (partner theme
   subscription state):
   https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-themes.json
+- Plugins Marketplace, Free plan (Add Plugins, proposal by default, Production switch in the controls):
+  https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-plugins.json
 
 ## How to work
 

@@ -12,6 +12,8 @@ and upsell placement live.
 (Personal plan, Prototype controls visible, lands on the Dashboard)
 
 Themes Marketplace entry, same site, lands on Add Themes → Marketplace tab:
+[Open the Plugins Marketplace, Free plan](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-plugins.json) — Add Plugins with the Marketplace tab before/after proposal. Flip "Marketplace tab (Free)" in the Prototype controls to compare.
+
 [Open the Themes Marketplace](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-themes.json)
 
 Notes:

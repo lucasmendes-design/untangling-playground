@@ -29,6 +29,7 @@ fi
 if [ -n "${UNTANGLING_SRC:-}" ]; then
 	cp "$UNTANGLING_SRC/untangling-prototype.php" .
 	cp "$UNTANGLING_SRC/untangling-seeder.php" .
+	cp "$UNTANGLING_SRC/untangling-marketplace-free.php" .
 fi
 if [ "${UNTANGLING_SEEDS_FROM_STUDIO:-0}" = "1" ]; then
 	STUDIO_ROOT="${STUDIO_ROOT:-$HOME/Studio}"
