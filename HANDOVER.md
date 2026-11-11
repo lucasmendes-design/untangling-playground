@@ -138,7 +138,7 @@ MSD (Calypso branch `prototype/untangling-ia`):
   page renders, `isRemoteMsd()` (off `*.localhost` → Playground blueprints +
   static previews).
 - `client/dashboard/app-dotcom/prototype-controls.ts` — MSD-side panel
-  (MSD style: Default | Hybrid | WP Admin), omnibar upsell pill injection,
+  (Persona: Blogger | Developer; the MSD style variants were retired), omnibar upsell pill injection,
   "My Site" row in the site-name dropdown.
 - `client/dashboard/app-dotcom/wpadmin-sidebar.scss` + `wpadmin-style.scss`
   — the WP Admin style variant (modern admin color scheme values).
