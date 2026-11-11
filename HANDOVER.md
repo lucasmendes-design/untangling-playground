@@ -140,8 +140,6 @@ MSD (Calypso branch `prototype/untangling-ia`):
 - `client/dashboard/app-dotcom/prototype-controls.ts` — MSD-side panel
   (Persona: Blogger | Developer; the MSD style variants were retired), omnibar upsell pill injection,
   "My Site" row in the site-name dropdown.
-- `client/dashboard/app-dotcom/wpadmin-sidebar.scss` + `wpadmin-style.scss`
-  — the WP Admin style variant (modern admin color scheme values).
 - `client/assets/images/untangling-previews/` — static previews for remote.
 
 ## Share links (no install needed)
@@ -186,8 +184,6 @@ activation redirect before seeding.
   force a full page load.
 - `loading="lazy"` images never load on the chromeless marketplace page in
   Chrome; use eager + `decoding="async"`.
-- `html.has-docked-help-center` makes the MSD sidebar transparent and wins on
-  source order; wpadmin-sidebar.scss carries an explicit re-dark rule.
 - Never navigate the Playground iframe programmatically (breaks its service
   worker); click through the UI.
 - Studio assigns ports itself. If yours differ from the hardcoded `localUrl`

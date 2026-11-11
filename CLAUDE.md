@@ -34,7 +34,8 @@ steps.
 - **One wp-admin design, one panel.** The all-in Dashboard is the only
   wp-admin design; the old `untangling_variant=dashboard|drawer` switch was
   removed on 2026-10-22 and the param is ignored. The MSD styles (Default /
-  Hybrid / WP Admin) are a separate switch: their CSS stays scoped.
+  Hybrid / WP Admin) were retired on 2026-11-11: the MSD panel keeps only the
+  Persona switch, and `?sidebar=` is ignored.
 - **Never link `admin.php?page=untangling-hosting`.** Retired; it redirects.
   Use the Prototype controls panel instead of hand-written `?untangling_*` URLs.
 - **Copy**: WordPress.com voice. Sentence case, short, no "simple/easy", no
