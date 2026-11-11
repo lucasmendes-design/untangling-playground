@@ -1,0 +1,83 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Untangling IA — Northlight Studio",
+		"author": "lucasmendes-design"
+	},
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"landingPage": "/wp-admin/",
+	"steps": [
+		{
+			"step": "mkdir",
+			"path": "/wordpress/wp-content/mu-plugins"
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/0-untangling-config.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/config-northlight.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-prototype.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-prototype.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-marketplace-free.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-marketplace-free.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/zz-untangling-seeder.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/untangling-seeder.php"
+			}
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/untangling-seed.json",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/seed-northlight.json"
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "wordpress-seo"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "contact-form-7"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'blogname', \"Northlight Studio\" ); untangling_seed_run( false );"
+		}
+	]
+}

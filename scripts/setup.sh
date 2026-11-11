@@ -1,7 +1,7 @@
 #!/bin/zsh
 # One-time local setup for the WP Admin half of the untangling prototype.
-# Creates the six Studio sites, wires the shared mu-plugin into each one,
-# installs WooCommerce where the seed needs it, seeds demo content, and prints
+# Creates the seven Studio sites, wires the shared mu-plugin into each one,
+# installs each site's plugins, seeds demo content, and prints
 # the slug → port table. Idempotent and non-destructive: rerun it anytime, it
 # only fills in what is missing and never replaces files that already exist.
 #
@@ -12,14 +12,16 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STUDIO_ROOT="${STUDIO_ROOT:-$HOME/Studio}"
 
-# slug | display name | seed key | needs woo
+# slug | display name | seed key | plugins (space separated wordpress.org slugs;
+# "jetpack-stub" places the header-only Jetpack stand-in a Simple site lists)
 SITES=(
-	"aperture-diaries|Aperture Diaries|aperture|"
-	"cast-iron-supply-co|Cast Iron Supply Co|castiron|woo"
+	"aperture-diaries|Aperture Diaries|aperture|jetpack-stub"
+	"northlight-studio|Northlight Studio|northlight|wordpress-seo contact-form-7"
+	"cast-iron-supply-co|Cast Iron Supply Co|castiron|woocommerce"
 	"core-coworking|Core Coworking|coworking|"
-	"open-ocean|Open ocean|openocean|"
-	"paper-fox-prints|Paper Fox Prints|paperfox|woo"
-	"slow-mornings|Slow Mornings|slowmornings|"
+	"open-ocean|Open ocean|openocean|jetpack-stub"
+	"paper-fox-prints|Paper Fox Prints|paperfox|woocommerce"
+	"slow-mornings|Slow Mornings|slowmornings|jetpack-stub"
 )
 
 ok()   { echo "OK   $1"; }
@@ -41,7 +43,7 @@ PORTS_FILE="$REPO/.untangling-ports"
 : > "$PORTS_FILE"
 
 for entry in "${SITES[@]}"; do
-	IFS='|' read -r slug name key woo <<< "$entry"
+	IFS='|' read -r slug name key plugins <<< "$entry"
 	dir="$STUDIO_ROOT/$slug"
 	mu="$dir/wp-content/mu-plugins"
 	echo ""
@@ -98,21 +100,33 @@ for entry in "${SITES[@]}"; do
 	ok "serving on http://localhost:$port"
 	echo "$slug=$port" >> "$PORTS_FILE"
 
-	# 4. WooCommerce for the store sites (seed products need it)
-	if [[ "$woo" == "woo" ]]; then
-		if studio wp --path "$dir" plugin is-active woocommerce >/dev/null 2>&1; then
-			ok "WooCommerce active"
-		else
-			echo "INFO installing WooCommerce (1-2 min)"
-			if studio wp --path "$dir" plugin install woocommerce --activate >/dev/null 2>&1; then
+	# 4. Plugins: what this demo site is meant to have installed. WooCommerce
+	# first on the store sites, because the seed products need it.
+	for plugin in ${=plugins}; do
+		if [[ "$plugin" == "jetpack-stub" ]]; then
+			if [[ -e "$dir/wp-content/plugins/jetpack/jetpack.php" ]]; then
+				ok "Jetpack stand-in present"
+			else
+				mkdir -p "$dir/wp-content/plugins/jetpack"
+				cp "$REPO/stubs/jetpack/jetpack.php" "$dir/wp-content/plugins/jetpack/jetpack.php" && ok "Jetpack stand-in placed (the shared plugin activates it)"
+			fi
+			continue
+		fi
+		if studio wp --path "$dir" plugin is-active "$plugin" >/dev/null 2>&1; then
+			ok "$plugin active"
+			continue
+		fi
+		echo "INFO installing $plugin (up to 2 min)"
+		if studio wp --path "$dir" plugin install "$plugin" --activate >/dev/null 2>&1; then
+			if [[ "$plugin" == "woocommerce" ]]; then
 				studio wp --path "$dir" transient delete _wc_activation_redirect >/dev/null 2>&1
 				studio wp --path "$dir" option update woocommerce_onboarding_profile '{"skipped":true}' --format=json >/dev/null 2>&1
-				ok "WooCommerce installed and activated"
-			else
-				warn "WooCommerce install failed — install it from wp-admin → Plugins, then rerun to seed products"
 			fi
+			ok "$plugin installed and activated"
+		else
+			warn "$plugin install failed — install it from wp-admin → Plugins, then rerun"
 		fi
-	fi
+	done
 
 	# 5. Seed (idempotent by seed version)
 	result="$(curl -s --max-time 120 "http://localhost:$port/?untangling_seed=run" | head -c 400)"
@@ -130,5 +144,5 @@ echo ""
 echo "Next: the MSD side (Calypso) hardcodes each site's port in"
 echo "  client/dashboard/sites/overview-blogger/mock-sites.ts (localUrl)."
 echo "  Lucas's mapping is open-ocean 8882 · aperture-diaries 8883 · cast-iron-supply-co 8885"
-echo "  core-coworking 8886 · paper-fox-prints 8887 · slow-mornings 8888."
-echo "  If your ports differ, update those six lines to match the table above."
+echo "  core-coworking 8886 · paper-fox-prints 8887 · slow-mornings 8888 · northlight-studio 8891."
+echo "  If your ports differ, update those seven lines to match the table above."

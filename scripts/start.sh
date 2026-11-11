@@ -19,6 +19,7 @@ SITES=(
 	"open-ocean|Open ocean|8882"
 	"paper-fox-prints|Paper Fox Prints|8887"
 	"slow-mornings|Slow Mornings|8888"
+	"northlight-studio|Northlight Studio|8891"
 )
 
 ok()   { echo "OK   $1"; }

@@ -1,0 +1,102 @@
+{
+	"version": "1",
+	"tagline": "Portraits, products and places in natural light",
+	"posts": [
+		{
+			"title": "A Morning With the Ferreira Family",
+			"category": "Sessions",
+			"days_ago": 2,
+			"image": "family-session",
+			"content": [
+				"We met at eight, before the park filled up. Three generations, one very patient dog, and forty minutes of soft light through the trees.",
+				"The gallery went out yesterday: 62 edited frames, with a short list of the ones I would print large."
+			]
+		},
+		{
+			"title": "How I Light a Product Shoot With One Window",
+			"category": "Behind the scenes",
+			"days_ago": 9,
+			"image": "window-light",
+			"content": [
+				"Most of my product work uses a north-facing window, a white board and a black board. That is the whole kit.",
+				"Move the white board closer to lift the shadows. Swap it for the black one when the object needs more shape. The post has a diagram for each setup."
+			]
+		},
+		{
+			"title": "New: Half-Day Sessions for Small Shops",
+			"category": "Studio news",
+			"days_ago": 16,
+			"image": "shop-session",
+			"content": [
+				"A half day covers about twenty products on a plain background, plus a handful of lifestyle frames for your home page.",
+				"Files arrive within a week, sized for your store and for print. Dates for next month are open on the booking page."
+			]
+		},
+		{
+			"title": "What to Wear for a Portrait Session",
+			"category": "Guides",
+			"days_ago": 24,
+			"image": "portrait-guide",
+			"content": [
+				"Solid colors, layers, and nothing you would not wear on a normal good day. Bring one alternative and we will decide on the spot.",
+				"Avoid logos and very fine stripes. Both pull attention away from your face, which is the reason we are here."
+			]
+		}
+	],
+	"pages": [
+		{
+			"title": "Northlight Studio",
+			"front": true,
+			"content": [
+				"Northlight is the photo studio of Lucas Mendes. Portraits, products and places, photographed in natural light.",
+				"Sessions run Tuesday to Saturday in the studio or on location. See the portfolio, check the services, and book a date."
+			]
+		},
+		{
+			"title": "Portfolio",
+			"content": [
+				"A selection from the last two years: family and portrait sessions, product work for small shops, and interiors for architects and hosts.",
+				"Every gallery here is published with the client's permission. Ask for a full set if you want to see a complete session."
+			]
+		},
+		{
+			"title": "Services",
+			"content": [
+				"Portrait session, one hour, 25 edited photos. Family session, ninety minutes, 60 edited photos. Product half day, about twenty products.",
+				"Interiors and events are quoted per project. Every booking includes a short call before the day and a private online gallery after it."
+			]
+		},
+		{
+			"title": "Book a Session",
+			"content": [
+				"Tell me what you have in mind, a couple of dates that work, and where you would like to shoot. I reply within one working day.",
+				"A 30% deposit confirms the date. You can move it once, free of charge, up to a week before the session."
+			]
+		},
+		{
+			"title": "Contact",
+			"content": [
+				"Rua da Luz 118, second floor. Visits by appointment, Tuesday to Saturday, 9:00 to 18:00.",
+				"Write to hello@northlightstudio.com or use the form on the booking page."
+			]
+		}
+	],
+	"drafts": [
+		{
+			"title": "Print Sizes, Explained",
+			"category": "Guides",
+			"days_ago": 1,
+			"content": [
+				"A short guide to choosing a print size for the wall you have, with the three sizes I recommend most."
+			]
+		},
+		{
+			"title": "Studio Calendar for December",
+			"category": "Studio news",
+			"days_ago": 3,
+			"content": [
+				"Last dates for prints before the holidays, and the days the studio is closed."
+			]
+		}
+	]
+}

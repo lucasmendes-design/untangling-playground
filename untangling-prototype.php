@@ -765,10 +765,160 @@ add_action( 'rest_api_init', function () {
 				'renewal_date' => isset( $meta['renewsOn'] ) ? $meta['renewsOn'] : null,
 				'site_name'    => get_bloginfo( 'name' ),
 				'site_url'     => home_url( '/' ),
+				'plugins'      => untangling_installed_plugins(),
 			);
 		},
 	) );
 } );
+
+/* -------------------------------------------------------------------------
+ * Installed plugins: built-ins on Simple sites, and the list the MSD mirrors
+ * ---------------------------------------------------------------------- */
+
+// The plugins WordPress.com runs on every site. A Simple site (Free,
+// Personal, Premium) cannot install plugins, but it does have these two,
+// managed by the platform. Jetpack is a header-only stand-in here
+// (stubs/jetpack): the real plugin needs a connection and would add a second
+// Jetpack menu next to the prototype's own.
+function untangling_managed_plugin_files() {
+	return array( 'akismet/akismet.php', 'jetpack/jetpack.php' );
+}
+
+function untangling_is_managed_plugin( $plugin_file ) {
+	return 'simple' === untangling_get_site_type() && in_array( $plugin_file, untangling_managed_plugin_files(), true );
+}
+
+// Keep the built-ins active on Simple sites, whatever the instance started with.
+add_action( 'admin_init', function () {
+	if ( 'simple' !== untangling_get_site_type() ) {
+		return;
+	}
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	foreach ( untangling_managed_plugin_files() as $plugin_file ) {
+		if ( file_exists( WP_PLUGIN_DIR . '/' . $plugin_file ) && ! is_plugin_active( $plugin_file ) ) {
+			activate_plugin( $plugin_file, '', false, true );
+		}
+	}
+} );
+
+// A managed plugin cannot be deactivated, deleted or edited: one quiet label
+// instead of the row actions, like the platform-managed rows on WordPress.com.
+add_filter( 'plugin_action_links', function ( $actions, $plugin_file ) {
+	if ( ! untangling_is_managed_plugin( $plugin_file ) ) {
+		return $actions;
+	}
+	return array(
+		'untangling-managed' => '<span class="untangling-managed-plugin">' . esc_html__( 'Managed by WordPress.com' ) . '</span>',
+	);
+}, 99, 2 );
+
+// Akismet adds its own Settings link on the plugin-specific filter, after the
+// generic one. On a managed site there is no key to set up.
+add_filter( 'plugin_action_links_akismet/akismet.php', function ( $actions ) {
+	if ( ! untangling_is_managed_plugin( 'akismet/akismet.php' ) ) {
+		return $actions;
+	}
+	return array_intersect_key( $actions, array( 'untangling-managed' => true ) );
+}, 999 );
+add_action( 'admin_head', function () {
+	if ( 'simple' !== untangling_get_site_type() ) {
+		return;
+	}
+	// "Set up your Akismet account": WordPress.com already did.
+	echo '<style>.akismet_activate, .akismet-alert, .akismet-setup-instructions { display: none !important; }</style>';
+} );
+
+add_action( 'admin_head-plugins.php', function () {
+	if ( 'simple' !== untangling_get_site_type() ) {
+		return;
+	}
+	?>
+	<style>
+		.untangling-managed-plugin { color: #50575e; }
+		<?php foreach ( untangling_managed_plugin_files() as $plugin_file ) : ?>
+		.plugins tr[data-plugin="<?php echo esc_attr( $plugin_file ); ?>"] .check-column input { visibility: hidden; }
+		<?php endforeach; ?>
+	</style>
+	<?php
+} );
+
+// Hello Dolly ships with core and says nothing about the site. Hide it so the
+// Plugins screen lists only what the demo site is meant to have.
+add_filter( 'all_plugins', function ( $plugins ) {
+	unset( $plugins['hello.php'] );
+	if ( 'simple' !== untangling_get_site_type() ) {
+		// Akismet is only part of the story on Simple sites, where it is managed.
+		if ( isset( $plugins['akismet/akismet.php'] ) && ! is_plugin_active( 'akismet/akismet.php' ) ) {
+			unset( $plugins['akismet/akismet.php'] );
+		}
+	}
+	return $plugins;
+} );
+
+// The platform updates managed plugins itself: no "new version available"
+// row under them and no count on the Plugins menu.
+add_filter( 'site_transient_update_plugins', function ( $updates ) {
+	if ( ! is_object( $updates ) || empty( $updates->response ) || ! function_exists( 'untangling_get_site_type' ) ) {
+		return $updates;
+	}
+	foreach ( untangling_managed_plugin_files() as $plugin_file ) {
+		if ( untangling_is_managed_plugin( $plugin_file ) ) {
+			unset( $updates->response[ $plugin_file ] );
+		}
+	}
+	return $updates;
+} );
+
+// Demo sites with regular plugins (Yoast SEO and friends) get those plugins'
+// own first-run prompts. They are not part of the story: keep the admin bar
+// identical to the MSD omnibar and the Dashboard free of setup notices.
+add_action( 'admin_bar_menu', function ( $bar ) {
+	$bar->remove_node( 'wpseo-menu' );
+}, 999 );
+add_action( 'admin_head', function () {
+	?>
+	<style>
+		#yoast-first-time-configuration-notice,
+		#toplevel_page_wpseo_dashboard .update-plugins { display: none !important; }
+	</style>
+	<?php
+} );
+add_action( 'admin_init', function () {
+	// Activation redirects would steal the first wp-admin page load.
+	if ( class_exists( 'WPSEO_Options' ) && WPSEO_Options::get( 'should_redirect_after_install_free', false ) ) {
+		// Yoast's "Installation Successful" screen.
+		WPSEO_Options::set( 'should_redirect_after_install_free', false );
+	}
+}, 1 );
+
+// What the MSD shows on its Plugins pages for this site, in the shape of one
+// `/me/sites/plugins` row per plugin.
+function untangling_installed_plugins() {
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	$rows = array();
+	foreach ( get_plugins() as $plugin_file => $data ) {
+		if ( 'hello.php' === $plugin_file ) {
+			continue;
+		}
+		$active = is_plugin_active( $plugin_file );
+		if ( 'akismet/akismet.php' === $plugin_file && ! $active ) {
+			continue;
+		}
+		$rows[] = array(
+			'id'          => preg_replace( '/\.php$/', '', $plugin_file ),
+			'slug'        => dirname( $plugin_file ),
+			'name'        => wp_strip_all_tags( $data['Name'] ),
+			'version'     => $data['Version'],
+			'description' => wp_strip_all_tags( $data['Description'] ),
+			'author'      => wp_strip_all_tags( $data['Author'] ),
+			'author_url'  => $data['AuthorURI'],
+			'plugin_url'  => $data['PluginURI'],
+			'active'      => $active,
+			'is_managed'  => untangling_is_managed_plugin( $plugin_file ),
+		);
+	}
+	return $rows;
+}
 
 // Local demo only: the MSD → WP Admin jump must not hit a login wall.
 // Guarded to localhost so this never does anything on a real host.
@@ -8548,7 +8698,7 @@ const UNTANGLING_BELL_SVG = '<svg class="untangling-svg untangling-bell-icon" wi
 // The WordPress.com mark the masterbar renders (logged-in.jsx wordpressIcon).
 const UNTANGLING_WPCOM_LOGO_SVG = '<svg class="untangling-svg untangling-wpcom-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="24" width="24" aria-hidden="true"><g><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zM3.5 12c0-1.232.264-2.402.736-3.459L8.291 19.65A8.5 8.5 0 013.5 12zm8.5 8.501c-.834 0-1.64-.122-2.401-.346l2.551-7.411 2.613 7.158a.718.718 0 00.061.117 8.497 8.497 0 01-2.824.482zm1.172-12.486c.512-.027.973-.081.973-.081.458-.054.404-.727-.054-.701 0 0-1.377.108-2.266.108-.835 0-2.239-.108-2.239-.108-.459-.026-.512.674-.054.701 0 0 .434.054.892.081l1.324 3.629-1.86 5.579-3.096-9.208c.512-.027.973-.081.973-.081.458-.054.403-.727-.055-.701 0 0-1.376.108-2.265.108-.16 0-.347-.004-.547-.01A8.491 8.491 0 0112 3.5c2.213 0 4.228.846 5.74 2.232-.037-.002-.072-.007-.11-.007-.835 0-1.427.727-1.427 1.509 0 .701.404 1.293.835 1.994.323.566.701 1.293.701 2.344 0 .727-.28 1.572-.647 2.748l-.848 2.833-3.072-9.138zm3.101 11.332l2.596-7.506c.485-1.213.646-2.182.646-3.045 0-.313-.021-.603-.057-.874A8.455 8.455 0 0120.5 12a8.493 8.493 0 01-4.227 7.347z"/></g></svg>';
 
-// Left cluster: W-logo dropdown (Discover, Sites, Domains, Emails / About,
+// Left cluster: W-logo dropdown (Sites, Domains, Emails, Plugins / About,
 // Get Involved — same items as the MSD Omnibar), then site → updates →
 // search ⌘K → comments → +New.
 add_action( 'admin_bar_menu', function ( $bar ) {
@@ -8562,10 +8712,10 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 		'title' => UNTANGLING_WPCOM_LOGO_SVG . '<span class="screen-reader-text">' . esc_html__( 'WordPress.com' ) . '</span>',
 		'href'  => $msd . '/sites',
 	) );
-	$bar->add_node( array( 'id' => 'untangling-logo-discover', 'parent' => 'wp-logo', 'title' => __( 'Discover' ), 'href' => $msd . '/discover' ) );
 	$bar->add_node( array( 'id' => 'untangling-logo-sites', 'parent' => 'wp-logo', 'title' => __( 'Sites' ), 'href' => $msd . '/sites' ) );
 	$bar->add_node( array( 'id' => 'untangling-logo-domains', 'parent' => 'wp-logo', 'title' => __( 'Domains' ), 'href' => $msd . '/domains' ) );
 	$bar->add_node( array( 'id' => 'untangling-logo-emails', 'parent' => 'wp-logo', 'title' => __( 'Emails' ), 'href' => $msd . '/emails' ) );
+	$bar->add_node( array( 'id' => 'untangling-logo-plugins', 'parent' => 'wp-logo', 'title' => __( 'Plugins' ), 'href' => $msd . '/plugins' ) );
 	$bar->add_group( array( 'id' => 'untangling-logo-secondary', 'parent' => 'wp-logo', 'meta' => array( 'class' => 'ab-sub-secondary' ) ) );
 	$bar->add_node( array( 'id' => 'untangling-about', 'parent' => 'untangling-logo-secondary', 'title' => __( 'About WordPress' ), 'href' => admin_url( 'about.php' ) ) );
 	$bar->add_node( array( 'id' => 'untangling-get-involved', 'parent' => 'untangling-logo-secondary', 'title' => __( 'Get Involved' ), 'href' => admin_url( 'contribute.php' ) ) );

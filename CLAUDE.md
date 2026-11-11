@@ -6,7 +6,7 @@ steps.
 
 ## Skills in this repo
 
-- `/untangling-setup` — one-time machine setup: six Studio sites + the Calypso
+- `/untangling-setup` — one-time machine setup: seven Studio sites + the Calypso
   branch, then boots everything and recaps. Run it once on a new machine.
 - `/untangling-start` — daily resume: boots what is not running, prints the
   live links, recaps the state.
@@ -24,7 +24,7 @@ steps.
 - `studio/<slug>/0-untangling-config.php` — per-site identity for local
   Studio sites (plan, slug, domains).
 - `config-<site>.php` / `blueprint-<site>.json` — Playground editions of the
-  same six sites (they point MSD links at the hosted preview). `blueprint.json`
+  same seven sites (they point MSD links at the hosted preview). `blueprint.json`
   is the locked walkthrough; `blueprint-quickstart.json` is the open share.
 - The MSD half is NOT here: it is branch `prototype/untangling-ia` of
   github.com/Automattic/wp-calypso (see HANDOVER.md for the key files).

@@ -11,11 +11,12 @@ wp-admin that previews site health and hands off to the MSD for the deep
 work. Two halves, linked both ways:
 
 - **MSD half**: Calypso branch `prototype/untangling-ia`, served locally at
-  http://my.localhost:3333. Six mock sites with live hydration from the Studio
-  sites (name, icon, iframe preview). Two personas, sticky via localStorage:
-  `?persona=blogger` (solo Aperture Diaries, Free) and `?persona=developer`
-  (the other five).
-- **wp-admin half**: six Studio sites sharing ONE mu-plugin
+  http://my.localhost:3333. Seven mock sites with live hydration from the Studio
+  sites (name, icon, iframe preview, installed plugins). Two personas, sticky
+  via localStorage: the **blogger is the default** (Aperture Diaries, Free, and
+  Northlight Studio, Business on its own domain) and `?persona=developer`
+  shows the other five. `?persona=blogger` switches back.
+- **wp-admin half**: seven Studio sites sharing ONE mu-plugin
   (`untangling-prototype.php`), parameterized per site by
   `0-untangling-config.php`. Plan drives both surfaces consistently: the
   Prototype controls **Plan** segment (Free · Personal · Premium · Business ·
@@ -26,7 +27,8 @@ work. Two halves, linked both ways:
 
 | Site | Plan | Persona | Notes |
 |---|---|---|---|
-| Aperture Diaries | Free | blogger | Simple, domain upsell; flip to Personal to see the custom domain |
+| Aperture Diaries | Free | blogger | Simple, domain upsell; flip to Personal to see the custom domain. Plugins: Akismet and Jetpack, managed by WordPress.com |
+| Northlight Studio | Business | blogger | Atomic, `northlightstudio.com`. Plugins: Yoast SEO, Contact Form 7 |
 | Open ocean | Free | developer | |
 | Slow Mornings | Premium | developer | |
 | Core Coworking | Business | developer | Atomic |

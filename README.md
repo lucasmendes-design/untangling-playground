@@ -26,7 +26,12 @@ Notes:
 
 ## Combined demo (MSD + WP Admin)
 
-The six `blueprint-<site>.json` files back the combined demo: each stands in
+The blogger persona is the default of the combined demo: two sites, Aperture
+Diaries (Free) and Northlight Studio (Business, on `northlightstudio.com`).
+[Open Northlight Studio in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/blueprint-northlight.json)
+(Business plan, Yoast SEO and Contact Form 7 installed).
+
+The seven `blueprint-<site>.json` files back the combined demo: each stands in
 for one of the prototype's demo sites, seeded with its own content and plan
 identity (`config-<site>.php` + `seed-<site>.json`). Their MSD-bound links
 point at the hosted Dashboard preview instead of showing a notice, so the two
@@ -44,10 +49,13 @@ halves of the prototype link to each other.
 - `blueprint-themes.json` — the same quick start landing on the Themes
   Marketplace tab (switched to Business so the partner theme subscription
   state is on screen).
-- `blueprint-<site>.json` / `config-<site>.php` / `seed-<site>.json` — the six
+- `blueprint-<site>.json` / `config-<site>.php` / `seed-<site>.json` — the seven
   per-site blueprints for the combined demo.
 - `studio/<slug>/0-untangling-config.php` — local Studio identities for the
-  six sites.
+  seven sites.
+- `stubs/jetpack/jetpack.php` — a header-only stand-in. A Simple site (Free,
+  Personal, Premium) lists Akismet and Jetpack as managed by WordPress.com;
+  the real Jetpack needs a connection the demo sites do not have.
 - `scripts/setup.sh` / `scripts/start.sh` — local setup and daily resume.
 - `sync.sh` — commits and pushes the repo (optionally pulling the plugin and
   seeds from an external working copy, see `.untangling.env` in the script).
@@ -64,7 +72,7 @@ git clone https://github.com/lucasmendes-design/untangling-playground.git
 cd untangling-playground && claude
 ```
 
-Then type `/untangling-setup`. It creates and seeds the six Studio sites,
+Then type `/untangling-setup`. It creates and seeds the seven Studio sites,
 checks out the Calypso branch `prototype/untangling-ia`, reconciles the
 Studio ports with the MSD mocks, boots everything, and recaps the state from
 `HANDOVER.md`. From the next day on, `/untangling-start` resumes,

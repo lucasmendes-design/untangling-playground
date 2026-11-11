@@ -39,6 +39,7 @@ if [ "${UNTANGLING_SEEDS_FROM_STUDIO:-0}" = "1" ]; then
 	cp "$STUDIO_ROOT/open-ocean/wp-content/mu-plugins/untangling-seed.json" seed-openocean.json
 	cp "$STUDIO_ROOT/paper-fox-prints/wp-content/mu-plugins/untangling-seed.json" seed-paperfox.json
 	cp "$STUDIO_ROOT/slow-mornings/wp-content/mu-plugins/untangling-seed.json" seed-slowmornings.json
+	cp "$STUDIO_ROOT/northlight-studio/wp-content/mu-plugins/untangling-seed.json" seed-northlight.json
 fi
 
 # The demo is the plugin *plus* its blueprints and configs — syncing only the

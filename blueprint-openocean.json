@@ -56,6 +56,28 @@
 			}
 		},
 		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "akismet"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "mkdir",
+			"path": "/wordpress/wp-content/plugins/jetpack"
+		},
+		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/plugins/jetpack/jetpack.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/lucasmendes-design/untangling-playground/main/stubs/jetpack/jetpack.php"
+			}
+		},
+		{
 			"step": "runPHP",
 			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'blogname', \"Open ocean\" ); untangling_seed_run( false );"
 		}
